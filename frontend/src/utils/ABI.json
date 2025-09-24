@@ -1,0 +1,227 @@
+const factoryABI = [
+        // Create Farmer Contract
+        {
+          inputs: [
+            { internalType: "string", name: "_farmerName", type: "string" },
+            { internalType: "string", name: "_location", type: "string" },
+            { internalType: "string", name: "_cropType", type: "string" },
+            { internalType: "uint256", name: "_quantity", type: "uint256" },
+            { internalType: "uint256", name: "_totalPrice", type: "uint256" },
+          ],
+          name: "createFarmerContract",
+          outputs: [{ internalType: "address", name: "", type: "address" }],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+
+        // Events
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "address",
+              name: "contractAddress",
+              type: "address",
+            },
+            {
+              indexed: true,
+              internalType: "address",
+              name: "farmer",
+              type: "address",
+            },
+          ],
+          name: "NewFarmerContract",
+          type: "event",
+        },
+
+        // Whitelisting
+        {
+          inputs: [
+            { internalType: "address", name: "_farmer", type: "address" },
+          ],
+          name: "whitelistFarmer",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [{ internalType: "address", name: "_fpo", type: "address" }],
+          name: "whitelistFPO",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            { internalType: "address", name: "_retailer", type: "address" },
+          ],
+          name: "whitelistRetailer",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            { internalType: "address", name: "_account", type: "address" },
+            { internalType: "string", name: "_role", type: "string" },
+          ],
+          name: "removeFromWhitelist",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            { internalType: "address", name: "_farmer", type: "address" },
+          ],
+          name: "isFarmerWhitelisted",
+          outputs: [{ internalType: "bool", name: "", type: "bool" }],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [{ internalType: "address", name: "_fpo", type: "address" }],
+          name: "isFPOWhitelisted",
+          outputs: [{ internalType: "bool", name: "", type: "bool" }],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            { internalType: "address", name: "_retailer", type: "address" },
+          ],
+          name: "isRetailerWhitelisted",
+          outputs: [{ internalType: "bool", name: "", type: "bool" }],
+          stateMutability: "view",
+          type: "function",
+        },
+
+        // Deployed contracts
+        {
+          inputs: [],
+          name: "getDeployedContracts",
+          outputs: [{ internalType: "address[]", name: "", type: "address[]" }],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+          name: "deployedContracts",
+          outputs: [{ internalType: "address", name: "", type: "address" }],
+          stateMutability: "view",
+          type: "function",
+        },
+
+        // Child contract details
+        {
+          inputs: [
+            { internalType: "address", name: "_contract", type: "address" },
+          ],
+          name: "getFarmerDetails",
+          outputs: [
+            { internalType: "string", name: "name", type: "string" },
+            { internalType: "string", name: "location", type: "string" },
+            { internalType: "string", name: "cropType", type: "string" },
+            { internalType: "uint256", name: "quantity", type: "uint256" },
+            { internalType: "uint256", name: "totalPrice", type: "uint256" },
+            { internalType: "address", name: "wallet", type: "address" },
+            { internalType: "bool", name: "isSold", type: "bool" },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            { internalType: "address", name: "_contract", type: "address" },
+          ],
+          name: "getFpoDetails",
+          outputs: [
+            { internalType: "string", name: "name", type: "string" },
+            { internalType: "string", name: "location", type: "string" },
+            { internalType: "string", name: "agmark", type: "string" },
+            { internalType: "string", name: "fssai", type: "string" },
+            { internalType: "uint256", name: "agreedPrice", type: "uint256" },
+            { internalType: "address", name: "wallet", type: "address" },
+            { internalType: "bool", name: "hasPaid", type: "bool" },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            { internalType: "address", name: "_contract", type: "address" },
+          ],
+          name: "getRetailerDetails",
+          outputs: [
+            { internalType: "string", name: "name", type: "string" },
+            { internalType: "string", name: "location", type: "string" },
+            { internalType: "uint256", name: "agreedPrice", type: "uint256" },
+            { internalType: "address", name: "wallet", type: "address" },
+            { internalType: "bool", name: "hasPaid", type: "bool" },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            { internalType: "address", name: "_contract", type: "address" },
+          ],
+          name: "getContractStatus",
+          outputs: [
+            { internalType: "bool", name: "funded", type: "bool" },
+            { internalType: "bool", name: "released", type: "bool" },
+            { internalType: "bool", name: "sold", type: "bool" },
+            { internalType: "bool", name: "retailerRegistered", type: "bool" },
+            { internalType: "bool", name: "retailerFunded", type: "bool" },
+            { internalType: "bool", name: "retailerReleased", type: "bool" },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+
+        // Restored helper functions
+        {
+          inputs: [],
+          name: "getAllFarmers",
+          outputs: [
+            { internalType: "string[]", name: "names", type: "string[]" },
+            { internalType: "address[]", name: "contracts", type: "address[]" },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "getAllFPOs",
+          outputs: [
+            { internalType: "string[]", name: "names", type: "string[]" },
+            { internalType: "address[]", name: "wallets", type: "address[]" },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "getAllRetailers",
+          outputs: [
+            { internalType: "string[]", name: "names", type: "string[]" },
+            { internalType: "address[]", name: "wallets", type: "address[]" },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            { internalType: "address", name: "_contract", type: "address" },
+          ],
+          name: "getPriceFlow",
+          outputs: [
+            { internalType: "uint256", name: "farmerPrice", type: "uint256" },
+            { internalType: "uint256", name: "fpoPrice", type: "uint256" },
+            { internalType: "uint256", name: "retailerPrice", type: "uint256" },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+      ];

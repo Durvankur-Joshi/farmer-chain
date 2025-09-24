@@ -15,7 +15,14 @@ export default function AuthForm() {
     city: "",
     state: "",
     wallet_address: "",
+    role: "farmer", // 👈 added here
   });
+
+  // keep role and formData in sync
+  const handleRoleChange = (e) => {
+    setRole(e.target.value);
+    setFormData({ ...formData, role: e.target.value });
+  };
 
   // connect MetaMask
   const connectWallet = async () => {
@@ -43,9 +50,9 @@ export default function AuthForm() {
 
     let endpoint = "";
     if (isLogin) {
-      if (role === "farmer") endpoint = "/api/farmer/login-check/";
-      if (role === "fpo") endpoint = "/api/fpo/login-check/";
-      if (role === "retailer") endpoint = "/api/retailer/login-check/";
+      if (role === "farmer") endpoint = "/api/token/";
+      if (role === "fpo") endpoint = "/api/token/";
+      if (role === "retailer") endpoint = "/api/token/";
     } else {
       if (role === "farmer") endpoint = "/api/farmer/register/";
       if (role === "fpo") endpoint = "/api/fpo/register/";
@@ -72,7 +79,7 @@ export default function AuthForm() {
         {/* Toggle between roles */}
         <select
           value={role}
-          onChange={(e) => setRole(e.target.value)}
+          onChange={handleRoleChange}
           className="w-full p-2 mb-4 border rounded"
         >
           <option value="farmer">Farmer</option>
