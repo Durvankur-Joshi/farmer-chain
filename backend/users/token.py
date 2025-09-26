@@ -14,13 +14,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     def validate(self, attrs):
         role = attrs.get("role").lower()
-        
-        # --- MODIFIED: Accept 'username' or 'email' as the identifier ---
-        user_identifier = attrs.get("username") or attrs.get("email")
-        if not user_identifier:
-            raise serializers.ValidationError("Username or email is required.")
-        # --- END MODIFICATION ---
-            
+        user_identifier = attrs.get("username")
         password = attrs.get("password")
 
         # Determine which model to authenticate against

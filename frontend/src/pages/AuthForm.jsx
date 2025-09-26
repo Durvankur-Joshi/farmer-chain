@@ -15,7 +15,7 @@ export default function AuthForm() {
     city: "",
     state: "",
     wallet_address: "",
-    role: "farmer", // 👈 added here
+    role: "farmer", // ðŸ‘ˆ added here
   });
 
   // keep role and formData in sync
@@ -49,18 +49,29 @@ export default function AuthForm() {
     e.preventDefault();
 
     let endpoint = "";
+    let payload = {}; // <-- Create a payload object to send
+
     if (isLogin) {
-      if (role === "farmer") endpoint = "/api/token/";
-      if (role === "fpo") endpoint = "/api/token/";
-      if (role === "retailer") endpoint = "/api/token/";
+      endpoint = "/api/token/";
+      // --- THIS IS THE FIX ---
+      // For login, map the form's 'email' field to 'username' for the backend.
+      payload = {
+        username: formData.email,
+        password: formData.password,
+        role: formData.role,
+      };
+      // --- END OF FIX ---
     } else {
       if (role === "farmer") endpoint = "/api/farmer/register/";
       if (role === "fpo") endpoint = "/api/fpo/register/";
       if (role === "retailer") endpoint = "/api/retailer/register/";
+      // For registration, the formData is already in the correct format.
+      payload = formData;
     }
 
     try {
-      const res = await axios.post(endpoint, formData);
+      // Use the new payload object for the request
+      const res = await axios.post(endpoint, payload);
       console.log("Success:", res.data);
       alert("Success! Check console.");
     } catch (err) {
