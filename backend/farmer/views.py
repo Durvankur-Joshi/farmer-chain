@@ -68,3 +68,58 @@ class FarmerDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Farmer.objects.all()
     serializer_class = FarmerSerializer
     permission_classes = [IsAuthenticated, IsFarmer]
+    
+    
+# ... existing imports ...
+from rest_framework import generics, status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from common.permissions import IsFarmer
+from fpo.models import FPOQuoteRequest
+from .models import FarmerBid
+from .serializers import FarmerBidSerializer
+from fpo.serializers import FPOQuoteRequestSerializer
+
+# ... existing Farmer views ...
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsFarmer])
+def farmer_dashboard(request):
+    farmer = request.user.user_obj # Assuming custom auth sets this
+    
+    # Open quotes farmer can bid on
+    open_quotes = FPOQuoteRequest.objects.filter(status='open').exclude(bids__farmer=farmer)
+    
+    # Farmer's active bids
+    my_bids = FarmerBid.objects.filter(farmer=farmer)
+
+    data = {
+        "open_quotes_count": open_quotes.count(),
+        "my_bids_count": my_bids.count(),
+        "my_bids": FarmerBidSerializer(my_bids, many=True).data,
+    }
+    return Response(data)
+
+class OpenQuoteListView(generics.ListAPIView):
+    """
+    Lists all open quotes from FPOs that this farmer has not bid on yet.
+    """
+    serializer_class = FPOQuoteRequestSerializer
+    permission_classes = [IsAuthenticated, IsFarmer]
+
+    def get_queryset(self):
+        farmer = self.request.user.user_obj
+        return FPOQuoteRequest.objects.filter(status='open').exclude(bids__farmer=farmer)
+
+class FarmerBidCreateView(generics.CreateAPIView):
+    """
+    Allows a farmer to create a bid on a specific FPO quote.
+    """
+    serializer_class = FarmerBidSerializer
+    permission_classes = [IsAuthenticated, IsFarmer]
+
+    def perform_create(self, serializer):
+        quote = get_object_or_404(FPOQuoteRequest, pk=self.kwargs['quote_pk'])
+        if quote.status != 'open':
+            raise serializers.ValidationError("This quote is no longer open for bidding.")
+        serializer.save(farmer=self.request.user.user_obj, quote=quote)

@@ -1,0 +1,2560 @@
+Directory structure:
+└── backend/
+    ├── db.sqlite3
+    ├── manage.py
+    ├── requirements.txt
+    ├── admin_app/
+    │   ├── __init__.py
+    │   ├── admin.py
+    │   ├── apps.py
+    │   ├── models.py
+    │   ├── serializers.py
+    │   ├── tests.py
+    │   ├── urls.py
+    │   ├── views.py
+    │   └── migrations/
+    │       ├── 0001_initial.py
+    │       └── __init__.py
+    ├── common/
+    │   └── permissions.py
+    ├── farmer/
+    │   ├── __init__.py
+    │   ├── admin.py
+    │   ├── apps.py
+    │   ├── models.py
+    │   ├── serializers.py
+    │   ├── tests.py
+    │   ├── urls.py
+    │   ├── views.py
+    │   └── migrations/
+    │       ├── 0001_initial.py
+    │       ├── 0002_farmer_approval_status.py
+    │       ├── 0003_fporeviewoffarmer_farmerbid.py
+    │       ├── 0004_farmerbid_quote_fporeviewoffarmer_bid_and_more.py
+    │       └── __init__.py
+    ├── FarmerChain/
+    │   ├── __init__.py
+    │   ├── asgi.py
+    │   ├── settings.py
+    │   ├── urls.py
+    │   └── wsgi.py
+    ├── fpo/
+    │   ├── __init__.py
+    │   ├── admin.py
+    │   ├── apps.py
+    │   ├── models.py
+    │   ├── serializers.py
+    │   ├── tests.py
+    │   ├── urls.py
+    │   ├── views.py
+    │   └── migrations/
+    │       ├── 0001_initial.py
+    │       ├── 0002_fpo_approval_status.py
+    │       ├── 0003_fpoquoterequest.py
+    │       ├── 0004_retailerreviewoffpo_fpobid.py
+    │       ├── 0005_fpobid_quote_retailerreviewoffpo_bid_and_more.py
+    │       └── __init__.py
+    ├── negotiation/
+    │   ├── __init__.py
+    │   ├── admin.py
+    │   ├── apps.py
+    │   ├── models.py
+    │   ├── serializers.py
+    │   ├── tests.py
+    │   ├── urls.py
+    │   ├── views.py
+    │   └── migrations/
+    │       ├── 0001_initial.py
+    │       └── __init__.py
+    ├── retailer/
+    │   ├── __init__.py
+    │   ├── admin.py
+    │   ├── apps.py
+    │   ├── models.py
+    │   ├── serializers.py
+    │   ├── tests.py
+    │   ├── urls.py
+    │   ├── views.py
+    │   └── migrations/
+    │       ├── 0001_initial.py
+    │       ├── 0002_retailer_approval_status.py
+    │       ├── 0003_retailerquoterequest.py
+    │       └── __init__.py
+    └── users/
+        ├── token.py
+        └── token_auth.py
+
+================================================
+FILE: db.sqlite3
+================================================
+[Non-text file]
+
+
+================================================
+FILE: manage.py
+================================================
+#!/usr/bin/env python
+"""Django's command-line utility for administrative tasks."""
+import os
+import sys
+
+
+def main():
+    """Run administrative tasks."""
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'FarmerChain.settings')
+    try:
+        from django.core.management import execute_from_command_line
+    except ImportError as exc:
+        raise ImportError(
+            "Couldn't import Django. Are you sure it's installed and "
+            "available on your PYTHONPATH environment variable? Did you "
+            "forget to activate a virtual environment?"
+        ) from exc
+    execute_from_command_line(sys.argv)
+
+
+if __name__ == '__main__':
+    main()
+
+
+
+================================================
+FILE: requirements.txt
+================================================
+Django==5.2.4
+djangorestframework==3.16.0
+djangorestframework-simplejwt==5.5.0
+django-cors-headers==4.7.0
+
+
+
+================================================
+FILE: admin_app/__init__.py
+================================================
+
+
+
+================================================
+FILE: admin_app/admin.py
+================================================
+from django.contrib import admin
+
+# Register your models here.
+
+
+
+================================================
+FILE: admin_app/apps.py
+================================================
+from django.apps import AppConfig
+
+
+class AdminAppConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'admin_app'
+
+
+
+================================================
+FILE: admin_app/models.py
+================================================
+from django.db import models
+from django.contrib.auth.hashers import make_password, check_password
+
+class Admin(models.Model):
+    username = models.CharField(max_length=100, unique=True)
+    password = models.CharField(max_length=128)
+    wallet_address = models.CharField(max_length=100, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.username
+
+    def set_password(self, raw_password):
+        self.password = make_password(raw_password)
+    
+    def check_password(self, raw_password):
+        return check_password(raw_password, self.password)
+
+
+================================================
+FILE: admin_app/serializers.py
+================================================
+from rest_framework import serializers
+from .models import Admin
+
+class AdminSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Admin
+        fields = '__all__'
+        extra_kwargs = {'password': {'write_only': True}}
+
+class AdminRegistrationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Admin
+        fields = ['username', 'password', 'wallet_address']
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def create(self, validated_data):
+        password = validated_data.pop('password')
+        admin = Admin.objects.create(**validated_data)
+        admin.set_password(password)
+        admin.save()
+        return admin
+
+
+================================================
+FILE: admin_app/tests.py
+================================================
+from django.test import TestCase
+
+# Create your tests here.
+
+
+
+================================================
+FILE: admin_app/urls.py
+================================================
+from django.urls import path
+from .views import (
+    AdminRegistrationView, 
+    AdminListView, 
+    AdminDetailView,
+    pending_registrations,
+    approve_farmer,
+    reject_farmer,
+    approve_fpo,
+    reject_fpo,
+    approve_retailer,
+    reject_retailer,
+    admin_login_check
+)
+
+urlpatterns = [
+    path('register/', AdminRegistrationView.as_view(), name='admin-register'),
+    path('login-check/', admin_login_check, name='admin-login-check'),
+    path('', AdminListView.as_view(), name='admin-list'),
+    path('<int:pk>/', AdminDetailView.as_view(), name='admin-detail'),
+    
+    # Admin approval routes
+    path('pending-registrations/', pending_registrations, name='pending-registrations'),
+    path('approve-farmer/<int:farmer_id>/', approve_farmer, name='approve-farmer'),
+    path('reject-farmer/<int:farmer_id>/', reject_farmer, name='reject-farmer'),
+    path('approve-fpo/<int:fpo_id>/', approve_fpo, name='approve-fpo'),
+    path('reject-fpo/<int:fpo_id>/', reject_fpo, name='reject-fpo'),
+    path('approve-retailer/<int:retailer_id>/', approve_retailer, name='approve-retailer'),
+    path('reject-retailer/<int:retailer_id>/', reject_retailer, name='reject-retailer'),
+]
+
+
+================================================
+FILE: admin_app/views.py
+================================================
+from rest_framework import generics, status
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.decorators import api_view, permission_classes
+from django.shortcuts import get_object_or_404
+from .models import Admin
+from .serializers import AdminSerializer, AdminRegistrationSerializer
+from common.permissions import IsAdminApp
+from farmer.models import Farmer
+from fpo.models import FPO
+from retailer.models import Retailer
+from farmer.serializers import FarmerSerializer
+from fpo.serializers import FPOSerializer
+from retailer.serializers import RetailerSerializer
+
+
+class AdminRegistrationView(generics.CreateAPIView):
+    queryset = Admin.objects.all()
+    serializer_class = AdminRegistrationSerializer
+    permission_classes = [AllowAny]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            {"message": "Admin registered successfully", "data": serializer.data},
+            status=status.HTTP_201_CREATED,
+            headers=headers
+        )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def admin_login_check(request):
+    username = request.data.get('username')
+    
+    try:
+        admin = Admin.objects.get(username=username)
+        return Response({
+            'message': 'Admin account found. You can proceed to login.',
+            'approved': True,
+            'status': 'approved'
+        }, status=status.HTTP_200_OK)
+    except Admin.DoesNotExist:
+        return Response({
+            'message': 'Admin not found with this username.',
+            'approved': False,
+            'status': 'not_found'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+
+class AdminListView(generics.ListAPIView):
+    queryset = Admin.objects.all()
+    serializer_class = AdminSerializer
+    permission_classes = [IsAuthenticated, IsAdminApp]
+
+
+class AdminDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Admin.objects.all()
+    serializer_class = AdminSerializer
+    permission_classes = [IsAuthenticated, IsAdminApp]
+
+
+# New views for admin approval system
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsAdminApp])
+def pending_registrations(request):
+    pending_farmers = Farmer.objects.filter(approval_status='pending')
+    pending_fpos = FPO.objects.filter(approval_status='pending')
+    pending_retailers = Retailer.objects.filter(approval_status='pending')
+    
+    farmer_serializer = FarmerSerializer(pending_farmers, many=True)
+    fpo_serializer = FPOSerializer(pending_fpos, many=True)
+    retailer_serializer = RetailerSerializer(pending_retailers, many=True)
+    
+    return Response({
+        'farmers': farmer_serializer.data,
+        'fpos': fpo_serializer.data,
+        'retailers': retailer_serializer.data
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsAdminApp])
+def approve_farmer(request, farmer_id):
+    farmer = get_object_or_404(Farmer, id=farmer_id)
+    farmer.approval_status = 'approved'
+    farmer.save()
+    return Response({'message': 'Farmer approved successfully'})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsAdminApp])
+def reject_farmer(request, farmer_id):
+    farmer = get_object_or_404(Farmer, id=farmer_id)
+    farmer.approval_status = 'rejected'
+    farmer.save()
+    return Response({'message': 'Farmer rejected successfully'})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsAdminApp])
+def approve_fpo(request, fpo_id):
+    fpo = get_object_or_404(FPO, id=fpo_id)
+    fpo.approval_status = 'approved'
+    fpo.save()
+    return Response({'message': 'FPO approved successfully'})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsAdminApp])
+def reject_fpo(request, fpo_id):
+    fpo = get_object_or_404(FPO, id=fpo_id)
+    fpo.approval_status = 'rejected'
+    fpo.save()
+    return Response({'message': 'FPO rejected successfully'})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsAdminApp])
+def approve_retailer(request, retailer_id):
+    retailer = get_object_or_404(Retailer, id=retailer_id)
+    retailer.approval_status = 'approved'
+    retailer.save()
+    return Response({'message': 'Retailer approved successfully'})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsAdminApp])
+def reject_retailer(request, retailer_id):
+    retailer = get_object_or_404(Retailer, id=retailer_id)
+    retailer.approval_status = 'rejected'
+    retailer.save()
+    return Response({'message': 'Retailer rejected successfully'})
+
+
+================================================
+FILE: admin_app/migrations/0001_initial.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-18 07:27
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='Admin',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('username', models.CharField(max_length=100, unique=True)),
+                ('password', models.CharField(max_length=128)),
+                ('wallet_address', models.CharField(max_length=100, unique=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: admin_app/migrations/__init__.py
+================================================
+
+
+
+================================================
+FILE: common/permissions.py
+================================================
+from rest_framework.permissions import BasePermission
+from farmer.models import Farmer
+from fpo.models import FPO
+from retailer.models import Retailer
+
+class IsFarmer(BasePermission):
+    def has_permission(self, request, view):
+        if not (request.user and getattr(request.user, "role", None) == "farmer"):
+            return False
+        
+        # Check if the farmer is approved
+        try:
+            farmer = Farmer.objects.get(id=request.user.user_id)
+            return farmer.approval_status == 'approved'
+        except Farmer.DoesNotExist:
+            return False
+
+class IsFPO(BasePermission):
+    def has_permission(self, request, view):
+        if not (request.user and getattr(request.user, "role", None) == "fpo"):
+            return False
+        
+        # Check if the FPO is approved
+        try:
+            fpo = FPO.objects.get(id=request.user.user_id)
+            return fpo.approval_status == 'approved'
+        except FPO.DoesNotExist:
+            return False
+
+class IsRetailer(BasePermission):
+    def has_permission(self, request, view):
+        if not (request.user and getattr(request.user, "role", None) == "retailer"):
+            return False
+        
+        # Check if the retailer is approved
+        try:
+            retailer = Retailer.objects.get(id=request.user.user_id)
+            return retailer.approval_status == 'approved'
+        except Retailer.DoesNotExist:
+            return False
+
+class IsAdminApp(BasePermission):
+    def has_permission(self, request, view):
+        return request.user and getattr(request.user, "role", None) == "admin"
+
+
+================================================
+FILE: farmer/__init__.py
+================================================
+
+
+
+================================================
+FILE: farmer/admin.py
+================================================
+from django.contrib import admin
+
+# Register your models here.
+
+
+
+================================================
+FILE: farmer/apps.py
+================================================
+from django.apps import AppConfig
+
+
+class FarmerConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'farmer'
+
+
+
+================================================
+FILE: farmer/models.py
+================================================
+from django.db import models
+from django.contrib.auth.hashers import make_password, check_password
+
+class Farmer(models.Model):
+    APPROVAL_STATUS = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    
+    name = models.CharField(max_length=100)
+    email = models.EmailField(unique=True)
+    password = models.CharField(max_length=128)
+    aadhaar_number = models.CharField(max_length=12, unique=True)
+    wallet_address = models.CharField(max_length=100, unique=True)
+    city = models.CharField(max_length=50)
+    state = models.CharField(max_length=50)
+    approval_status = models.CharField(max_length=10, choices=APPROVAL_STATUS, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+    def set_password(self, raw_password):
+        self.password = make_password(raw_password)
+    
+    def check_password(self, raw_password):
+        return check_password(raw_password, self.password)
+    
+# Add these new models to your existing farmer/models.py
+from django.db import models
+from django.contrib.auth.hashers import make_password, check_password
+from fpo.models import FPOQuoteRequest, FPO
+
+# ... Farmer model is already here ...
+
+class FarmerBid(models.Model):
+    STATUS_CHOICES = [
+        ('submitted', 'Submitted'),
+        ('accepted', 'Accepted'),
+        ('rejected', 'Rejected'),
+    ]
+    PAYMENT_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('paid', 'Paid'),
+        ('failed', 'Failed'),
+    ]
+
+    farmer = models.ForeignKey(Farmer, on_delete=models.CASCADE, related_name='bids')
+    quote = models.ForeignKey(FPOQuoteRequest, on_delete=models.CASCADE, related_name='bids')
+    bid_amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="Price per unit")
+    delivery_time_days = models.PositiveIntegerField()
+    comments = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='submitted')
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    # Blockchain fields
+    payment_status = models.CharField(max_length=10, choices=PAYMENT_STATUS_CHOICES, default='pending')
+    transaction_hash = models.CharField(max_length=66, blank=True, null=True)
+
+    def __str__(self):
+        return f"Bid from {self.farmer.name} for {self.quote.product_name}"
+
+class FPOReviewOfFarmer(models.Model):
+    RATING_CHOICES = [(i, str(i)) for i in range(1, 6)]
+
+    farmer = models.ForeignKey(Farmer, on_delete=models.CASCADE, related_name='reviews_from_fpos')
+    fpo = models.ForeignKey(FPO, on_delete=models.CASCADE)
+    bid = models.OneToOneField(FarmerBid, on_delete=models.CASCADE)
+    rating = models.PositiveSmallIntegerField(choices=RATING_CHOICES)
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+================================================
+FILE: farmer/serializers.py
+================================================
+from rest_framework import serializers
+from .models import Farmer
+
+class FarmerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Farmer
+        fields = '__all__'
+        extra_kwargs = {'password': {'write_only': True}}
+
+class FarmerRegistrationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Farmer
+        fields = ['name', 'email', 'password', 'aadhaar_number', 'wallet_address', 'city', 'state']
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def create(self, validated_data):
+        password = validated_data.pop('password')
+        farmer = Farmer.objects.create(**validated_data)
+        farmer.set_password(password)
+        farmer.save()
+        return farmer
+    
+    
+from rest_framework import serializers
+from .models import Farmer, FarmerBid, FPOReviewOfFarmer
+# Add these new serializers
+
+class FarmerBidSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FarmerBid
+        fields = '__all__'
+        read_only_fields = ('farmer', 'status', 'submitted_at', 'payment_status', 'transaction_hash')
+
+class FPOReviewOfFarmerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FPOReviewOfFarmer
+        fields = '__all__'
+        read_only_fields = ('fpo', 'bid')
+
+
+================================================
+FILE: farmer/tests.py
+================================================
+from django.test import TestCase
+
+# Create your tests here.
+
+
+
+================================================
+FILE: farmer/urls.py
+================================================
+from django.urls import path
+from .views import FarmerRegistrationView, FarmerListView, FarmerDetailView, farmer_login_check
+from .views import (
+    # ... existing imports
+    farmer_dashboard,
+    OpenQuoteListView,
+    FarmerBidCreateView
+)
+
+urlpatterns = [
+    path('register/', FarmerRegistrationView.as_view(), name='farmer-register'),
+    path('login-check/', farmer_login_check, name='farmer-login-check'),
+    path('', FarmerListView.as_view(), name='farmer-list'),
+    path('<int:pk>/', FarmerDetailView.as_view(), name='farmer-detail'),
+    path('dashboard/', farmer_dashboard, name='farmer-dashboard'),
+    path('quotes/open/', OpenQuoteListView.as_view(), name='farmer-open-quotes'),
+    path('quotes/<int:quote_pk>/bids/', FarmerBidCreateView.as_view(), name='farmer-create-bid'),
+]
+
+
+================================================
+FILE: farmer/views.py
+================================================
+from rest_framework import generics, status
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.decorators import api_view, permission_classes
+from django.shortcuts import get_object_or_404
+from .models import Farmer
+from .serializers import FarmerSerializer, FarmerRegistrationSerializer
+from common.permissions import IsFarmer
+
+
+class FarmerRegistrationView(generics.CreateAPIView):
+    queryset = Farmer.objects.all()
+    serializer_class = FarmerRegistrationSerializer
+    permission_classes = [AllowAny]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            {"message": "Registration successful. Please wait for admin approval.", "data": serializer.data},
+            status=status.HTTP_201_CREATED,
+            headers=headers
+        )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def farmer_login_check(request):
+    email = request.data.get('email')
+    
+    try:
+        farmer = Farmer.objects.get(email=email)
+        if farmer.approval_status == 'pending':
+            return Response({
+                'message': 'Your account is pending admin approval. Please wait for approval to login.',
+                'approved': False,
+                'status': 'pending'
+            }, status=status.HTTP_200_OK)
+        elif farmer.approval_status == 'rejected':
+            return Response({
+                'message': 'Your account has been rejected by admin. Please contact support.',
+                'approved': False,
+                'status': 'rejected'
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'message': 'Account is approved. You can proceed to login.',
+                'approved': True,
+                'status': 'approved'
+            }, status=status.HTTP_200_OK)
+    except Farmer.DoesNotExist:
+        return Response({
+            'message': 'Farmer not found with this email.',
+            'approved': False,
+            'status': 'not_found'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+
+class FarmerListView(generics.ListAPIView):
+    queryset = Farmer.objects.all()
+    serializer_class = FarmerSerializer
+    permission_classes = [IsAuthenticated, IsFarmer]
+
+
+class FarmerDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Farmer.objects.all()
+    serializer_class = FarmerSerializer
+    permission_classes = [IsAuthenticated, IsFarmer]
+    
+    
+# ... existing imports ...
+from rest_framework import generics, status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from common.permissions import IsFarmer
+from fpo.models import FPOQuoteRequest
+from .models import FarmerBid
+from .serializers import FarmerBidSerializer
+from fpo.serializers import FPOQuoteRequestSerializer
+
+# ... existing Farmer views ...
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsFarmer])
+def farmer_dashboard(request):
+    farmer = request.user.user_obj # Assuming custom auth sets this
+    
+    # Open quotes farmer can bid on
+    open_quotes = FPOQuoteRequest.objects.filter(status='open').exclude(bids__farmer=farmer)
+    
+    # Farmer's active bids
+    my_bids = FarmerBid.objects.filter(farmer=farmer)
+
+    data = {
+        "open_quotes_count": open_quotes.count(),
+        "my_bids_count": my_bids.count(),
+        "my_bids": FarmerBidSerializer(my_bids, many=True).data,
+    }
+    return Response(data)
+
+class OpenQuoteListView(generics.ListAPIView):
+    """
+    Lists all open quotes from FPOs that this farmer has not bid on yet.
+    """
+    serializer_class = FPOQuoteRequestSerializer
+    permission_classes = [IsAuthenticated, IsFarmer]
+
+    def get_queryset(self):
+        farmer = self.request.user.user_obj
+        return FPOQuoteRequest.objects.filter(status='open').exclude(bids__farmer=farmer)
+
+class FarmerBidCreateView(generics.CreateAPIView):
+    """
+    Allows a farmer to create a bid on a specific FPO quote.
+    """
+    serializer_class = FarmerBidSerializer
+    permission_classes = [IsAuthenticated, IsFarmer]
+
+    def perform_create(self, serializer):
+        quote = get_object_or_404(FPOQuoteRequest, pk=self.kwargs['quote_pk'])
+        if quote.status != 'open':
+            raise serializers.ValidationError("This quote is no longer open for bidding.")
+        serializer.save(farmer=self.request.user.user_obj, quote=quote)
+
+
+================================================
+FILE: farmer/migrations/0001_initial.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-18 07:27
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='Farmer',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('name', models.CharField(max_length=100)),
+                ('email', models.EmailField(max_length=254, unique=True)),
+                ('password', models.CharField(max_length=128)),
+                ('aadhaar_number', models.CharField(max_length=12, unique=True)),
+                ('wallet_address', models.CharField(max_length=100, unique=True)),
+                ('city', models.CharField(max_length=50)),
+                ('state', models.CharField(max_length=50)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: farmer/migrations/0002_farmer_approval_status.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-18 09:30
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0001_initial'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='farmer',
+            name='approval_status',
+            field=models.CharField(choices=[('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected')], default='pending', max_length=10),
+        ),
+    ]
+
+
+
+================================================
+FILE: farmer/migrations/0003_fporeviewoffarmer_farmerbid.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-25 11:53
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0002_farmer_approval_status'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='FPOReviewOfFarmer',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('rating', models.PositiveSmallIntegerField(choices=[(1, '1'), (2, '2'), (3, '3'), (4, '4'), (5, '5')])),
+                ('comment', models.TextField(blank=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+            ],
+        ),
+        migrations.CreateModel(
+            name='FarmerBid',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('bid_amount', models.DecimalField(decimal_places=2, help_text='Price per unit', max_digits=10)),
+                ('delivery_time_days', models.PositiveIntegerField()),
+                ('comments', models.TextField(blank=True)),
+                ('status', models.CharField(choices=[('submitted', 'Submitted'), ('accepted', 'Accepted'), ('rejected', 'Rejected')], default='submitted', max_length=10)),
+                ('submitted_at', models.DateTimeField(auto_now_add=True)),
+                ('payment_status', models.CharField(choices=[('pending', 'Pending'), ('paid', 'Paid'), ('failed', 'Failed')], default='pending', max_length=10)),
+                ('transaction_hash', models.CharField(blank=True, max_length=66, null=True)),
+                ('farmer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='farmer.farmer')),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: farmer/migrations/0004_farmerbid_quote_fporeviewoffarmer_bid_and_more.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-25 11:53
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0003_fporeviewoffarmer_farmerbid'),
+        ('fpo', '0003_fpoquoterequest'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='farmerbid',
+            name='quote',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='fpo.fpoquoterequest'),
+        ),
+        migrations.AddField(
+            model_name='fporeviewoffarmer',
+            name='bid',
+            field=models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, to='farmer.farmerbid'),
+        ),
+        migrations.AddField(
+            model_name='fporeviewoffarmer',
+            name='farmer',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='reviews_from_fpos', to='farmer.farmer'),
+        ),
+        migrations.AddField(
+            model_name='fporeviewoffarmer',
+            name='fpo',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='fpo.fpo'),
+        ),
+    ]
+
+
+
+================================================
+FILE: farmer/migrations/__init__.py
+================================================
+
+
+
+================================================
+FILE: FarmerChain/__init__.py
+================================================
+
+
+
+================================================
+FILE: FarmerChain/asgi.py
+================================================
+"""
+ASGI config for FarmerChain project.
+
+It exposes the ASGI callable as a module-level variable named ``application``.
+
+For more information on this file, see
+https://docs.djangoproject.com/en/5.2/howto/deployment/asgi/
+"""
+
+import os
+
+from django.core.asgi import get_asgi_application
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'FarmerChain.settings')
+
+application = get_asgi_application()
+
+
+
+================================================
+FILE: FarmerChain/settings.py
+================================================
+"""
+Django settings for FarmerChain project.
+"""
+
+from pathlib import Path
+import os
+from datetime import timedelta
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = 'django-insecure-dpnys$4w$)hz7(e*v+21#4itdn)@p0qjn$3=#akf%kj4)$dp89'
+
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = True
+
+ALLOWED_HOSTS = ["*"]   # For development, allow all. Change for production.
+
+# Application definition
+INSTALLED_APPS = [
+    # Django core
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+
+    # Third-party
+    'rest_framework',
+    'corsheaders',
+
+    # Custom apps
+    'farmer',
+    'fpo',
+    'retailer',
+    'admin_app',
+    'negotiation',
+]
+
+
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "corsheaders.middleware.CorsMiddleware",   # helps in prod
+    "django.middleware.common.CommonMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+]
+
+
+ROOT_URLCONF = 'FarmerChain.urls'
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [BASE_DIR / "templates"],  # optional
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
+
+WSGI_APPLICATION = 'FarmerChain.wsgi.application'
+
+
+# Database
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
+}
+
+
+# Password validation
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+]
+
+
+# Internationalization
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'UTC'
+USE_I18N = True
+USE_TZ = True
+
+
+# Static & Media
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [BASE_DIR / "static"]   # for React build files
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / "media"
+
+
+# Django REST Framework
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "users.token_auth.CustomJWTAuthentication",  # <--- use custom one
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+}
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
+
+
+# CORS (React frontend)
+CORS_ALLOW_ALL_ORIGINS = True
+# Or restrict like:
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:3000",
+#     "http://127.0.0.1:3000",
+# ]
+
+
+# Default primary key field type
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+
+
+================================================
+FILE: FarmerChain/urls.py
+================================================
+from django.urls import path, include
+from django.contrib import admin
+from rest_framework_simplejwt.views import TokenRefreshView
+
+from users.token import CustomTokenObtainPairView
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('api/farmer/', include('farmer.urls')),
+    path('api/fpo/', include('fpo.urls')),
+    path('api/retailer/', include('retailer.urls')),
+    path('api/admin/', include('admin_app.urls')),
+    path('api/negotiation/', include('negotiation.urls')),
+
+    # JWT Auth
+    path('api/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+]
+
+
+
+================================================
+FILE: FarmerChain/wsgi.py
+================================================
+"""
+WSGI config for FarmerChain project.
+
+It exposes the WSGI callable as a module-level variable named ``application``.
+
+For more information on this file, see
+https://docs.djangoproject.com/en/5.2/howto/deployment/wsgi/
+"""
+
+import os
+
+from django.core.wsgi import get_wsgi_application
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'FarmerChain.settings')
+
+application = get_wsgi_application()
+
+
+
+================================================
+FILE: fpo/__init__.py
+================================================
+
+
+
+================================================
+FILE: fpo/admin.py
+================================================
+from django.contrib import admin
+
+# Register your models here.
+
+
+
+================================================
+FILE: fpo/apps.py
+================================================
+from django.apps import AppConfig
+
+
+class FpoConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'fpo'
+
+
+
+================================================
+FILE: fpo/models.py
+================================================
+from django.db import models
+from django.contrib.auth.hashers import make_password, check_password
+
+class FPO(models.Model):
+    APPROVAL_STATUS = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    
+    name = models.CharField(max_length=100)
+    email = models.EmailField(unique=True)
+    password = models.CharField(max_length=128)
+    corporate_identification_number = models.CharField(max_length=21, unique=True)
+    wallet_address = models.CharField(max_length=100, unique=True)
+    city = models.CharField(max_length=50)
+    state = models.CharField(max_length=50)
+    approval_status = models.CharField(max_length=10, choices=APPROVAL_STATUS, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+    def set_password(self, raw_password):
+        self.password = make_password(raw_password)
+    
+    def check_password(self, raw_password):
+        return check_password(raw_password, self.password)
+    
+    
+    
+# Add this to your existing fpo/models.py
+from django.db import models
+from django.contrib.auth.hashers import make_password, check_password
+
+# ... FPO model is already here ...
+
+class FPOQuoteRequest(models.Model):
+    STATUS_CHOICES = [
+        ('open', 'Open'),
+        ('closed', 'Closed'),
+        ('awarded', 'Awarded'),
+    ]
+    
+    fpo = models.ForeignKey(FPO, on_delete=models.CASCADE, related_name='quote_requests')
+    product_name = models.CharField(max_length=200)
+    category = models.CharField(max_length=100) # e.g., 'Grains', 'Vegetables', 'Fruits'
+    description = models.TextField()
+    quantity = models.DecimalField(max_digits=10, decimal_places=2)
+    unit = models.CharField(max_length=20, help_text="e.g., kg, quintal, ton")
+    deadline = models.DateField()
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='open')
+    created_at = models.DateTimeField(auto_now_add=True)
+    accepted_bid = models.ForeignKey(
+        'farmer.FarmerBid', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='accepted_for_quote'
+    )
+    
+    def __str__(self):
+        return f"{self.product_name} request by {self.fpo.name}"
+    
+    
+# Add these new models to your existing fpo/models.py
+from django.db import models
+from django.contrib.auth.hashers import make_password, check_password
+from retailer.models import Retailer, RetailerQuoteRequest
+
+# ... FPO model is already here ...
+
+class FPOBid(models.Model):
+    STATUS_CHOICES = [('submitted', 'Submitted'), ('accepted', 'Accepted'), ('rejected', 'Rejected')]
+    PAYMENT_STATUS_CHOICES = [('pending', 'Pending'), ('paid', 'Paid'), ('failed', 'Failed')]
+
+    fpo = models.ForeignKey(FPO, on_delete=models.CASCADE, related_name='bids')
+    quote = models.ForeignKey(RetailerQuoteRequest, on_delete=models.CASCADE, related_name='bids')
+    bid_amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="Price per unit")
+    delivery_time_days = models.PositiveIntegerField()
+    comments = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='submitted')
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    payment_status = models.CharField(max_length=10, choices=PAYMENT_STATUS_CHOICES, default='pending')
+    transaction_hash = models.CharField(max_length=66, blank=True, null=True)
+
+    def __str__(self):
+        return f"Bid from {self.fpo.name} for {self.quote.product_name}"
+
+class RetailerReviewOfFPO(models.Model):
+    RATING_CHOICES = [(i, str(i)) for i in range(1, 6)]
+
+    fpo = models.ForeignKey(FPO, on_delete=models.CASCADE, related_name='reviews_from_retailers')
+    retailer = models.ForeignKey(Retailer, on_delete=models.CASCADE)
+    bid = models.OneToOneField(FPOBid, on_delete=models.CASCADE)
+    rating = models.PositiveSmallIntegerField(choices=RATING_CHOICES)
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+================================================
+FILE: fpo/serializers.py
+================================================
+from rest_framework import serializers
+from .models import FPO
+
+class FPOSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FPO
+        fields = '__all__'
+        extra_kwargs = {'password': {'write_only': True}}
+
+class FPORegistrationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FPO
+        fields = ['name', 'email', 'password', 'corporate_identification_number', 'wallet_address', 'city', 'state']
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def create(self, validated_data):
+        password = validated_data.pop('password')
+        fpo = FPO.objects.create(**validated_data)
+        fpo.set_password(password)
+        fpo.save()
+        return fpo
+    
+from rest_framework import serializers
+from .models import FPO, FPOQuoteRequest
+from farmer.serializers import FarmerBidSerializer # Import FarmerBidSerializer
+# Add these new serializers
+
+class FPOQuoteRequestSerializer(serializers.ModelSerializer):
+    bids = FarmerBidSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = FPOQuoteRequest
+        fields = '__all__'
+        read_only_fields = ('fpo', 'status', 'accepted_bid')
+        
+        
+# Add these new serializers to fpo/serializers.py
+from .models import FPO, FPOBid, RetailerReviewOfFPO
+# ... existing FPOSerializer and FPORegistrationSerializer ...
+
+class FPOBidSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FPOBid
+        fields = '__all__'
+        read_only_fields = ('fpo', 'status', 'submitted_at', 'payment_status', 'transaction_hash')
+
+class RetailerReviewOfFPOSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RetailerReviewOfFPO
+        fields = '__all__'
+        read_only_fields = ('retailer', 'bid')
+
+
+================================================
+FILE: fpo/tests.py
+================================================
+from django.test import TestCase
+
+# Create your tests here.
+
+
+
+================================================
+FILE: fpo/urls.py
+================================================
+from django.urls import path
+from .views import FPORegistrationView, FPOListView, FPODetailView, fpo_login_check
+from .views import (
+    # ... existing imports
+    fpo_dashboard,
+    FPOQuoteRequestListCreateView,
+    FPOQuoteRequestDetailView,
+    accept_farmer_bid,
+)
+
+urlpatterns = [
+    path('register/', FPORegistrationView.as_view(), name='fpo-register'),
+    path('login-check/', fpo_login_check, name='fpo-login-check'),
+    path('', FPOListView.as_view(), name='fpo-list'),
+    path('<int:pk>/', FPODetailView.as_view(), name='fpo-detail'),
+    path('dashboard/', fpo_dashboard, name='fpo-dashboard'),
+    path('quotes/', FPOQuoteRequestListCreateView.as_view(), name='fpo-quote-list-create'),
+    path('quotes/<int:pk>/', FPOQuoteRequestDetailView.as_view(), name='fpo-quote-detail'),
+    path('bids/farmer/<int:bid_pk>/accept/', accept_farmer_bid, name='fpo-accept-farmer-bid'),
+]
+
+
+================================================
+FILE: fpo/views.py
+================================================
+from rest_framework import generics, status
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.decorators import api_view, permission_classes
+from django.shortcuts import get_object_or_404
+from .models import FPO
+from .serializers import FPOSerializer, FPORegistrationSerializer
+from common.permissions import IsFPO
+
+
+class FPORegistrationView(generics.CreateAPIView):
+    queryset = FPO.objects.all()
+    serializer_class = FPORegistrationSerializer
+    permission_classes = [AllowAny]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            {"message": "Registration successful. Please wait for admin approval.", "data": serializer.data},
+            status=status.HTTP_201_CREATED,
+            headers=headers
+        )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def fpo_login_check(request):
+    email = request.data.get('email')
+    
+    try:
+        fpo = FPO.objects.get(email=email)
+        if fpo.approval_status == 'pending':
+            return Response({
+                'message': 'Your account is pending admin approval. Please wait for approval to login.',
+                'approved': False,
+                'status': 'pending'
+            }, status=status.HTTP_200_OK)
+        elif fpo.approval_status == 'rejected':
+            return Response({
+                'message': 'Your account has been rejected by admin. Please contact support.',
+                'approved': False,
+                'status': 'rejected'
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'message': 'Account is approved. You can proceed to login.',
+                'approved': True,
+                'status': 'approved'
+            }, status=status.HTTP_200_OK)
+    except FPO.DoesNotExist:
+        return Response({
+            'message': 'FPO not found with this email.',
+            'approved': False,
+            'status': 'not_found'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+
+class FPOListView(generics.ListAPIView):
+    queryset = FPO.objects.all()
+    serializer_class = FPOSerializer
+    permission_classes = [IsAuthenticated, IsFPO]
+
+
+class FPODetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = FPO.objects.all()
+    serializer_class = FPOSerializer
+    permission_classes = [IsAuthenticated, IsFPO]
+    
+    
+# ... existing imports ...
+from rest_framework.decorators import api_view, permission_classes
+from common.permissions import IsFPO
+from .models import FPOQuoteRequest
+from .serializers import FPOQuoteRequestSerializer
+from farmer.models import FarmerBid
+from farmer.serializers import FarmerBidSerializer
+
+# ... existing FPO views ...
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsFPO])
+def fpo_dashboard(request):
+    fpo = request.user.user_obj
+
+    my_quotes = FPOQuoteRequest.objects.filter(fpo=fpo)
+    bids_received = FarmerBid.objects.filter(quote__in=my_quotes)
+    
+    data = {
+        "my_quotes_count": my_quotes.count(),
+        "bids_received_count": bids_received.count(),
+        "my_quotes": FPOQuoteRequestSerializer(my_quotes, many=True).data,
+    }
+    return Response(data)
+
+class FPOQuoteRequestListCreateView(generics.ListCreateAPIView):
+    """
+    For FPOs to list their own quotes or create a new one.
+    """
+    serializer_class = FPOQuoteRequestSerializer
+    permission_classes = [IsAuthenticated, IsFPO]
+
+    def get_queryset(self):
+        return FPOQuoteRequest.objects.filter(fpo=self.request.user.user_obj)
+
+    def perform_create(self, serializer):
+        serializer.save(fpo=self.request.user.user_obj)
+
+class FPOQuoteRequestDetailView(generics.RetrieveUpdateAPIView):
+    """
+    View or update a specific quote request. Includes all bids.
+    """
+    serializer_class = FPOQuoteRequestSerializer
+    permission_classes = [IsAuthenticated, IsFPO]
+    queryset = FPOQuoteRequest.objects.all()
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsFPO])
+def accept_farmer_bid(request, bid_pk):
+    bid = get_object_or_404(FarmerBid, pk=bid_pk)
+    quote = bid.quote
+
+    if quote.fpo != request.user.user_obj:
+        return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+    
+    if quote.status != 'open':
+        return Response({"error": "Quote is not open."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Accept this bid
+    bid.status = 'accepted'
+    bid.save()
+
+    # Reject other bids
+    quote.bids.exclude(pk=bid.pk).update(status='rejected')
+    
+    # Award quote
+    quote.status = 'awarded'
+    quote.accepted_bid = bid
+    quote.save()
+    
+    # Return data needed for frontend to initiate payment
+    payment_details = {
+        "recipient_address": bid.farmer.wallet_address,
+        "amount": str(bid.bid_amount * quote.quantity), # Total amount
+        "bid_id": bid.pk
+    }
+    
+    return Response({
+        "message": "Bid accepted. Please proceed with payment.",
+        "payment_details": payment_details
+    })
+    
+    
+# Add these views to fpo/views.py
+from retailer.models import RetailerQuoteRequest
+from retailer.serializers import RetailerQuoteRequestSerializer
+from .models import FPOBid
+from .serializers import FPOBidSerializer
+
+# ... existing FPO views ...
+
+class RetailerOpenQuoteListView(generics.ListAPIView):
+    """
+    Lists all open quotes from Retailers that this FPO has not bid on yet.
+    """
+    serializer_class = RetailerQuoteRequestSerializer
+    permission_classes = [IsAuthenticated, IsFPO]
+
+    def get_queryset(self):
+        fpo = self.request.user.user_obj
+        return RetailerQuoteRequest.objects.filter(status='open').exclude(bids__fpo=fpo)
+
+class FPOBidCreateView(generics.CreateAPIView):
+    """
+    Allows an FPO to create a bid on a specific retailer quote.
+    """
+    serializer_class = FPOBidSerializer
+    permission_classes = [IsAuthenticated, IsFPO]
+
+    def perform_create(self, serializer):
+        quote = get_object_or_404(RetailerQuoteRequest, pk=self.kwargs['quote_pk'])
+        if quote.status != 'open':
+            raise serializers.ValidationError("This quote is no longer open for bidding.")
+        serializer.save(fpo=self.request.user.user_obj, quote=quote)
+
+
+================================================
+FILE: fpo/migrations/0001_initial.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-18 07:27
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='FPO',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('name', models.CharField(max_length=100)),
+                ('email', models.EmailField(max_length=254, unique=True)),
+                ('password', models.CharField(max_length=128)),
+                ('corporate_identification_number', models.CharField(max_length=21, unique=True)),
+                ('wallet_address', models.CharField(max_length=100, unique=True)),
+                ('city', models.CharField(max_length=50)),
+                ('state', models.CharField(max_length=50)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: fpo/migrations/0002_fpo_approval_status.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-18 09:30
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('fpo', '0001_initial'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='fpo',
+            name='approval_status',
+            field=models.CharField(choices=[('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected')], default='pending', max_length=10),
+        ),
+    ]
+
+
+
+================================================
+FILE: fpo/migrations/0003_fpoquoterequest.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-25 11:53
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0003_fporeviewoffarmer_farmerbid'),
+        ('fpo', '0002_fpo_approval_status'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='FPOQuoteRequest',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('product_name', models.CharField(max_length=200)),
+                ('category', models.CharField(max_length=100)),
+                ('description', models.TextField()),
+                ('quantity', models.DecimalField(decimal_places=2, max_digits=10)),
+                ('unit', models.CharField(help_text='e.g., kg, quintal, ton', max_length=20)),
+                ('deadline', models.DateField()),
+                ('status', models.CharField(choices=[('open', 'Open'), ('closed', 'Closed'), ('awarded', 'Awarded')], default='open', max_length=10)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('accepted_bid', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='accepted_for_quote', to='farmer.farmerbid')),
+                ('fpo', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='quote_requests', to='fpo.fpo')),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: fpo/migrations/0004_retailerreviewoffpo_fpobid.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-25 12:32
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('fpo', '0003_fpoquoterequest'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='RetailerReviewOfFPO',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('rating', models.PositiveSmallIntegerField(choices=[(1, '1'), (2, '2'), (3, '3'), (4, '4'), (5, '5')])),
+                ('comment', models.TextField(blank=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+            ],
+        ),
+        migrations.CreateModel(
+            name='FPOBid',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('bid_amount', models.DecimalField(decimal_places=2, help_text='Price per unit', max_digits=10)),
+                ('delivery_time_days', models.PositiveIntegerField()),
+                ('comments', models.TextField(blank=True)),
+                ('status', models.CharField(choices=[('submitted', 'Submitted'), ('accepted', 'Accepted'), ('rejected', 'Rejected')], default='submitted', max_length=10)),
+                ('submitted_at', models.DateTimeField(auto_now_add=True)),
+                ('payment_status', models.CharField(choices=[('pending', 'Pending'), ('paid', 'Paid'), ('failed', 'Failed')], default='pending', max_length=10)),
+                ('transaction_hash', models.CharField(blank=True, max_length=66, null=True)),
+                ('fpo', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='fpo.fpo')),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: fpo/migrations/0005_fpobid_quote_retailerreviewoffpo_bid_and_more.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-25 12:32
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('fpo', '0004_retailerreviewoffpo_fpobid'),
+        ('retailer', '0003_retailerquoterequest'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='fpobid',
+            name='quote',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='retailer.retailerquoterequest'),
+        ),
+        migrations.AddField(
+            model_name='retailerreviewoffpo',
+            name='bid',
+            field=models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, to='fpo.fpobid'),
+        ),
+        migrations.AddField(
+            model_name='retailerreviewoffpo',
+            name='fpo',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='reviews_from_retailers', to='fpo.fpo'),
+        ),
+        migrations.AddField(
+            model_name='retailerreviewoffpo',
+            name='retailer',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='retailer.retailer'),
+        ),
+    ]
+
+
+
+================================================
+FILE: fpo/migrations/__init__.py
+================================================
+
+
+
+================================================
+FILE: negotiation/__init__.py
+================================================
+
+
+
+================================================
+FILE: negotiation/admin.py
+================================================
+from django.contrib import admin
+
+# Register your models here.
+
+
+
+================================================
+FILE: negotiation/apps.py
+================================================
+from django.apps import AppConfig
+
+
+class NegotiationConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'negotiation'
+
+
+
+================================================
+FILE: negotiation/models.py
+================================================
+from django.db import models
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
+
+class Negotiation(models.Model):
+    STATUS_CHOICES = [('active', 'Active'), ('accepted', 'Accepted'), ('rejected', 'Rejected')]
+    
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    bid = GenericForeignKey('content_type', 'object_id')
+    
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class NegotiationMessage(models.Model):
+    negotiation = models.ForeignKey(Negotiation, related_name='messages', on_delete=models.CASCADE)
+    
+    # Storing sender info directly due to multiple user models
+    sender_role = models.CharField(max_length=20)
+    sender_id = models.PositiveIntegerField()
+    sender_name = models.CharField(max_length=100)
+    
+    message = models.TextField()
+    counter_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    counter_delivery_time_days = models.PositiveIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+================================================
+FILE: negotiation/serializers.py
+================================================
+from rest_framework import serializers
+from .models import Negotiation, NegotiationMessage
+
+class NegotiationMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NegotiationMessage
+        fields = '__all__'
+
+class NegotiationSerializer(serializers.ModelSerializer):
+    messages = NegotiationMessageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Negotiation
+        fields = ('id', 'bid', 'status', 'created_at', 'messages')
+
+class CounterOfferSerializer(serializers.Serializer):
+    message = serializers.CharField(required=False, allow_blank=True)
+    counter_amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=True)
+    counter_delivery_time_days = serializers.IntegerField(min_value=1, required=True)
+
+
+================================================
+FILE: negotiation/tests.py
+================================================
+from django.test import TestCase
+
+# Create your tests here.
+
+
+
+================================================
+FILE: negotiation/urls.py
+================================================
+from django.urls import path
+from .views import StartNegotiationView, NegotiationDetailView
+
+urlpatterns = [
+    path('start/', StartNegotiationView.as_view(), name='start-negotiation'),
+    path('<int:pk>/', NegotiationDetailView.as_view(), name='negotiation-detail'),
+    # You would add accept/reject views here as well, similar to the bid acceptance logic
+]
+
+
+================================================
+FILE: negotiation/views.py
+================================================
+from rest_framework import generics, status
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from django.contrib.contenttypes.models import ContentType
+from django.shortcuts import get_object_or_404
+from .models import Negotiation, NegotiationMessage
+from .serializers import NegotiationSerializer, CounterOfferSerializer
+
+def get_bid_and_user_type(content_type_str, object_id):
+    """Helper to get bid object and validate user type."""
+    try:
+        app_label, model = content_type_str.split('.')
+        content_type = ContentType.objects.get(app_label=app_label, model=model)
+        ModelClass = content_type.model_class()
+        bid = get_object_or_404(ModelClass, pk=object_id)
+        return bid
+    except (ContentType.DoesNotExist, ValueError):
+        return None
+
+class StartNegotiationView(generics.CreateAPIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, *args, **kwargs):
+        content_type_str = request.data.get('content_type') # e.g., 'farmer.farmerbid'
+        object_id = request.data.get('object_id')
+        
+        bid = get_bid_and_user_type(content_type_str, object_id)
+        if not bid:
+            return Response({"error": "Invalid bid type."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check permissions: only the buyer can start a negotiation
+        buyer = bid.quote.fpo if hasattr(bid.quote, 'fpo') else bid.quote.retailer
+        if buyer.id != request.user.user_id:
+            return Response({"error": "Only the quote creator can start a negotiation."}, status=status.HTTP_403_FORBIDDEN)
+            
+        negotiation, created = Negotiation.objects.get_or_create(
+            content_type=ContentType.objects.get_for_model(bid),
+            object_id=bid.id
+        )
+
+        if not created:
+            return Response({"message": "Negotiation already exists.", "negotiation_id": negotiation.id})
+            
+        # Create initial message
+        NegotiationMessage.objects.create(
+            negotiation=negotiation,
+            sender_role=request.user.role,
+            sender_id=request.user.user_id,
+            sender_name=request.user.name,
+            message=f"Negotiation started for bid amount {bid.bid_amount}."
+        )
+
+        serializer = NegotiationSerializer(negotiation)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+class NegotiationDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        negotiation = get_object_or_404(Negotiation, pk=pk)
+        # Add permission check here
+        serializer = NegotiationSerializer(negotiation)
+        return Response(serializer.data)
+
+    def post(self, request, pk):
+        negotiation = get_object_or_404(Negotiation, pk=pk)
+        serializer = CounterOfferSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        NegotiationMessage.objects.create(
+            negotiation=negotiation,
+            sender_role=request.user.role,
+            sender_id=request.user.user_id,
+            sender_name=request.user.name,
+            **serializer.validated_data
+        )
+        return Response(NegotiationSerializer(negotiation).data, status=status.HTTP_201_CREATED)
+
+
+================================================
+FILE: negotiation/migrations/0001_initial.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-25 12:32
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+        ('contenttypes', '0002_remove_content_type_name'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='Negotiation',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('object_id', models.PositiveIntegerField()),
+                ('status', models.CharField(choices=[('active', 'Active'), ('accepted', 'Accepted'), ('rejected', 'Rejected')], default='active', max_length=10)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('content_type', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='contenttypes.contenttype')),
+            ],
+        ),
+        migrations.CreateModel(
+            name='NegotiationMessage',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('sender_role', models.CharField(max_length=20)),
+                ('sender_id', models.PositiveIntegerField()),
+                ('sender_name', models.CharField(max_length=100)),
+                ('message', models.TextField()),
+                ('counter_amount', models.DecimalField(blank=True, decimal_places=2, max_digits=10, null=True)),
+                ('counter_delivery_time_days', models.PositiveIntegerField(blank=True, null=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('negotiation', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='messages', to='negotiation.negotiation')),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: negotiation/migrations/__init__.py
+================================================
+
+
+
+================================================
+FILE: retailer/__init__.py
+================================================
+
+
+
+================================================
+FILE: retailer/admin.py
+================================================
+from django.contrib import admin
+
+# Register your models here.
+
+
+
+================================================
+FILE: retailer/apps.py
+================================================
+from django.apps import AppConfig
+
+
+class RetailerConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'retailer'
+
+
+
+================================================
+FILE: retailer/models.py
+================================================
+from django.db import models
+from django.contrib.auth.hashers import make_password, check_password
+
+class Retailer(models.Model):
+    APPROVAL_STATUS = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    
+    name = models.CharField(max_length=100)
+    email = models.EmailField(unique=True)
+    password = models.CharField(max_length=128)
+    gstin = models.CharField(max_length=15, unique=True)
+    wallet_address = models.CharField(max_length=100, unique=True)
+    city = models.CharField(max_length=50)
+    state = models.CharField(max_length=50)
+    approval_status = models.CharField(max_length=10, choices=APPROVAL_STATUS, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+    def set_password(self, raw_password):
+        self.password = make_password(raw_password)
+    
+    def check_password(self, raw_password):
+        return check_password(raw_password, self.password)
+    
+# Add this new model to your existing retailer/models.py
+from django.db import models
+from django.contrib.auth.hashers import make_password, check_password
+
+# ... Retailer model is already here ...
+
+class RetailerQuoteRequest(models.Model):
+    STATUS_CHOICES = [
+        ('open', 'Open'),
+        ('closed', 'Closed'),
+        ('awarded', 'Awarded'),
+    ]
+    
+    retailer = models.ForeignKey(Retailer, on_delete=models.CASCADE, related_name='quote_requests')
+    product_name = models.CharField(max_length=200)
+    category = models.CharField(max_length=100) # e.g., 'Processed Grains', 'Packaged Vegetables'
+    description = models.TextField()
+    quantity = models.DecimalField(max_digits=10, decimal_places=2)
+    unit = models.CharField(max_length=20, help_text="e.g., kg, quintal, ton")
+    deadline = models.DateField()
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='open')
+    created_at = models.DateTimeField(auto_now_add=True)
+    accepted_bid = models.ForeignKey(
+        'fpo.FPOBid', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='accepted_for_retailer_quote'
+    )
+    
+    def __str__(self):
+        return f"{self.product_name} request by {self.retailer.name}"
+
+
+================================================
+FILE: retailer/serializers.py
+================================================
+from rest_framework import serializers
+from .models import Retailer
+
+class RetailerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Retailer
+        fields = '__all__'
+        extra_kwargs = {'password': {'write_only': True}}
+
+class RetailerRegistrationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Retailer
+        fields = ['name', 'email', 'password', 'gstin', 'wallet_address', 'city', 'state']
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def create(self, validated_data):
+        password = validated_data.pop('password')
+        retailer = Retailer.objects.create(**validated_data)
+        retailer.set_password(password)
+        retailer.save()
+        return retailer
+    
+    
+# Update retailer/serializers.py
+from rest_framework import serializers
+from .models import Retailer, RetailerQuoteRequest
+from fpo.serializers import FPOBidSerializer # Important import
+
+# ... existing Retailer serializers ...
+
+class RetailerQuoteRequestSerializer(serializers.ModelSerializer):
+    bids = FPOBidSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = RetailerQuoteRequest
+        fields = '__all__'
+        read_only_fields = ('retailer', 'status', 'accepted_bid')
+
+
+================================================
+FILE: retailer/tests.py
+================================================
+from django.test import TestCase
+
+# Create your tests here.
+
+
+
+================================================
+FILE: retailer/urls.py
+================================================
+from django.urls import path
+from .views import RetailerRegistrationView, RetailerListView, RetailerDetailView, retailer_login_check
+from .views import (
+    # ... existing ...
+    retailer_dashboard,
+    RetailerQuoteRequestListCreateView,
+    RetailerQuoteRequestDetailView,
+    accept_fpo_bid,
+    confirm_fpo_bid_payment
+)
+
+urlpatterns = [
+    path('register/', RetailerRegistrationView.as_view(), name='retailer-register'),
+    path('login-check/', retailer_login_check, name='retailer-login-check'),
+    path('', RetailerListView.as_view(), name='retailer-list'),
+    path('<int:pk>/', RetailerDetailView.as_view(), name='retailer-detail'),
+    path('dashboard/', retailer_dashboard, name='retailer-dashboard'),
+    path('quotes/', RetailerQuoteRequestListCreateView.as_view(), name='retailer-quote-list-create'),
+    path('quotes/<int:pk>/', RetailerQuoteRequestDetailView.as_view(), name='retailer-quote-detail'),
+    path('bids/fpo/<int:bid_pk>/accept/', accept_fpo_bid, name='retailer-accept-fpo-bid'),
+    path('bids/fpo/<int:bid_pk>/confirm-payment/', confirm_fpo_bid_payment, name='retailer-confirm-payment'),
+]
+
+
+================================================
+FILE: retailer/views.py
+================================================
+from rest_framework import generics, status
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.decorators import api_view, permission_classes
+from django.shortcuts import get_object_or_404
+from .models import Retailer
+from .serializers import RetailerSerializer, RetailerRegistrationSerializer
+from common.permissions import IsRetailer
+
+
+class RetailerRegistrationView(generics.CreateAPIView):
+    queryset = Retailer.objects.all()
+    serializer_class = RetailerRegistrationSerializer
+    permission_classes = [AllowAny]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            {"message": "Registration successful. Please wait for admin approval.", "data": serializer.data},
+            status=status.HTTP_201_CREATED,
+            headers=headers
+        )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def retailer_login_check(request):
+    email = request.data.get('email')
+    
+    try:
+        retailer = Retailer.objects.get(email=email)
+        if retailer.approval_status == 'pending':
+            return Response({
+                'message': 'Your account is pending admin approval. Please wait for approval to login.',
+                'approved': False,
+                'status': 'pending'
+            }, status=status.HTTP_200_OK)
+        elif retailer.approval_status == 'rejected':
+            return Response({
+                'message': 'Your account has been rejected by admin. Please contact support.',
+                'approved': False,
+                'status': 'rejected'
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'message': 'Account is approved. You can proceed to login.',
+                'approved': True,
+                'status': 'approved'
+            }, status=status.HTTP_200_OK)
+    except Retailer.DoesNotExist:
+        return Response({
+            'message': 'Retailer not found with this email.',
+            'approved': False,
+            'status': 'not_found'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+
+class RetailerListView(generics.ListAPIView):
+    queryset = Retailer.objects.all()
+    serializer_class = RetailerSerializer
+    permission_classes = [IsAuthenticated, IsRetailer]
+
+
+class RetailerDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Retailer.objects.all()
+    serializer_class = RetailerSerializer
+    permission_classes = [IsAuthenticated, IsRetailer]
+    
+    
+# Update retailer/views.py with dashboard and quote management views
+from fpo.models import FPOBid
+from .models import RetailerQuoteRequest
+from .serializers import RetailerQuoteRequestSerializer
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsRetailer])
+def retailer_dashboard(request):
+    retailer = request.user.user_obj
+
+    my_quotes = RetailerQuoteRequest.objects.filter(retailer=retailer)
+    bids_received = FPOBid.objects.filter(quote__in=my_quotes)
+    
+    data = {
+        "my_quotes_count": my_quotes.count(),
+        "bids_received_count": bids_received.count(),
+        "my_quotes": RetailerQuoteRequestSerializer(my_quotes, many=True).data,
+    }
+    return Response(data)
+
+class RetailerQuoteRequestListCreateView(generics.ListCreateAPIView):
+    serializer_class = RetailerQuoteRequestSerializer
+    permission_classes = [IsAuthenticated, IsRetailer]
+
+    def get_queryset(self):
+        return RetailerQuoteRequest.objects.filter(retailer=self.request.user.user_obj)
+
+    def perform_create(self, serializer):
+        serializer.save(retailer=self.request.user.user_obj)
+
+class RetailerQuoteRequestDetailView(generics.RetrieveUpdateAPIView):
+    serializer_class = RetailerQuoteRequestSerializer
+    permission_classes = [IsAuthenticated, IsRetailer]
+    queryset = RetailerQuoteRequest.objects.all()
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsRetailer])
+def accept_fpo_bid(request, bid_pk):
+    bid = get_object_or_404(FPOBid, pk=bid_pk)
+    quote = bid.quote
+
+    if quote.retailer != request.user.user_obj:
+        return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+    
+    bid.status = 'accepted'
+    bid.save()
+    quote.bids.exclude(pk=bid.pk).update(status='rejected')
+    quote.status = 'awarded'
+    quote.accepted_bid = bid
+    quote.save()
+    
+    payment_details = {
+        "recipient_address": bid.fpo.wallet_address,
+        "amount": str(bid.bid_amount * quote.quantity),
+        "bid_id": bid.pk,
+        "content_type": "fpo.fpobid" # For payment confirmation endpoint
+    }
+    
+    return Response({
+        "message": "Bid accepted. Please proceed with payment.",
+        "payment_details": payment_details
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsRetailer]) # Only retailer can confirm payment for an FPO bid
+def confirm_fpo_bid_payment(request, bid_pk):
+    bid = get_object_or_404(FPOBid, pk=bid_pk)
+    if bid.quote.retailer != request.user.user_obj:
+        return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+    transaction_hash = request.data.get('transaction_hash')
+    if not transaction_hash:
+        return Response({"error": "Transaction hash is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+    bid.transaction_hash = transaction_hash
+    bid.payment_status = 'paid'
+    bid.save()
+    return Response({"message": "Payment confirmed and hash recorded."})
+
+
+================================================
+FILE: retailer/migrations/0001_initial.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-18 07:27
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='Retailer',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('name', models.CharField(max_length=100)),
+                ('email', models.EmailField(max_length=254, unique=True)),
+                ('password', models.CharField(max_length=128)),
+                ('gstin', models.CharField(max_length=15, unique=True)),
+                ('wallet_address', models.CharField(max_length=100, unique=True)),
+                ('city', models.CharField(max_length=50)),
+                ('state', models.CharField(max_length=50)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: retailer/migrations/0002_retailer_approval_status.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-18 09:30
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('retailer', '0001_initial'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='retailer',
+            name='approval_status',
+            field=models.CharField(choices=[('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected')], default='pending', max_length=10),
+        ),
+    ]
+
+
+
+================================================
+FILE: retailer/migrations/0003_retailerquoterequest.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-25 12:32
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('fpo', '0004_retailerreviewoffpo_fpobid'),
+        ('retailer', '0002_retailer_approval_status'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='RetailerQuoteRequest',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('product_name', models.CharField(max_length=200)),
+                ('category', models.CharField(max_length=100)),
+                ('description', models.TextField()),
+                ('quantity', models.DecimalField(decimal_places=2, max_digits=10)),
+                ('unit', models.CharField(help_text='e.g., kg, quintal, ton', max_length=20)),
+                ('deadline', models.DateField()),
+                ('status', models.CharField(choices=[('open', 'Open'), ('closed', 'Closed'), ('awarded', 'Awarded')], default='open', max_length=10)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('accepted_bid', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='accepted_for_retailer_quote', to='fpo.fpobid')),
+                ('retailer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='quote_requests', to='retailer.retailer')),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: retailer/migrations/__init__.py
+================================================
+
+
+
+================================================
+FILE: users/token.py
+================================================
+from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.tokens import RefreshToken
+from farmer.models import Farmer
+from fpo.models import FPO
+from retailer.models import Retailer
+from admin_app.models import Admin
+
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    # Require 'role' in addition to username/email and password
+    role = serializers.CharField(required=True)
+
+    def validate(self, attrs):
+        role = attrs.get("role").lower()
+        user_identifier = attrs.get("username")
+        password = attrs.get("password")
+
+        # Determine which model to authenticate against
+        user = None
+        user_data = {}
+        
+        if role == "farmer":
+            try:
+                user = Farmer.objects.get(email=user_identifier)
+                if user.approval_status != 'approved':
+                    raise serializers.ValidationError("Account pending admin approval.")
+                user_data = {
+                    'id': user.id,
+                    'username': user.email,
+                    'role': 'farmer',
+                    'name': user.name
+                }
+            except Farmer.DoesNotExist:
+                raise serializers.ValidationError("Farmer not found.")
+        elif role == "fpo":
+            try:
+                user = FPO.objects.get(email=user_identifier)
+                if user.approval_status != 'approved':
+                    raise serializers.ValidationError("Account pending admin approval.")
+                user_data = {
+                    'id': user.id,
+                    'username': user.email,
+                    'role': 'fpo',
+                    'name': user.name
+                }
+            except FPO.DoesNotExist:
+                raise serializers.ValidationError("FPO not found.")
+        elif role == "retailer":
+            try:
+                user = Retailer.objects.get(email=user_identifier)
+                if user.approval_status != 'approved':
+                    raise serializers.ValidationError("Account pending admin approval.")
+                user_data = {
+                    'id': user.id,
+                    'username': user.email,
+                    'role': 'retailer',
+                    'name': user.name
+                }
+            except Retailer.DoesNotExist:
+                raise serializers.ValidationError("Retailer not found.")
+        elif role == "admin":
+            try:
+                user = Admin.objects.get(username=user_identifier)
+                # Verify password for admin
+                if not user.check_password(password):
+                    raise serializers.ValidationError("Incorrect password.")
+                user_data = {
+                    'id': user.id,
+                    'username': user.username,
+                    'role': 'admin',
+                    'name': user.username
+                }
+            except Admin.DoesNotExist:
+                raise serializers.ValidationError("Admin not found.")
+        else:
+            raise serializers.ValidationError("Invalid role. Must be one of: farmer, fpo, retailer, admin.")
+
+        # Verify password for non-admin users
+        if role != "admin" and not user.check_password(password):
+            raise serializers.ValidationError("Incorrect password.")
+
+        # Create a custom token payload using the proper method
+        refresh = self.get_token(user)
+        refresh['user_id'] = user_data['id']
+        refresh['username'] = user_data['username']
+        refresh['role'] = user_data['role']
+        refresh['name'] = user_data['name']
+
+        data = {
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+            "role": user_data['role'],
+            "user_id": user_data['id'],
+            "name": user_data['name']
+        }
+
+        return data
+
+    @classmethod
+    def get_token(cls, user):
+        # This method is required by the parent class
+        return RefreshToken.for_user(user)
+
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
+
+
+================================================
+FILE: users/token_auth.py
+================================================
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.exceptions import InvalidToken
+
+
+class CustomJWTAuthentication(JWTAuthentication):
+    """
+    Custom authentication that does not look up Django's default User model.
+    Instead, it builds a lightweight user object directly from the JWT payload.
+    """
+
+    def get_user(self, validated_token):
+        try:
+            # Create a simple user object with all required Django attributes
+            user = type("User", (), {
+                "id": validated_token.get("user_id"),
+                "username": validated_token.get("username"),
+                "role": validated_token.get("role"),
+                "name": validated_token.get("name"),
+                # Required Django user attributes
+                "is_authenticated": True,
+                "is_active": True,
+                "is_staff": False,
+                "is_superuser": False,
+                # Required methods
+                "has_perm": lambda self, perm: False,
+                "has_module_perms": lambda self, app_label: False,
+                "_str_": lambda self: self.username
+            })()
+            
+            return user
+            
+        except Exception:
+            raise InvalidToken("Invalid token payload")
+

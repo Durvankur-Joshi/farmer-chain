@@ -12,7 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-dpnys$4w$)hz7(e*v+21#4itdn)@p0qjn$3=#akf%kj4)$dp89'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False # <-- CHANGED: Enabled for development and integration
 
 ALLOWED_HOSTS = ["*"]   # For development, allow all. Change for production.
 
@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'fpo',
     'retailer',
     'admin_app',
+    'negotiation',
 ]
 
 
@@ -132,4 +133,3 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-

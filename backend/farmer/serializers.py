@@ -19,3 +19,20 @@ class FarmerRegistrationSerializer(serializers.ModelSerializer):
         farmer.set_password(password)
         farmer.save()
         return farmer
+    
+    
+from rest_framework import serializers
+from .models import Farmer, FarmerBid, FPOReviewOfFarmer
+# Add these new serializers
+
+class FarmerBidSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FarmerBid
+        fields = '__all__'
+        read_only_fields = ('farmer', 'quote','status', 'submitted_at', 'payment_status', 'transaction_hash')
+
+class FPOReviewOfFarmerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FPOReviewOfFarmer
+        fields = '__all__'
+        read_only_fields = ('fpo', 'bid')

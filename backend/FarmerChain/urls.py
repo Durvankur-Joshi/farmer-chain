@@ -10,6 +10,7 @@ urlpatterns = [
     path('api/fpo/', include('fpo.urls')),
     path('api/retailer/', include('retailer.urls')),
     path('api/admin/', include('admin_app.urls')),
+    path('api/negotiation/', include('negotiation.urls')),
 
     # JWT Auth
     path('api/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),

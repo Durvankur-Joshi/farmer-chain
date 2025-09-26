@@ -19,3 +19,19 @@ class RetailerRegistrationSerializer(serializers.ModelSerializer):
         retailer.set_password(password)
         retailer.save()
         return retailer
+    
+    
+# Update retailer/serializers.py
+from rest_framework import serializers
+from .models import Retailer, RetailerQuoteRequest
+from fpo.serializers import FPOBidSerializer # Important import
+
+# ... existing Retailer serializers ...
+
+class RetailerQuoteRequestSerializer(serializers.ModelSerializer):
+    bids = FPOBidSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = RetailerQuoteRequest
+        fields = '__all__'
+        read_only_fields = ('retailer', 'status', 'accepted_bid')
