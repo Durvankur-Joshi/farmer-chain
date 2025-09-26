@@ -3,6 +3,7 @@ from django.contrib import admin
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from users.token import CustomTokenObtainPairView
+from users.views import CookieTokenRefreshView, LogoutView  # Add this import
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -12,7 +13,8 @@ urlpatterns = [
     path('api/admin/', include('admin_app.urls')),
     path('api/negotiation/', include('negotiation.urls')),
 
-    # JWT Auth
+    # JWT Auth with cookie support
     path('api/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/token/refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'),  # Updated
+    path('api/token/logout/', LogoutView.as_view(), name='token_logout'),  # New endpoint
 ]

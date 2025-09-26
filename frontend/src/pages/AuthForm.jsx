@@ -1,6 +1,7 @@
-// src/components/AuthForm.jsx
+// src/pages/AuthForm.jsx
 import React, { useState } from "react";
 import axios from "axios";
+import Cookies from 'js-cookie';
 
 export default function AuthForm() {
   const [isLogin, setIsLogin] = useState(true);
@@ -15,16 +16,14 @@ export default function AuthForm() {
     city: "",
     state: "",
     wallet_address: "",
-    role: "farmer", // ðŸ‘ˆ added here
+    role: "farmer",
   });
 
-  // keep role and formData in sync
   const handleRoleChange = (e) => {
     setRole(e.target.value);
     setFormData({ ...formData, role: e.target.value });
   };
 
-  // connect MetaMask
   const connectWallet = async () => {
     if (window.ethereum) {
       try {
@@ -44,36 +43,42 @@ export default function AuthForm() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // API call
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     let endpoint = "";
-    let payload = {}; // <-- Create a payload object to send
+    let payload = {};
+
+    // Configure axios to include credentials (cookies)
+    axios.defaults.withCredentials = true;
 
     if (isLogin) {
       endpoint = "/api/token/";
-      // --- THIS IS THE FIX ---
-      // For login, map the form's 'email' field to 'username' for the backend.
       payload = {
         username: formData.email,
         password: formData.password,
         role: formData.role,
       };
-      // --- END OF FIX ---
     } else {
       if (role === "farmer") endpoint = "/api/farmer/register/";
       if (role === "fpo") endpoint = "/api/fpo/register/";
       if (role === "retailer") endpoint = "/api/retailer/register/";
-      // For registration, the formData is already in the correct format.
       payload = formData;
     }
 
     try {
-      // Use the new payload object for the request
-      const res = await axios.post(endpoint, payload);
+      const res = await axios.post(endpoint, payload, {
+        withCredentials: true // Ensure cookies are sent and received
+      });
+      
       console.log("Success:", res.data);
-      alert("Success! Check console.");
+      
+      // For login, the tokens will be automatically stored in cookies by the browser
+      if (isLogin) {
+        alert("Login successful! Tokens stored in cookies.");
+      } else {
+        alert("Registration successful! Check console.");
+      }
     } catch (err) {
       console.error("Error:", err.response?.data || err.message);
       alert("Error! Check console.");
@@ -87,7 +92,6 @@ export default function AuthForm() {
           {isLogin ? "Login" : "Register"} as {role.toUpperCase()}
         </h2>
 
-        {/* Toggle between roles */}
         <select
           value={role}
           onChange={handleRoleChange}
@@ -99,7 +103,6 @@ export default function AuthForm() {
         </select>
 
         <form onSubmit={handleSubmit} className="space-y-3">
-          {/* Show signup fields */}
           {!isLogin && (
             <>
               <input
@@ -161,7 +164,6 @@ export default function AuthForm() {
                 required
               />
 
-              {/* Wallet connect */}
               <button
                 type="button"
                 onClick={connectWallet}
@@ -174,7 +176,6 @@ export default function AuthForm() {
             </>
           )}
 
-          {/* Common fields */}
           <input
             type="email"
             name="email"
@@ -200,7 +201,6 @@ export default function AuthForm() {
           </button>
         </form>
 
-        {/* Toggle login/register */}
         <p className="mt-4 text-center">
           {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
           <button

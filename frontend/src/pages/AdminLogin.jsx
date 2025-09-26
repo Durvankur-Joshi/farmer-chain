@@ -20,13 +20,18 @@ export default function AdminLogin() {
     e.preventDefault();
     setStatus("");
     setLoading(true);
+    
     try {
-      const res = await axios.post("/api/token/", formData);
+      // Configure axios to use cookies
+      axios.defaults.withCredentials = true;
+      
+      const res = await axios.post("/api/token/", formData, {
+        withCredentials: true
+      });
 
-      // Save tokens
-      localStorage.setItem("access", res.data.access);
-      localStorage.setItem("refresh", res.data.refresh);
-
+      // Tokens are automatically stored in cookies by the browser
+      // No need to manually store them
+      
       navigate("/admin/dashboard");
     } catch (err) {
       setStatus("❌ Invalid credentials or server error");
