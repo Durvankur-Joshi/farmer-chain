@@ -1,10 +1,12 @@
 // src/pages/AuthForm.jsx
 import React, { useState } from "react";
 import axios from "axios";
-import Cookies from 'js-cookie';
+import Cookies from "js-cookie";
+import { useNavigate } from "react-router-dom";
 
 export default function AuthForm() {
   const [isLogin, setIsLogin] = useState(true);
+  const navigate = useNavigate();
   const [role, setRole] = useState("farmer");
   const [formData, setFormData] = useState({
     name: "",
@@ -68,14 +70,21 @@ export default function AuthForm() {
 
     try {
       const res = await axios.post(endpoint, payload, {
-        withCredentials: true // Ensure cookies are sent and received
+        withCredentials: true, // Ensure cookies are sent and received
       });
-      
+
       console.log("Success:", res.data);
-      
+
       // For login, the tokens will be automatically stored in cookies by the browser
       if (isLogin) {
-        alert("Login successful! Tokens stored in cookies.");
+        Cookies.set("role", res.data.role, { path: "/" }); // Save role
+        alert("Login successful! Redirecting...");
+
+        // Redirect based on role
+        if (formData.role === "farmer") navigate("/farmer-dashboard");
+        if (formData.role === "fpo") navigate("/fpo-dashboard");
+        if (formData.role === "retailer") navigate("/retailer-dashboard");
+        if (formData.role === "admin") navigate("/admin-dashboard");
       } else {
         alert("Registration successful! Check console.");
       }
