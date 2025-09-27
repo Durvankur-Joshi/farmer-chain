@@ -3,10 +3,11 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
-from .models import Farmer
-from .serializers import FarmerSerializer, FarmerRegistrationSerializer
+from .models import Farmer, FarmerQuote
+from .serializers import FarmerSerializer, FarmerRegistrationSerializer, FarmerQuoteSerializer
 from common.permissions import IsFarmer
-
+from fpo.models import FPOBid
+from fpo.serializers import FPOBidSerializer
 
 class FarmerRegistrationView(generics.CreateAPIView):
     queryset = Farmer.objects.all()
@@ -23,7 +24,6 @@ class FarmerRegistrationView(generics.CreateAPIView):
             status=status.HTTP_201_CREATED,
             headers=headers
         )
-
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -57,69 +57,72 @@ def farmer_login_check(request):
             'status': 'not_found'
         }, status=status.HTTP_404_NOT_FOUND)
 
-
 class FarmerListView(generics.ListAPIView):
     queryset = Farmer.objects.all()
     serializer_class = FarmerSerializer
     permission_classes = [IsAuthenticated, IsFarmer]
 
-
 class FarmerDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Farmer.objects.all()
     serializer_class = FarmerSerializer
     permission_classes = [IsAuthenticated, IsFarmer]
-    
-    
-# ... existing imports ...
-from rest_framework import generics, status
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.response import Response
-from common.permissions import IsFarmer
-from fpo.models import FPOQuoteRequest
-from .models import FarmerBid
-from .serializers import FarmerBidSerializer
-from fpo.serializers import FPOQuoteRequestSerializer
-
-# ... existing Farmer views ...
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsFarmer])
 def farmer_dashboard(request):
-    farmer = request.user.user_obj # Assuming custom auth sets this
+    farmer = request.user.user_obj
     
-    # Open quotes farmer can bid on
-    open_quotes = FPOQuoteRequest.objects.filter(status='open').exclude(bids__farmer=farmer)
-    
-    # Farmer's active bids
-    my_bids = FarmerBid.objects.filter(farmer=farmer)
+    my_quotes = FarmerQuote.objects.filter(farmer=farmer)
+    bids_received = FPOBid.objects.filter(quote__in=my_quotes)
 
     data = {
-        "open_quotes_count": open_quotes.count(),
-        "my_bids_count": my_bids.count(),
-        "my_bids": FarmerBidSerializer(my_bids, many=True).data,
+        "my_quotes_count": my_quotes.count(),
+        "bids_received_count": bids_received.count(),
+        "active_quotes": my_quotes.filter(status='open').count(),
+        "awarded_quotes": my_quotes.filter(status='awarded').count(),
     }
     return Response(data)
 
-class OpenQuoteListView(generics.ListAPIView):
-    """
-    Lists all open quotes from FPOs that this farmer has not bid on yet.
-    """
-    serializer_class = FPOQuoteRequestSerializer
+class FarmerQuoteListCreateView(generics.ListCreateAPIView):
+    serializer_class = FarmerQuoteSerializer
     permission_classes = [IsAuthenticated, IsFarmer]
 
     def get_queryset(self):
-        farmer = self.request.user.user_obj
-        return FPOQuoteRequest.objects.filter(status='open').exclude(bids__farmer=farmer)
-
-class FarmerBidCreateView(generics.CreateAPIView):
-    """
-    Allows a farmer to create a bid on a specific FPO quote.
-    """
-    serializer_class = FarmerBidSerializer
-    permission_classes = [IsAuthenticated, IsFarmer]
+        return FarmerQuote.objects.filter(farmer=self.request.user.user_obj)
 
     def perform_create(self, serializer):
-        quote = get_object_or_404(FPOQuoteRequest, pk=self.kwargs['quote_pk'])
-        if quote.status != 'open':
-            raise serializers.ValidationError("This quote is no longer open for bidding.")
-        serializer.save(farmer=self.request.user.user_obj, quote=quote)
+        serializer.save(farmer=self.request.user.user_obj)
+
+class FarmerQuoteDetailView(generics.RetrieveUpdateAPIView):
+    serializer_class = FarmerQuoteSerializer
+    permission_classes = [IsAuthenticated, IsFarmer]
+    queryset = FarmerQuote.objects.all()
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsFarmer])
+def accept_fpo_bid(request, bid_pk):
+    bid = get_object_or_404(FPOBid, pk=bid_pk)
+    quote = bid.quote
+
+    if quote.farmer != request.user.user_obj:
+        return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+    
+    if quote.status != 'open':
+        return Response({"error": "Quote is not open."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Accept this bid
+    bid.status = 'accepted'
+    bid.save()
+
+    # Reject other bids
+    quote.bids.exclude(pk=bid.pk).update(status='rejected')
+    
+    # Award quote
+    quote.status = 'awarded'
+    quote.accepted_bid = bid
+    quote.save()
+    
+    return Response({
+        "message": "Bid accepted successfully.",
+        "bid_id": bid.pk
+    })

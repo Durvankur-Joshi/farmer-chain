@@ -26,47 +26,32 @@ class Farmer(models.Model):
     
     def check_password(self, raw_password):
         return check_password(raw_password, self.password)
-    
-# Add these new models to your existing farmer/models.py
-from django.db import models
-from django.contrib.auth.hashers import make_password, check_password
-from fpo.models import FPOQuoteRequest, FPO
 
-# ... Farmer model is already here ...
-
-class FarmerBid(models.Model):
+class FarmerQuote(models.Model):
     STATUS_CHOICES = [
-        ('submitted', 'Submitted'),
-        ('accepted', 'Accepted'),
-        ('rejected', 'Rejected'),
+        ('open', 'Open'),
+        ('closed', 'Closed'),
+        ('awarded', 'Awarded'),
     ]
-    PAYMENT_STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('paid', 'Paid'),
-        ('failed', 'Failed'),
-    ]
-
-    farmer = models.ForeignKey(Farmer, on_delete=models.CASCADE, related_name='bids')
-    quote = models.ForeignKey(FPOQuoteRequest, on_delete=models.CASCADE, related_name='bids')
-    bid_amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="Price per unit")
-    delivery_time_days = models.PositiveIntegerField()
-    comments = models.TextField(blank=True)
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='submitted')
-    submitted_at = models.DateTimeField(auto_now_add=True)
-
-    # Blockchain fields
-    payment_status = models.CharField(max_length=10, choices=PAYMENT_STATUS_CHOICES, default='pending')
-    transaction_hash = models.CharField(max_length=66, blank=True, null=True)
-
-    def __str__(self):
-        return f"Bid from {self.farmer.name} for {self.quote.product_name}"
-
-class FPOReviewOfFarmer(models.Model):
-    RATING_CHOICES = [(i, str(i)) for i in range(1, 6)]
-
-    farmer = models.ForeignKey(Farmer, on_delete=models.CASCADE, related_name='reviews_from_fpos')
-    fpo = models.ForeignKey(FPO, on_delete=models.CASCADE)
-    bid = models.OneToOneField(FarmerBid, on_delete=models.CASCADE)
-    rating = models.PositiveSmallIntegerField(choices=RATING_CHOICES)
-    comment = models.TextField(blank=True)
+    
+    farmer = models.ForeignKey(Farmer, on_delete=models.CASCADE, related_name='quotes')
+    product_name = models.CharField(max_length=200)
+    category = models.CharField(max_length=100)
+    description = models.TextField()
+    quantity = models.DecimalField(max_digits=10, decimal_places=2)
+    unit = models.CharField(max_length=20, help_text="e.g., kg, quintal, ton")
+    price_per_unit = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='open')
+    deadline = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
+    
+    accepted_bid = models.ForeignKey(
+        'fpo.FPOBid', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='accepted_for_farmer_quote'
+    )
+    
+    def __str__(self):
+        return f"{self.product_name} quote from {self.farmer.name}"

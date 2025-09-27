@@ -1,7 +1,6 @@
 Directory structure:
 └── farmerChain/
     ├── backend/
-    │   ├── db.sqlite3
     │   ├── manage.py
     │   ├── requirements.txt
     │   ├── test.py
@@ -33,6 +32,8 @@ Directory structure:
     │   │       ├── 0002_farmer_approval_status.py
     │   │       ├── 0003_fporeviewoffarmer_farmerbid.py
     │   │       ├── 0004_farmerbid_quote_fporeviewoffarmer_bid_and_more.py
+    │   │       ├── 0005_remove_farmerbid_farmer_remove_farmerbid_quote_and_more.py
+    │   │       ├── 0006_delete_farmerbid_delete_fporeviewoffarmer.py
     │   │       └── __init__.py
     │   ├── FarmerChain/
     │   │   ├── __init__.py
@@ -55,6 +56,8 @@ Directory structure:
     │   │       ├── 0003_fpoquoterequest.py
     │   │       ├── 0004_retailerreviewoffpo_fpobid.py
     │   │       ├── 0005_fpobid_quote_retailerreviewoffpo_bid_and_more.py
+    │   │       ├── 0006_fpoquote_remove_fpoquoterequest_accepted_bid_and_more.py
+    │   │       ├── 0007_fpoquote_accepted_bid_fpoquote_fpo_and_more.py
     │   │       └── __init__.py
     │   ├── negotiation/
     │   │   ├── __init__.py
@@ -81,6 +84,7 @@ Directory structure:
     │   │       ├── 0001_initial.py
     │   │       ├── 0002_retailer_approval_status.py
     │   │       ├── 0003_retailerquoterequest.py
+    │   │       ├── 0004_retailerbid_delete_retailerquoterequest.py
     │   │       └── __init__.py
     │   └── users/
     │       ├── token.py
@@ -102,12 +106,6 @@ Directory structure:
             │   └── AuthForm.jsx
             └── utils/
                 └── ABI.json
-
-================================================
-FILE: backend/db.sqlite3
-================================================
-[Non-text file]
-
 
 ================================================
 FILE: backend/manage.py
@@ -258,73 +256,123 @@ def test_03_user_logins():
     res = make_request("POST", "/token/", 200, "Retailer Login", data=retailer_login)
     STATE['retailer_token'] = res['access']
 
-def test_04_fpo_farmer_workflow():
-    print_header("Step 4: FPO-Farmer Bidding Workflow")
-    fpo_headers = {"Authorization": f"Bearer {STATE['fpo_token']}"}
+def test_04_farmer_fpo_workflow():
+    print_header("Step 4: Farmer-FPO Bidding Workflow")
     farmer_headers = {"Authorization": f"Bearer {STATE['farmer_token']}"}
+    fpo_headers = {"Authorization": f"Bearer {STATE['fpo_token']}"}
 
-    quote_data = {"product_name": "Organic Wheat", "category": "Grains", "description": "High quality organic wheat", "quantity": "500.00", "unit": "kg", "deadline": "2025-12-31"}
-    res = make_request("POST", "/fpo/quotes/", 201, "FPO Creates Quote", data=quote_data, headers=fpo_headers)
+    # Farmer creates quote
+    quote_data = {
+        "product_name": "Organic Wheat", 
+        "category": "Grains", 
+        "description": "High quality organic wheat", 
+        "quantity": "500.00", 
+        "unit": "kg",
+        "deadline": "2025-12-31"
+    }
+    res = make_request("POST", "/farmer/quotes/", 201, "Farmer Creates Quote", data=quote_data, headers=farmer_headers)
+    STATE['farmer_quote_id'] = res['id']
+
+    # FPO views open farmer quotes
+    make_request("GET", "/fpo/quotes/farmer/open/", 200, "FPO Views Open Farmer Quotes", headers=fpo_headers)
+
+    # FPO places bid on farmer quote
+    bid_data = {
+        "bid_amount": "20.50", 
+        "delivery_time_days": 15, 
+        "comments": "We can process your wheat efficiently."
+    }
+    res = make_request("POST", f"/fpo/quotes/farmer/{STATE['farmer_quote_id']}/bids/", 201, "FPO Places Bid", data=bid_data, headers=fpo_headers)
+    STATE['fpo_bid_id'] = res['id']
+    
+    # Farmer accepts FPO bid
+    make_request("POST", f"/farmer/bids/fpo/{STATE['fpo_bid_id']}/accept/", 200, "Farmer Accepts FPO Bid", headers=farmer_headers)
+
+def test_05_fpo_retailer_workflow():
+    print_header("Step 5: FPO-Retailer Bidding Workflow")
+    fpo_headers = {"Authorization": f"Bearer {STATE['fpo_token']}"}
+    retailer_headers = {"Authorization": f"Bearer {STATE['retailer_token']}"}
+
+    # FPO creates quote for retailers
+    quote_data = {
+        "product_name": "Packaged Wheat Flour", 
+        "category": "Processed Grains", 
+        "description": "10kg bags of flour", 
+        "quantity": "200.00", 
+        "unit": "bags",
+        "deadline": "2025-12-31"
+    }
+    res = make_request("POST", "/fpo/quotes/", 201, "FPO Creates Quote for Retailers", data=quote_data, headers=fpo_headers)
     STATE['fpo_quote_id'] = res['id']
 
-    make_request("GET", "/farmer/quotes/open/", 200, "Farmer Views Open Quotes", headers=farmer_headers)
+    # Retailer views open FPO quotes
+    make_request("GET", "/retailer/quotes/fpo/open/", 200, "Retailer Views Open FPO Quotes", headers=retailer_headers)
 
-    bid_data = {"bid_amount": "20.50", "delivery_time_days": 15, "comments": "Can supply high quality wheat."}
-    # THIS is the call that was failing. With the serializer fix, it will now pass.
-    res = make_request("POST", f"/farmer/quotes/{STATE['fpo_quote_id']}/bids/", 201, "Farmer Places Bid", data=bid_data, headers=farmer_headers)
-    STATE['farmer_bid_id'] = res['id']
-    
-    make_request("POST", f"/fpo/bids/farmer/{STATE['farmer_bid_id']}/accept/", 200, "FPO Accepts Farmer Bid", headers=fpo_headers)
+    # Retailer places bid on FPO quote
+    bid_data = { 
+        "bid_amount": "150.00", 
+        "delivery_time_days": 10, 
+        "comments": "We can distribute to our stores." 
+    }
+    res = make_request("POST", f"/retailer/quotes/fpo/{STATE['fpo_quote_id']}/bids/", 201, "Retailer Places Bid on FPO Quote", data=bid_data, headers=retailer_headers)
+    STATE['retailer_bid_id'] = res['id']
 
-def test_05_retailer_fpo_workflow():
-    print_header("Step 5: Retailer-FPO Bidding Workflow")
-    retailer_headers = {"Authorization": f"Bearer {STATE['retailer_token']}"}
-    fpo_headers = {"Authorization": f"Bearer {STATE['fpo_token']}"}
-
-    quote_data = {"product_name": "Packaged Wheat Flour", "category": "Processed Grains", "description": "10kg bags of flour", "quantity": "200.00", "unit": "bags", "deadline": "2025-12-31"}
-    res = make_request("POST", "/retailer/quotes/", 201, "Retailer Creates Quote", data=quote_data, headers=retailer_headers)
-    STATE['retailer_quote_id'] = res['id']
-
-    make_request("GET", "/fpo/quotes/retailer/open/", 200, "FPO Views Retailer Quotes", headers=fpo_headers)
-
-    bid_data = { "bid_amount": "150.00", "delivery_time_days": 10, "comments": "We can process and package." }
-    # This call would also have failed without the fix.
-    res = make_request("POST", f"/fpo/quotes/retailer/{STATE['retailer_quote_id']}/bids/", 201, "FPO Places Bid on Retailer Quote", data=bid_data, headers=fpo_headers)
-    STATE['fpo_bid_id'] = res['id']
-
-    make_request("POST", f"/retailer/bids/fpo/{STATE['fpo_bid_id']}/accept/", 200, "Retailer Accepts FPO Bid", headers=retailer_headers)
-
-    payment_data = {"transaction_hash": f"0xTXHASH{generate_random_string(16).upper()}"}
-    make_request("POST", f"/retailer/bids/fpo/{STATE['fpo_bid_id']}/confirm-payment/", 200, "Retailer Confirms Payment", data=payment_data, headers=retailer_headers)
+    # FPO accepts retailer bid
+    make_request("POST", f"/fpo/bids/retailer/{STATE['retailer_bid_id']}/accept/", 200, "FPO Accepts Retailer Bid", headers=fpo_headers)
 
 def test_06_negotiation_workflow():
-    print_header("Step 6: Negotiation Workflow")
+    print_header("Step 6: Negotiation Workflow (FPO-Retailer)")
     fpo_headers = {"Authorization": f"Bearer {STATE['fpo_token']}"}
-    farmer_headers = {"Authorization": f"Bearer {STATE['farmer_token']}"}
+    retailer_headers = {"Authorization": f"Bearer {STATE['retailer_token']}"}
 
-    quote_data = {"product_name": "Organic Barley", "category": "Grains", "description": "For negotiation test", "quantity": "100.00", "unit": "kg", "deadline": "2025-11-30"}
-    res = make_request("POST", "/fpo/quotes/", 201, "[NEGOTIATION] FPO Creates New Quote", data=quote_data, headers=fpo_headers)
+    # 1. FPO creates a new quote specifically for this negotiation test
+    quote_data = {
+        "product_name": "Organic Barley Flour", 
+        "category": "Processed Grains", 
+        "description": "For negotiation test", 
+        "quantity": "100.00", 
+        "unit": "bags", 
+        "deadline": "2025-11-30"
+    }
+    res = make_request("POST", "/fpo/quotes/", 201, "[NEGOTIATION] FPO Creates Quote", data=quote_data, headers=fpo_headers)
     negotiation_quote_id = res['id']
 
-    bid_data = {"bid_amount": "30.00", "delivery_time_days": 20, "comments": "This bid is for negotiation."}
-    res = make_request("POST", f"/farmer/quotes/{negotiation_quote_id}/bids/", 201, "[NEGOTIATION] Farmer Places Bid", data=bid_data, headers=farmer_headers)
-    STATE['negotiation_bid_id'] = res['id']
+    # 2. Retailer places an initial bid on it
+    bid_data = {
+        "bid_amount": "80.00", 
+        "delivery_time_days": 20, 
+        "comments": "This bid will be negotiated."
+    }
+    res = make_request("POST", f"/retailer/quotes/fpo/{negotiation_quote_id}/bids/", 201, "[NEGOTIATION] Retailer Places Initial Bid", data=bid_data, headers=retailer_headers)
+    negotiation_bid_id = res['id']
     
-    negotiation_start_data = {"content_type": "farmer.farmerbid", "object_id": STATE['negotiation_bid_id']}
-    res = make_request("POST", "/negotiation/start/", 201, "FPO Starts Negotiation", data=negotiation_start_data, headers=fpo_headers)
+    # 3. FPO (the quote owner) starts a negotiation on the retailer's bid
+    negotiation_start_data = {
+        "content_type": "retailer.retailerbid", 
+        "object_id": negotiation_bid_id
+    }
+    res = make_request("POST", "/negotiation/start/", 201, "[NEGOTIATION] FPO Starts Negotiation", data=negotiation_start_data, headers=fpo_headers)
     STATE['negotiation_id'] = res['id']
     
-    counter_offer_data = {"message": "I can do it for 28.00 in 18 days.", "counter_amount": "28.00", "counter_delivery_time_days": 18}
-    make_request("POST", f"/negotiation/{STATE['negotiation_id']}/", 201, "Farmer Sends Counter-Offer", data=counter_offer_data, headers=farmer_headers)
+    # 4. Retailer (the bidder) sends a counter-offer
+    counter_offer_data = {
+        "message": "We can go up to 85.00 if you can deliver in 15 days.", 
+        "counter_amount": "85.00", 
+        "counter_delivery_time_days": 15
+    }
+    make_request("POST", f"/negotiation/{STATE['negotiation_id']}/", 201, "[NEGOTIATION] Retailer Sends Counter-Offer", data=counter_offer_data, headers=retailer_headers)
 
-    res = make_request("GET", f"/negotiation/{STATE['negotiation_id']}/", 200, "FPO Views Negotiation Details", headers=fpo_headers)
+    # 5. FPO views the negotiation history to see the counter-offer
+    res = make_request("GET", f"/negotiation/{STATE['negotiation_id']}/", 200, "[NEGOTIATION] FPO Views Negotiation Details", headers=fpo_headers)
     
+    # 6. Verify the counter-offer is present
     last_message = res['messages'][-1]['message']
-    if "28.00" in last_message:
+    if "85.00" in last_message and "15 days" in last_message:
         print(f"{Colors.OKGREEN}SUCCESS: Counter-offer message found in negotiation history.{Colors.ENDC}")
     else:
-        print(f"{Colors.FAIL}FAILURE: Counter-offer message not found!{Colors.ENDC}")
+        print(f"{Colors.FAIL}FAILURE: Counter-offer message not found! Expected '85.00' and '15 days'. Got: {last_message}{Colors.ENDC}")
         sys.exit(1)
+
 
 def main():
     """Run all test workflows in sequence."""
@@ -333,8 +381,8 @@ def main():
     test_01_registration()
     test_02_admin_login_and_approval()
     test_03_user_logins()
-    test_04_fpo_farmer_workflow()
-    test_05_retailer_fpo_workflow()
+    test_04_farmer_fpo_workflow()
+    test_05_fpo_retailer_workflow()
     test_06_negotiation_workflow()
     
     end_time = time.time()
@@ -740,57 +788,42 @@ class Farmer(models.Model):
     
     def check_password(self, raw_password):
         return check_password(raw_password, self.password)
-    
-# Add these new models to your existing farmer/models.py
-from django.db import models
-from django.contrib.auth.hashers import make_password, check_password
-from fpo.models import FPOQuoteRequest, FPO
 
-# ... Farmer model is already here ...
-
-class FarmerBid(models.Model):
+class FarmerQuote(models.Model):
     STATUS_CHOICES = [
-        ('submitted', 'Submitted'),
-        ('accepted', 'Accepted'),
-        ('rejected', 'Rejected'),
+        ('open', 'Open'),
+        ('closed', 'Closed'),
+        ('awarded', 'Awarded'),
     ]
-    PAYMENT_STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('paid', 'Paid'),
-        ('failed', 'Failed'),
-    ]
-
-    farmer = models.ForeignKey(Farmer, on_delete=models.CASCADE, related_name='bids')
-    quote = models.ForeignKey(FPOQuoteRequest, on_delete=models.CASCADE, related_name='bids')
-    bid_amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="Price per unit")
-    delivery_time_days = models.PositiveIntegerField()
-    comments = models.TextField(blank=True)
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='submitted')
-    submitted_at = models.DateTimeField(auto_now_add=True)
-
-    # Blockchain fields
-    payment_status = models.CharField(max_length=10, choices=PAYMENT_STATUS_CHOICES, default='pending')
-    transaction_hash = models.CharField(max_length=66, blank=True, null=True)
-
-    def __str__(self):
-        return f"Bid from {self.farmer.name} for {self.quote.product_name}"
-
-class FPOReviewOfFarmer(models.Model):
-    RATING_CHOICES = [(i, str(i)) for i in range(1, 6)]
-
-    farmer = models.ForeignKey(Farmer, on_delete=models.CASCADE, related_name='reviews_from_fpos')
-    fpo = models.ForeignKey(FPO, on_delete=models.CASCADE)
-    bid = models.OneToOneField(FarmerBid, on_delete=models.CASCADE)
-    rating = models.PositiveSmallIntegerField(choices=RATING_CHOICES)
-    comment = models.TextField(blank=True)
+    
+    farmer = models.ForeignKey(Farmer, on_delete=models.CASCADE, related_name='quotes')
+    product_name = models.CharField(max_length=200)
+    category = models.CharField(max_length=100)
+    description = models.TextField()
+    quantity = models.DecimalField(max_digits=10, decimal_places=2)
+    unit = models.CharField(max_length=20, help_text="e.g., kg, quintal, ton")
+    price_per_unit = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='open')
+    deadline = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
+    
+    accepted_bid = models.ForeignKey(
+        'fpo.FPOBid', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='accepted_for_farmer_quote'
+    )
+    
+    def __str__(self):
+        return f"{self.product_name} quote from {self.farmer.name}"
 
 
 ================================================
 FILE: backend/farmer/serializers.py
 ================================================
 from rest_framework import serializers
-from .models import Farmer
+from .models import Farmer, FarmerQuote
 
 class FarmerSerializer(serializers.ModelSerializer):
     class Meta:
@@ -810,23 +843,48 @@ class FarmerRegistrationSerializer(serializers.ModelSerializer):
         farmer.set_password(password)
         farmer.save()
         return farmer
-    
-    
-from rest_framework import serializers
-from .models import Farmer, FarmerBid, FPOReviewOfFarmer
-# Add these new serializers
 
-class FarmerBidSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = FarmerBid
-        fields = '__all__'
-        read_only_fields = ('farmer', 'quote','status', 'submitted_at', 'payment_status', 'transaction_hash')
+class FarmerQuoteSerializer(serializers.ModelSerializer):
+    farmer_name = serializers.CharField(source='farmer.name', read_only=True)
+    farmer_email = serializers.CharField(source='farmer.email', read_only=True)
+    # --- FIX START ---
+    bids = serializers.SerializerMethodField()
+    # --- FIX END ---
 
-class FPOReviewOfFarmerSerializer(serializers.ModelSerializer):
     class Meta:
-        model = FPOReviewOfFarmer
-        fields = '__all__'
-        read_only_fields = ('fpo', 'bid')
+        model = FarmerQuote
+        fields = [
+            'id', 'farmer', 'product_name', 'category', 'description', 
+            'quantity', 'unit', 'price_per_unit', 'status', 'deadline', 
+            'created_at', 'accepted_bid', 'farmer_name', 'farmer_email',
+            'bids'  # <-- Add 'bids' to the fields list
+        ]
+        read_only_fields = ('farmer', 'status', 'created_at', 'accepted_bid')
+
+    # --- FIX START ---
+    def get_bids(self, obj):
+        """
+        Custom method to get and serialize the bids for this quote.
+        This avoids the circular import issue at startup.
+        """
+        # Import the serializer only when this method is called
+        from fpo.serializers import FPOBidSerializer
+        # We access bids through the related_name 'bids' on the FarmerQuote object 'obj'
+        bids_queryset = obj.bids.all()
+        serializer = FPOBidSerializer(bids_queryset, many=True)
+        return serializer.data
+    # --- FIX END ---
+
+    def validate_quantity(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Quantity must be greater than zero.")
+        return value
+
+    def validate_deadline(self, value):
+        from django.utils import timezone
+        if value <= timezone.now().date():
+            raise serializers.ValidationError("Deadline must be in the future.")
+        return value
 
 
 ================================================
@@ -842,12 +900,9 @@ from django.test import TestCase
 FILE: backend/farmer/urls.py
 ================================================
 from django.urls import path
-from .views import FarmerRegistrationView, FarmerListView, FarmerDetailView, farmer_login_check
 from .views import (
-    # ... existing imports
-    farmer_dashboard,
-    OpenQuoteListView,
-    FarmerBidCreateView
+    FarmerRegistrationView, FarmerListView, FarmerDetailView, farmer_login_check,
+    farmer_dashboard, FarmerQuoteListCreateView, FarmerQuoteDetailView, accept_fpo_bid
 )
 
 urlpatterns = [
@@ -856,8 +911,9 @@ urlpatterns = [
     path('', FarmerListView.as_view(), name='farmer-list'),
     path('<int:pk>/', FarmerDetailView.as_view(), name='farmer-detail'),
     path('dashboard/', farmer_dashboard, name='farmer-dashboard'),
-    path('quotes/open/', OpenQuoteListView.as_view(), name='farmer-open-quotes'),
-    path('quotes/<int:quote_pk>/bids/', FarmerBidCreateView.as_view(), name='farmer-create-bid'),
+    path('quotes/', FarmerQuoteListCreateView.as_view(), name='farmer-quote-list'),
+    path('quotes/<int:pk>/', FarmerQuoteDetailView.as_view(), name='farmer-quote-detail'),
+    path('bids/fpo/<int:bid_pk>/accept/', accept_fpo_bid, name='farmer-accept-fpo-bid'),
 ]
 
 
@@ -869,10 +925,11 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
-from .models import Farmer
-from .serializers import FarmerSerializer, FarmerRegistrationSerializer
+from .models import Farmer, FarmerQuote
+from .serializers import FarmerSerializer, FarmerRegistrationSerializer, FarmerQuoteSerializer
 from common.permissions import IsFarmer
-
+from fpo.models import FPOBid
+from fpo.serializers import FPOBidSerializer
 
 class FarmerRegistrationView(generics.CreateAPIView):
     queryset = Farmer.objects.all()
@@ -889,7 +946,6 @@ class FarmerRegistrationView(generics.CreateAPIView):
             status=status.HTTP_201_CREATED,
             headers=headers
         )
-
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -923,72 +979,75 @@ def farmer_login_check(request):
             'status': 'not_found'
         }, status=status.HTTP_404_NOT_FOUND)
 
-
 class FarmerListView(generics.ListAPIView):
     queryset = Farmer.objects.all()
     serializer_class = FarmerSerializer
     permission_classes = [IsAuthenticated, IsFarmer]
 
-
 class FarmerDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Farmer.objects.all()
     serializer_class = FarmerSerializer
     permission_classes = [IsAuthenticated, IsFarmer]
-    
-    
-# ... existing imports ...
-from rest_framework import generics, status
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.response import Response
-from common.permissions import IsFarmer
-from fpo.models import FPOQuoteRequest
-from .models import FarmerBid
-from .serializers import FarmerBidSerializer
-from fpo.serializers import FPOQuoteRequestSerializer
-
-# ... existing Farmer views ...
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsFarmer])
 def farmer_dashboard(request):
-    farmer = request.user.user_obj # Assuming custom auth sets this
+    farmer = request.user.user_obj
     
-    # Open quotes farmer can bid on
-    open_quotes = FPOQuoteRequest.objects.filter(status='open').exclude(bids__farmer=farmer)
-    
-    # Farmer's active bids
-    my_bids = FarmerBid.objects.filter(farmer=farmer)
+    my_quotes = FarmerQuote.objects.filter(farmer=farmer)
+    bids_received = FPOBid.objects.filter(quote__in=my_quotes)
 
     data = {
-        "open_quotes_count": open_quotes.count(),
-        "my_bids_count": my_bids.count(),
-        "my_bids": FarmerBidSerializer(my_bids, many=True).data,
+        "my_quotes_count": my_quotes.count(),
+        "bids_received_count": bids_received.count(),
+        "active_quotes": my_quotes.filter(status='open').count(),
+        "awarded_quotes": my_quotes.filter(status='awarded').count(),
     }
     return Response(data)
 
-class OpenQuoteListView(generics.ListAPIView):
-    """
-    Lists all open quotes from FPOs that this farmer has not bid on yet.
-    """
-    serializer_class = FPOQuoteRequestSerializer
+class FarmerQuoteListCreateView(generics.ListCreateAPIView):
+    serializer_class = FarmerQuoteSerializer
     permission_classes = [IsAuthenticated, IsFarmer]
 
     def get_queryset(self):
-        farmer = self.request.user.user_obj
-        return FPOQuoteRequest.objects.filter(status='open').exclude(bids__farmer=farmer)
-
-class FarmerBidCreateView(generics.CreateAPIView):
-    """
-    Allows a farmer to create a bid on a specific FPO quote.
-    """
-    serializer_class = FarmerBidSerializer
-    permission_classes = [IsAuthenticated, IsFarmer]
+        return FarmerQuote.objects.filter(farmer=self.request.user.user_obj)
 
     def perform_create(self, serializer):
-        quote = get_object_or_404(FPOQuoteRequest, pk=self.kwargs['quote_pk'])
-        if quote.status != 'open':
-            raise serializers.ValidationError("This quote is no longer open for bidding.")
-        serializer.save(farmer=self.request.user.user_obj, quote=quote)
+        serializer.save(farmer=self.request.user.user_obj)
+
+class FarmerQuoteDetailView(generics.RetrieveUpdateAPIView):
+    serializer_class = FarmerQuoteSerializer
+    permission_classes = [IsAuthenticated, IsFarmer]
+    queryset = FarmerQuote.objects.all()
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsFarmer])
+def accept_fpo_bid(request, bid_pk):
+    bid = get_object_or_404(FPOBid, pk=bid_pk)
+    quote = bid.quote
+
+    if quote.farmer != request.user.user_obj:
+        return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+    
+    if quote.status != 'open':
+        return Response({"error": "Quote is not open."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Accept this bid
+    bid.status = 'accepted'
+    bid.save()
+
+    # Reject other bids
+    quote.bids.exclude(pk=bid.pk).update(status='rejected')
+    
+    # Award quote
+    quote.status = 'awarded'
+    quote.accepted_bid = bid
+    quote.save()
+    
+    return Response({
+        "message": "Bid accepted successfully.",
+        "bid_id": bid.pk
+    })
 
 
 ================================================
@@ -1128,6 +1187,90 @@ class Migration(migrations.Migration):
             model_name='fporeviewoffarmer',
             name='fpo',
             field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='fpo.fpo'),
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/farmer/migrations/0005_remove_farmerbid_farmer_remove_farmerbid_quote_and_more.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-26 16:56
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0004_farmerbid_quote_fporeviewoffarmer_bid_and_more'),
+        ('fpo', '0005_fpobid_quote_retailerreviewoffpo_bid_and_more'),
+    ]
+
+    operations = [
+        migrations.RemoveField(
+            model_name='farmerbid',
+            name='farmer',
+        ),
+        migrations.RemoveField(
+            model_name='farmerbid',
+            name='quote',
+        ),
+        migrations.RemoveField(
+            model_name='fporeviewoffarmer',
+            name='bid',
+        ),
+        migrations.RemoveField(
+            model_name='fporeviewoffarmer',
+            name='farmer',
+        ),
+        migrations.RemoveField(
+            model_name='fporeviewoffarmer',
+            name='fpo',
+        ),
+        migrations.CreateModel(
+            name='FarmerQuote',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('product_name', models.CharField(max_length=200)),
+                ('category', models.CharField(max_length=100)),
+                ('description', models.TextField()),
+                ('quantity', models.DecimalField(decimal_places=2, max_digits=10)),
+                ('unit', models.CharField(help_text='e.g., kg, quintal, ton', max_length=20)),
+                ('price_per_unit', models.DecimalField(blank=True, decimal_places=2, max_digits=10, null=True)),
+                ('status', models.CharField(choices=[('open', 'Open'), ('closed', 'Closed'), ('awarded', 'Awarded')], default='open', max_length=10)),
+                ('deadline', models.DateField()),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('accepted_bid', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='accepted_for_farmer_quote', to='fpo.fpobid')),
+                ('farmer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='quotes', to='farmer.farmer')),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/farmer/migrations/0006_delete_farmerbid_delete_fporeviewoffarmer.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-26 16:56
+
+from django.db import migrations
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0005_remove_farmerbid_farmer_remove_farmerbid_quote_and_more'),
+        ('fpo', '0006_fpoquote_remove_fpoquoterequest_accepted_bid_and_more'),
+    ]
+
+    operations = [
+        migrations.DeleteModel(
+            name='FarmerBid',
+        ),
+        migrations.DeleteModel(
+            name='FPOReviewOfFarmer',
         ),
     ]
 
@@ -1387,11 +1530,7 @@ from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
 
 class FPO(models.Model):
-    APPROVAL_STATUS = [
-        ('pending', 'Pending'),
-        ('approved', 'Approved'),
-        ('rejected', 'Rejected'),
-    ]
+    APPROVAL_STATUS = [('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected')]
     
     name = models.CharField(max_length=100)
     email = models.EmailField(unique=True)
@@ -1411,56 +1550,13 @@ class FPO(models.Model):
     
     def check_password(self, raw_password):
         return check_password(raw_password, self.password)
-    
-    
-    
-# Add this to your existing fpo/models.py
-from django.db import models
-from django.contrib.auth.hashers import make_password, check_password
-
-# ... FPO model is already here ...
-
-class FPOQuoteRequest(models.Model):
-    STATUS_CHOICES = [
-        ('open', 'Open'),
-        ('closed', 'Closed'),
-        ('awarded', 'Awarded'),
-    ]
-    
-    fpo = models.ForeignKey(FPO, on_delete=models.CASCADE, related_name='quote_requests')
-    product_name = models.CharField(max_length=200)
-    category = models.CharField(max_length=100) # e.g., 'Grains', 'Vegetables', 'Fruits'
-    description = models.TextField()
-    quantity = models.DecimalField(max_digits=10, decimal_places=2)
-    unit = models.CharField(max_length=20, help_text="e.g., kg, quintal, ton")
-    deadline = models.DateField()
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='open')
-    created_at = models.DateTimeField(auto_now_add=True)
-    accepted_bid = models.ForeignKey(
-        'farmer.FarmerBid', 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True,
-        related_name='accepted_for_quote'
-    )
-    
-    def __str__(self):
-        return f"{self.product_name} request by {self.fpo.name}"
-    
-    
-# Add these new models to your existing fpo/models.py
-from django.db import models
-from django.contrib.auth.hashers import make_password, check_password
-from retailer.models import Retailer, RetailerQuoteRequest
-
-# ... FPO model is already here ...
 
 class FPOBid(models.Model):
     STATUS_CHOICES = [('submitted', 'Submitted'), ('accepted', 'Accepted'), ('rejected', 'Rejected')]
     PAYMENT_STATUS_CHOICES = [('pending', 'Pending'), ('paid', 'Paid'), ('failed', 'Failed')]
 
     fpo = models.ForeignKey(FPO, on_delete=models.CASCADE, related_name='bids')
-    quote = models.ForeignKey(RetailerQuoteRequest, on_delete=models.CASCADE, related_name='bids')
+    quote = models.ForeignKey('farmer.FarmerQuote', on_delete=models.CASCADE, related_name='bids')
     bid_amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="Price per unit")
     delivery_time_days = models.PositiveIntegerField()
     comments = models.TextField(blank=True)
@@ -1472,22 +1568,37 @@ class FPOBid(models.Model):
     def __str__(self):
         return f"Bid from {self.fpo.name} for {self.quote.product_name}"
 
-class RetailerReviewOfFPO(models.Model):
-    RATING_CHOICES = [(i, str(i)) for i in range(1, 6)]
-
-    fpo = models.ForeignKey(FPO, on_delete=models.CASCADE, related_name='reviews_from_retailers')
-    retailer = models.ForeignKey(Retailer, on_delete=models.CASCADE)
-    bid = models.OneToOneField(FPOBid, on_delete=models.CASCADE)
-    rating = models.PositiveSmallIntegerField(choices=RATING_CHOICES)
-    comment = models.TextField(blank=True)
+class FPOQuote(models.Model):
+    STATUS_CHOICES = [('open', 'Open'), ('closed', 'Closed'), ('awarded', 'Awarded')]
+    
+    fpo = models.ForeignKey(FPO, on_delete=models.CASCADE, related_name='quotes')
+    product_name = models.CharField(max_length=200)
+    category = models.CharField(max_length=100)
+    description = models.TextField()
+    quantity = models.DecimalField(max_digits=10, decimal_places=2)
+    unit = models.CharField(max_length=20, help_text="e.g., kg, quintal, ton")
+    price_per_unit = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='open')
+    deadline = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
+    
+    accepted_bid = models.ForeignKey(
+        'retailer.RetailerBid', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='accepted_for_fpo_quote'
+    )
+    
+    def __str__(self):
+        return f"{self.product_name} quote by {self.fpo.name}"
 
 
 ================================================
 FILE: backend/fpo/serializers.py
 ================================================
 from rest_framework import serializers
-from .models import FPO
+from .models import FPO, FPOBid, FPOQuote
 
 class FPOSerializer(serializers.ModelSerializer):
     class Meta:
@@ -1507,36 +1618,73 @@ class FPORegistrationSerializer(serializers.ModelSerializer):
         fpo.set_password(password)
         fpo.save()
         return fpo
-    
-from rest_framework import serializers
-from .models import FPO, FPOQuoteRequest
-from farmer.serializers import FarmerBidSerializer # Import FarmerBidSerializer
-# Add these new serializers
-
-class FPOQuoteRequestSerializer(serializers.ModelSerializer):
-    bids = FarmerBidSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = FPOQuoteRequest
-        fields = '__all__'
-        read_only_fields = ('fpo', 'status', 'accepted_bid')
-        
-        
-# Add these new serializers to fpo/serializers.py
-from .models import FPO, FPOBid, RetailerReviewOfFPO
-# ... existing FPOSerializer and FPORegistrationSerializer ...
 
 class FPOBidSerializer(serializers.ModelSerializer):
+    fpo_name = serializers.CharField(source='fpo.name', read_only=True)
+    fpo_email = serializers.CharField(source='fpo.email', read_only=True)
+    quote_product_name = serializers.CharField(source='quote.product_name', read_only=True)
+    quote_farmer_name = serializers.CharField(source='quote.farmer.name', read_only=True)
+    quote_quantity = serializers.DecimalField(source='quote.quantity', read_only=True, max_digits=10, decimal_places=2)
+    quote_unit = serializers.CharField(source='quote.unit', read_only=True)
+    
     class Meta:
         model = FPOBid
-        fields = '__all__'
-        read_only_fields = ('fpo', 'quote','status', 'submitted_at', 'payment_status', 'transaction_hash')
+        fields = [
+            'id', 'fpo', 'quote', 'bid_amount', 'delivery_time_days', 
+            'comments', 'status', 'submitted_at', 'payment_status', 
+            'transaction_hash', 'fpo_name', 'fpo_email',
+            'quote_product_name', 'quote_farmer_name', 'quote_quantity', 'quote_unit'
+        ]
+        read_only_fields = ('fpo', 'quote', 'status', 'submitted_at', 'payment_status', 'transaction_hash')
 
-class RetailerReviewOfFPOSerializer(serializers.ModelSerializer):
+    def validate_bid_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Bid amount must be greater than zero.")
+        return value
+
+    def validate_delivery_time_days(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Delivery time must be greater than zero.")
+        return value
+
+class FPOQuoteSerializer(serializers.ModelSerializer):
+    fpo_name = serializers.CharField(source='fpo.name', read_only=True)
+    fpo_email = serializers.CharField(source='fpo.email', read_only=True)
+    # --- FIX START ---
+    bids = serializers.SerializerMethodField()
+    # --- FIX END ---
+    
     class Meta:
-        model = RetailerReviewOfFPO
-        fields = '__all__'
-        read_only_fields = ('retailer', 'bid')
+        model = FPOQuote
+        fields = [
+            'id', 'fpo', 'product_name', 'category', 'description', 
+            'quantity', 'unit', 'price_per_unit', 'status', 'deadline', 
+            'created_at', 'accepted_bid', 'fpo_name', 'fpo_email',
+            'bids' # <-- Add 'bids' to the fields list
+        ]
+        read_only_fields = ('fpo', 'status', 'created_at', 'accepted_bid')
+    
+    # --- FIX START ---
+    def get_bids(self, obj):
+        """
+        Custom method to get and serialize the bids for this quote.
+        """
+        from retailer.serializers import RetailerBidSerializer
+        bids_queryset = obj.bids.all()
+        serializer = RetailerBidSerializer(bids_queryset, many=True)
+        return serializer.data
+    # --- FIX END ---
+
+    def validate_quantity(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Quantity must be greater than zero.")
+        return value
+
+    def validate_deadline(self, value):
+        from django.utils import timezone
+        if value <= timezone.now().date():
+            raise serializers.ValidationError("Deadline must be in the future.")
+        return value
 
 
 ================================================
@@ -1552,19 +1700,10 @@ from django.test import TestCase
 FILE: backend/fpo/urls.py
 ================================================
 from django.urls import path
-from .views import FPORegistrationView, FPOListView, FPODetailView, fpo_login_check
 from .views import (
-    # ... existing imports
-    fpo_dashboard,
-    FPOQuoteRequestListCreateView,
-    FPOQuoteRequestDetailView,
-    accept_farmer_bid,
-)
-
-from .views import (
-    # ... existing imports
-    RetailerOpenQuoteListView,
-    FPOBidCreateView
+    FPORegistrationView, FPOListView, FPODetailView, fpo_login_check,
+    fpo_dashboard, FarmerOpenQuoteListView, FPOBidCreateView, 
+    FPOQuoteListCreateView, accept_retailer_bid
 )
 
 urlpatterns = [
@@ -1573,11 +1712,10 @@ urlpatterns = [
     path('', FPOListView.as_view(), name='fpo-list'),
     path('<int:pk>/', FPODetailView.as_view(), name='fpo-detail'),
     path('dashboard/', fpo_dashboard, name='fpo-dashboard'),
-    path('quotes/', FPOQuoteRequestListCreateView.as_view(), name='fpo-quote-list-create'),
-    path('quotes/<int:pk>/', FPOQuoteRequestDetailView.as_view(), name='fpo-quote-detail'),
-    path('bids/farmer/<int:bid_pk>/accept/', accept_farmer_bid, name='fpo-accept-farmer-bid'),
-    path('quotes/retailer/open/', RetailerOpenQuoteListView.as_view(), name='fpo-retailer-open-quotes'),
-    path('quotes/retailer/<int:quote_pk>/bids/', FPOBidCreateView.as_view(), name='fpo-create-bid-on-retailer-quote'),
+    path('quotes/farmer/open/', FarmerOpenQuoteListView.as_view(), name='fpo-farmer-open-quotes'),
+    path('quotes/farmer/<int:quote_pk>/bids/', FPOBidCreateView.as_view(), name='fpo-create-bid-on-farmer-quote'),
+    path('quotes/', FPOQuoteListCreateView.as_view(), name='fpo-quote-list'),
+    path('bids/retailer/<int:bid_pk>/accept/', accept_retailer_bid, name='fpo-accept-retailer-bid'),
 ]
 
 
@@ -1589,10 +1727,13 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
-from .models import FPO
-from .serializers import FPOSerializer, FPORegistrationSerializer
+from .models import FPO, FPOBid, FPOQuote
+from .serializers import FPOSerializer, FPORegistrationSerializer, FPOBidSerializer, FPOQuoteSerializer
 from common.permissions import IsFPO
-
+from farmer.models import FarmerQuote
+from farmer.serializers import FarmerQuoteSerializer
+from retailer.models import RetailerBid
+from retailer.serializers import RetailerBidSerializer
 
 class FPORegistrationView(generics.CreateAPIView):
     queryset = FPO.objects.all()
@@ -1609,7 +1750,6 @@ class FPORegistrationView(generics.CreateAPIView):
             status=status.HTTP_201_CREATED,
             headers=headers
         )
-
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -1643,69 +1783,67 @@ def fpo_login_check(request):
             'status': 'not_found'
         }, status=status.HTTP_404_NOT_FOUND)
 
-
 class FPOListView(generics.ListAPIView):
     queryset = FPO.objects.all()
     serializer_class = FPOSerializer
     permission_classes = [IsAuthenticated, IsFPO]
 
-
 class FPODetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = FPO.objects.all()
     serializer_class = FPOSerializer
     permission_classes = [IsAuthenticated, IsFPO]
-    
-    
-# ... existing imports ...
-from rest_framework.decorators import api_view, permission_classes
-from common.permissions import IsFPO
-from .models import FPOQuoteRequest
-from .serializers import FPOQuoteRequestSerializer
-from farmer.models import FarmerBid
-from farmer.serializers import FarmerBidSerializer
-
-# ... existing FPO views ...
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsFPO])
 def fpo_dashboard(request):
     fpo = request.user.user_obj
 
-    my_quotes = FPOQuoteRequest.objects.filter(fpo=fpo)
-    bids_received = FarmerBid.objects.filter(quote__in=my_quotes)
+    farmer_quotes = FarmerQuote.objects.filter(status='open')
+    my_bids = FPOBid.objects.filter(fpo=fpo)
+    my_quotes = FPOQuote.objects.filter(fpo=fpo)
+    retailer_bids = RetailerBid.objects.filter(quote__in=my_quotes)
     
     data = {
+        "available_farmer_quotes_count": farmer_quotes.count(),
+        "my_bids_count": my_bids.count(),
         "my_quotes_count": my_quotes.count(),
-        "bids_received_count": bids_received.count(),
-        "my_quotes": FPOQuoteRequestSerializer(my_quotes, many=True).data,
+        "retailer_bids_count": retailer_bids.count(),
     }
     return Response(data)
 
-class FPOQuoteRequestListCreateView(generics.ListCreateAPIView):
-    """
-    For FPOs to list their own quotes or create a new one.
-    """
-    serializer_class = FPOQuoteRequestSerializer
+class FarmerOpenQuoteListView(generics.ListAPIView):
+    serializer_class = FarmerQuoteSerializer
     permission_classes = [IsAuthenticated, IsFPO]
 
     def get_queryset(self):
-        return FPOQuoteRequest.objects.filter(fpo=self.request.user.user_obj)
+        fpo = self.request.user.user_obj
+        # Exclude quotes where FPO has already bid
+        return FarmerQuote.objects.filter(status='open').exclude(bids__fpo=fpo)
+
+class FPOBidCreateView(generics.CreateAPIView):
+    serializer_class = FPOBidSerializer
+    permission_classes = [IsAuthenticated, IsFPO]
+
+    def perform_create(self, serializer):
+        quote = get_object_or_404(FarmerQuote, pk=self.kwargs['quote_pk'])
+        if quote.status != 'open':
+            raise serializers.ValidationError("This quote is no longer open for bidding.")
+        serializer.save(fpo=self.request.user.user_obj, quote=quote)
+
+class FPOQuoteListCreateView(generics.ListCreateAPIView):
+    serializer_class = FPOQuoteSerializer
+    permission_classes = [IsAuthenticated, IsFPO]
+
+    def get_queryset(self):
+        return FPOQuote.objects.filter(fpo=self.request.user.user_obj)
 
     def perform_create(self, serializer):
         serializer.save(fpo=self.request.user.user_obj)
 
-class FPOQuoteRequestDetailView(generics.RetrieveUpdateAPIView):
-    """
-    View or update a specific quote request. Includes all bids.
-    """
-    serializer_class = FPOQuoteRequestSerializer
-    permission_classes = [IsAuthenticated, IsFPO]
-    queryset = FPOQuoteRequest.objects.all()
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated, IsFPO])
-def accept_farmer_bid(request, bid_pk):
-    bid = get_object_or_404(FarmerBid, pk=bid_pk)
+def accept_retailer_bid(request, bid_pk):
+    bid = get_object_or_404(RetailerBid, pk=bid_pk)
     quote = bid.quote
 
     if quote.fpo != request.user.user_obj:
@@ -1714,62 +1852,17 @@ def accept_farmer_bid(request, bid_pk):
     if quote.status != 'open':
         return Response({"error": "Quote is not open."}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Accept this bid
     bid.status = 'accepted'
     bid.save()
-
-    # Reject other bids
     quote.bids.exclude(pk=bid.pk).update(status='rejected')
-    
-    # Award quote
     quote.status = 'awarded'
     quote.accepted_bid = bid
     quote.save()
     
-    # Return data needed for frontend to initiate payment
-    payment_details = {
-        "recipient_address": bid.farmer.wallet_address,
-        "amount": str(bid.bid_amount * quote.quantity), # Total amount
-        "bid_id": bid.pk
-    }
-    
     return Response({
-        "message": "Bid accepted. Please proceed with payment.",
-        "payment_details": payment_details
+        "message": "Retailer bid accepted successfully.",
+        "bid_id": bid.pk
     })
-    
-    
-# Add these views to fpo/views.py
-from retailer.models import RetailerQuoteRequest
-from retailer.serializers import RetailerQuoteRequestSerializer
-from .models import FPOBid
-from .serializers import FPOBidSerializer
-
-# ... existing FPO views ...
-
-class RetailerOpenQuoteListView(generics.ListAPIView):
-    """
-    Lists all open quotes from Retailers that this FPO has not bid on yet.
-    """
-    serializer_class = RetailerQuoteRequestSerializer
-    permission_classes = [IsAuthenticated, IsFPO]
-
-    def get_queryset(self):
-        fpo = self.request.user.user_obj
-        return RetailerQuoteRequest.objects.filter(status='open').exclude(bids__fpo=fpo)
-
-class FPOBidCreateView(generics.CreateAPIView):
-    """
-    Allows an FPO to create a bid on a specific retailer quote.
-    """
-    serializer_class = FPOBidSerializer
-    permission_classes = [IsAuthenticated, IsFPO]
-
-    def perform_create(self, serializer):
-        quote = get_object_or_404(RetailerQuoteRequest, pk=self.kwargs['quote_pk'])
-        if quote.status != 'open':
-            raise serializers.ValidationError("This quote is no longer open for bidding.")
-        serializer.save(fpo=self.request.user.user_obj, quote=quote)
 
 
 ================================================
@@ -1952,6 +2045,105 @@ class Migration(migrations.Migration):
 
 
 ================================================
+FILE: backend/fpo/migrations/0006_fpoquote_remove_fpoquoterequest_accepted_bid_and_more.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-26 16:56
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0005_remove_farmerbid_farmer_remove_farmerbid_quote_and_more'),
+        ('fpo', '0005_fpobid_quote_retailerreviewoffpo_bid_and_more'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='FPOQuote',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('product_name', models.CharField(max_length=200)),
+                ('category', models.CharField(max_length=100)),
+                ('description', models.TextField()),
+                ('quantity', models.DecimalField(decimal_places=2, max_digits=10)),
+                ('unit', models.CharField(help_text='e.g., kg, quintal, ton', max_length=20)),
+                ('price_per_unit', models.DecimalField(blank=True, decimal_places=2, max_digits=10, null=True)),
+                ('status', models.CharField(choices=[('open', 'Open'), ('closed', 'Closed'), ('awarded', 'Awarded')], default='open', max_length=10)),
+                ('deadline', models.DateField()),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+            ],
+        ),
+        migrations.RemoveField(
+            model_name='fpoquoterequest',
+            name='accepted_bid',
+        ),
+        migrations.RemoveField(
+            model_name='fpoquoterequest',
+            name='fpo',
+        ),
+        migrations.RemoveField(
+            model_name='retailerreviewoffpo',
+            name='bid',
+        ),
+        migrations.RemoveField(
+            model_name='retailerreviewoffpo',
+            name='fpo',
+        ),
+        migrations.RemoveField(
+            model_name='retailerreviewoffpo',
+            name='retailer',
+        ),
+        migrations.AlterField(
+            model_name='fpobid',
+            name='quote',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='farmer.farmerquote'),
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/fpo/migrations/0007_fpoquote_accepted_bid_fpoquote_fpo_and_more.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-26 16:56
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0006_delete_farmerbid_delete_fporeviewoffarmer'),
+        ('fpo', '0006_fpoquote_remove_fpoquoterequest_accepted_bid_and_more'),
+        ('retailer', '0004_retailerbid_delete_retailerquoterequest'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='fpoquote',
+            name='accepted_bid',
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='accepted_for_fpo_quote', to='retailer.retailerbid'),
+        ),
+        migrations.AddField(
+            model_name='fpoquote',
+            name='fpo',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='quotes', to='fpo.fpo'),
+        ),
+        migrations.DeleteModel(
+            name='FPOQuoteRequest',
+        ),
+        migrations.DeleteModel(
+            name='RetailerReviewOfFPO',
+        ),
+    ]
+
+
+
+================================================
 FILE: backend/fpo/migrations/__init__.py
 ================================================
 
@@ -2070,8 +2262,6 @@ urlpatterns = [
 ================================================
 FILE: backend/negotiation/views.py
 ================================================
-# backend/negotiation/views.py
-
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -2081,8 +2271,8 @@ from django.shortcuts import get_object_or_404
 from .models import Negotiation, NegotiationMessage
 from .serializers import NegotiationSerializer, CounterOfferSerializer
 
-def get_bid_and_user_type(content_type_str, object_id):
-    """Helper to get bid object and validate user type."""
+def get_bid_model_instance(content_type_str, object_id):
+    """Helper to get a bid object instance from its content type string and ID."""
     try:
         app_label, model = content_type_str.split('.')
         content_type = ContentType.objects.get(app_label=app_label, model=model)
@@ -2092,22 +2282,42 @@ def get_bid_and_user_type(content_type_str, object_id):
     except (ContentType.DoesNotExist, ValueError):
         return None
 
-class StartNegotiationView(generics.CreateAPIView):
+def check_negotiation_permission(user, negotiation):
+    """Checks if a user is part of a negotiation (either bidder or quote owner)."""
+    bid = negotiation.bid
+    quote = bid.quote
+    
+    current_user_obj = user.user_obj
+    
+    # Identify the bidder (FPO or Retailer)
+    bidder = getattr(bid, 'fpo', None) or getattr(bid, 'retailer', None)
+    
+    # Identify the quote owner (Farmer or FPO)
+    quote_owner = getattr(quote, 'farmer', None) or getattr(quote, 'fpo', None)
+
+    return current_user_obj == bidder or current_user_obj == quote_owner
+
+
+class StartNegotiationView(APIView):
     permission_classes = [IsAuthenticated]
     
     def post(self, request, *args, **kwargs):
-        content_type_str = request.data.get('content_type') # e.g., 'farmer.farmerbid'
+        content_type_str = request.data.get('content_type') # e.g., 'retailer.retailerbid'
         object_id = request.data.get('object_id')
         
-        bid = get_bid_and_user_type(content_type_str, object_id)
+        bid = get_bid_model_instance(content_type_str, object_id)
         if not bid:
-            return Response({"error": "Invalid bid type."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Invalid bid type or ID."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check permissions: only the buyer can start a negotiation
-        buyer = bid.quote.fpo if hasattr(bid.quote, 'fpo') else bid.quote.retailer
-        
-        # --- FIX #1: Changed request.user.user_id to request.user.id ---
-        if buyer.id != request.user.id:
+        # Correctly identify the owner of the quote the bid was placed on
+        quote = bid.quote
+        quote_owner = getattr(quote, 'farmer', None) or getattr(quote, 'fpo', None)
+
+        if not quote_owner:
+            return Response({"error": "Could not determine the quote owner."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check permissions: only the quote owner can start a negotiation.
+        if quote_owner.id != request.user.user_obj.id:
             return Response({"error": "Only the quote creator can start a negotiation."}, status=status.HTTP_403_FORBIDDEN)
             
         negotiation, created = Negotiation.objects.get_or_create(
@@ -2116,16 +2326,17 @@ class StartNegotiationView(generics.CreateAPIView):
         )
 
         if not created:
-            return Response({"message": "Negotiation already exists.", "negotiation_id": negotiation.id})
+            serializer = NegotiationSerializer(negotiation)
+            return Response(serializer.data, status=status.HTTP_200_OK)
             
         # Create initial message
+        sender_user = request.user.user_obj
         NegotiationMessage.objects.create(
             negotiation=negotiation,
             sender_role=request.user.role,
-            # --- FIX #2: Changed request.user.user_id to request.user.id ---
-            sender_id=request.user.id,
-            sender_name=request.user.name,
-            message=f"Negotiation started for bid amount {bid.bid_amount}."
+            sender_id=sender_user.id,
+            sender_name=sender_user.name,
+            message=f"Negotiation started for bid on '{bid.quote.product_name}'."
         )
 
         serializer = NegotiationSerializer(negotiation)
@@ -2136,21 +2347,28 @@ class NegotiationDetailView(APIView):
 
     def get(self, request, pk):
         negotiation = get_object_or_404(Negotiation, pk=pk)
-        # Add permission check here
+        
+        if not check_negotiation_permission(request.user, negotiation):
+            return Response({"error": "You do not have permission to view this negotiation."}, status=status.HTTP_403_FORBIDDEN)
+            
         serializer = NegotiationSerializer(negotiation)
         return Response(serializer.data)
 
     def post(self, request, pk):
         negotiation = get_object_or_404(Negotiation, pk=pk)
+        
+        if not check_negotiation_permission(request.user, negotiation):
+            return Response({"error": "You do not have permission to post in this negotiation."}, status=status.HTTP_403_FORBIDDEN)
+
         serializer = CounterOfferSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
+        sender_user = request.user.user_obj
         NegotiationMessage.objects.create(
             negotiation=negotiation,
             sender_role=request.user.role,
-            # --- FIX #3: Changed request.user.user_id to request.user.id ---
-            sender_id=request.user.id,
-            sender_name=request.user.name,
+            sender_id=sender_user.id,
+            sender_name=sender_user.name,
             **serializer.validated_data
         )
         return Response(NegotiationSerializer(negotiation).data, status=status.HTTP_201_CREATED)
@@ -2266,46 +2484,30 @@ class Retailer(models.Model):
     
     def check_password(self, raw_password):
         return check_password(raw_password, self.password)
-    
-# Add this new model to your existing retailer/models.py
-from django.db import models
-from django.contrib.auth.hashers import make_password, check_password
 
-# ... Retailer model is already here ...
+class RetailerBid(models.Model):
+    STATUS_CHOICES = [('submitted', 'Submitted'), ('accepted', 'Accepted'), ('rejected', 'Rejected')]
+    PAYMENT_STATUS_CHOICES = [('pending', 'Pending'), ('paid', 'Paid'), ('failed', 'Failed')]
 
-class RetailerQuoteRequest(models.Model):
-    STATUS_CHOICES = [
-        ('open', 'Open'),
-        ('closed', 'Closed'),
-        ('awarded', 'Awarded'),
-    ]
-    
-    retailer = models.ForeignKey(Retailer, on_delete=models.CASCADE, related_name='quote_requests')
-    product_name = models.CharField(max_length=200)
-    category = models.CharField(max_length=100) # e.g., 'Processed Grains', 'Packaged Vegetables'
-    description = models.TextField()
-    quantity = models.DecimalField(max_digits=10, decimal_places=2)
-    unit = models.CharField(max_length=20, help_text="e.g., kg, quintal, ton")
-    deadline = models.DateField()
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='open')
-    created_at = models.DateTimeField(auto_now_add=True)
-    accepted_bid = models.ForeignKey(
-        'fpo.FPOBid', 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True,
-        related_name='accepted_for_retailer_quote'
-    )
-    
+    retailer = models.ForeignKey(Retailer, on_delete=models.CASCADE, related_name='bids')
+    quote = models.ForeignKey('fpo.FPOQuote', on_delete=models.CASCADE, related_name='bids')
+    bid_amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="Price per unit")
+    delivery_time_days = models.PositiveIntegerField()
+    comments = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='submitted')
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    payment_status = models.CharField(max_length=10, choices=PAYMENT_STATUS_CHOICES, default='pending')
+    transaction_hash = models.CharField(max_length=66, blank=True, null=True)
+
     def __str__(self):
-        return f"{self.product_name} request by {self.retailer.name}"
+        return f"Bid from {self.retailer.name} for {self.quote.product_name}"
 
 
 ================================================
 FILE: backend/retailer/serializers.py
 ================================================
 from rest_framework import serializers
-from .models import Retailer
+from .models import Retailer, RetailerBid
 
 class RetailerSerializer(serializers.ModelSerializer):
     class Meta:
@@ -2325,22 +2527,33 @@ class RetailerRegistrationSerializer(serializers.ModelSerializer):
         retailer.set_password(password)
         retailer.save()
         return retailer
+
+class RetailerBidSerializer(serializers.ModelSerializer):
+    retailer_name = serializers.CharField(source='retailer.name', read_only=True)
+    retailer_email = serializers.CharField(source='retailer.email', read_only=True)
+    quote_product_name = serializers.CharField(source='quote.product_name', read_only=True)
+    quote_quantity = serializers.DecimalField(source='quote.quantity', read_only=True, max_digits=10, decimal_places=2)
+    quote_unit = serializers.CharField(source='quote.unit', read_only=True)
     
-    
-# Update retailer/serializers.py
-from rest_framework import serializers
-from .models import Retailer, RetailerQuoteRequest
-from fpo.serializers import FPOBidSerializer # Important import
-
-# ... existing Retailer serializers ...
-
-class RetailerQuoteRequestSerializer(serializers.ModelSerializer):
-    bids = FPOBidSerializer(many=True, read_only=True)
-
     class Meta:
-        model = RetailerQuoteRequest
-        fields = '__all__'
-        read_only_fields = ('retailer', 'status', 'accepted_bid')
+        model = RetailerBid
+        fields = [
+            'id', 'retailer', 'quote', 'bid_amount', 'delivery_time_days', 
+            'comments', 'status', 'submitted_at', 'payment_status', 
+            'transaction_hash', 'retailer_name', 'retailer_email',
+            'quote_product_name', 'quote_quantity', 'quote_unit'
+        ]
+        read_only_fields = ('retailer', 'quote', 'status', 'submitted_at', 'payment_status', 'transaction_hash')
+
+    def validate_bid_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Bid amount must be greater than zero.")
+        return value
+
+    def validate_delivery_time_days(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Delivery time must be greater than zero.")
+        return value
 
 
 ================================================
@@ -2356,14 +2569,9 @@ from django.test import TestCase
 FILE: backend/retailer/urls.py
 ================================================
 from django.urls import path
-from .views import RetailerRegistrationView, RetailerListView, RetailerDetailView, retailer_login_check
 from .views import (
-    # ... existing ...
-    retailer_dashboard,
-    RetailerQuoteRequestListCreateView,
-    RetailerQuoteRequestDetailView,
-    accept_fpo_bid,
-    confirm_fpo_bid_payment
+    RetailerRegistrationView, RetailerListView, RetailerDetailView, retailer_login_check,
+    retailer_dashboard, FPOOpenQuoteListView, RetailerBidCreateView
 )
 
 urlpatterns = [
@@ -2372,10 +2580,8 @@ urlpatterns = [
     path('', RetailerListView.as_view(), name='retailer-list'),
     path('<int:pk>/', RetailerDetailView.as_view(), name='retailer-detail'),
     path('dashboard/', retailer_dashboard, name='retailer-dashboard'),
-    path('quotes/', RetailerQuoteRequestListCreateView.as_view(), name='retailer-quote-list-create'),
-    path('quotes/<int:pk>/', RetailerQuoteRequestDetailView.as_view(), name='retailer-quote-detail'),
-    path('bids/fpo/<int:bid_pk>/accept/', accept_fpo_bid, name='retailer-accept-fpo-bid'),
-    path('bids/fpo/<int:bid_pk>/confirm-payment/', confirm_fpo_bid_payment, name='retailer-confirm-payment'),
+    path('quotes/fpo/open/', FPOOpenQuoteListView.as_view(), name='retailer-fpo-open-quotes'),
+    path('quotes/fpo/<int:quote_pk>/bids/', RetailerBidCreateView.as_view(), name='retailer-create-bid-on-fpo-quote'),
 ]
 
 
@@ -2387,10 +2593,11 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
-from .models import Retailer
-from .serializers import RetailerSerializer, RetailerRegistrationSerializer
+from .models import Retailer, RetailerBid
+from .serializers import RetailerSerializer, RetailerRegistrationSerializer, RetailerBidSerializer
 from common.permissions import IsRetailer
-
+from fpo.models import FPOQuote
+from fpo.serializers import FPOQuoteSerializer
 
 class RetailerRegistrationView(generics.CreateAPIView):
     queryset = Retailer.objects.all()
@@ -2407,7 +2614,6 @@ class RetailerRegistrationView(generics.CreateAPIView):
             status=status.HTTP_201_CREATED,
             headers=headers
         )
-
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -2441,97 +2647,48 @@ def retailer_login_check(request):
             'status': 'not_found'
         }, status=status.HTTP_404_NOT_FOUND)
 
-
 class RetailerListView(generics.ListAPIView):
     queryset = Retailer.objects.all()
     serializer_class = RetailerSerializer
     permission_classes = [IsAuthenticated, IsRetailer]
 
-
 class RetailerDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Retailer.objects.all()
     serializer_class = RetailerSerializer
     permission_classes = [IsAuthenticated, IsRetailer]
-    
-    
-# Update retailer/views.py with dashboard and quote management views
-from fpo.models import FPOBid
-from .models import RetailerQuoteRequest
-from .serializers import RetailerQuoteRequestSerializer
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsRetailer])
 def retailer_dashboard(request):
     retailer = request.user.user_obj
 
-    my_quotes = RetailerQuoteRequest.objects.filter(retailer=retailer)
-    bids_received = FPOBid.objects.filter(quote__in=my_quotes)
+    fpo_quotes = FPOQuote.objects.filter(status='open')
+    my_bids = RetailerBid.objects.filter(retailer=retailer)
     
     data = {
-        "my_quotes_count": my_quotes.count(),
-        "bids_received_count": bids_received.count(),
-        "my_quotes": RetailerQuoteRequestSerializer(my_quotes, many=True).data,
+        "available_fpo_quotes_count": fpo_quotes.count(),
+        "my_bids_count": my_bids.count(),
+        "accepted_bids_count": my_bids.filter(status='accepted').count(),
     }
     return Response(data)
 
-class RetailerQuoteRequestListCreateView(generics.ListCreateAPIView):
-    serializer_class = RetailerQuoteRequestSerializer
+class FPOOpenQuoteListView(generics.ListAPIView):
+    serializer_class = FPOQuoteSerializer
     permission_classes = [IsAuthenticated, IsRetailer]
 
     def get_queryset(self):
-        return RetailerQuoteRequest.objects.filter(retailer=self.request.user.user_obj)
+        retailer = self.request.user.user_obj
+        return FPOQuote.objects.filter(status='open').exclude(bids__retailer=retailer)
+
+class RetailerBidCreateView(generics.CreateAPIView):
+    serializer_class = RetailerBidSerializer
+    permission_classes = [IsAuthenticated, IsRetailer]
 
     def perform_create(self, serializer):
-        serializer.save(retailer=self.request.user.user_obj)
-
-class RetailerQuoteRequestDetailView(generics.RetrieveUpdateAPIView):
-    serializer_class = RetailerQuoteRequestSerializer
-    permission_classes = [IsAuthenticated, IsRetailer]
-    queryset = RetailerQuoteRequest.objects.all()
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated, IsRetailer])
-def accept_fpo_bid(request, bid_pk):
-    bid = get_object_or_404(FPOBid, pk=bid_pk)
-    quote = bid.quote
-
-    if quote.retailer != request.user.user_obj:
-        return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
-    
-    bid.status = 'accepted'
-    bid.save()
-    quote.bids.exclude(pk=bid.pk).update(status='rejected')
-    quote.status = 'awarded'
-    quote.accepted_bid = bid
-    quote.save()
-    
-    payment_details = {
-        "recipient_address": bid.fpo.wallet_address,
-        "amount": str(bid.bid_amount * quote.quantity),
-        "bid_id": bid.pk,
-        "content_type": "fpo.fpobid" # For payment confirmation endpoint
-    }
-    
-    return Response({
-        "message": "Bid accepted. Please proceed with payment.",
-        "payment_details": payment_details
-    })
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated, IsRetailer]) # Only retailer can confirm payment for an FPO bid
-def confirm_fpo_bid_payment(request, bid_pk):
-    bid = get_object_or_404(FPOBid, pk=bid_pk)
-    if bid.quote.retailer != request.user.user_obj:
-        return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
-        
-    transaction_hash = request.data.get('transaction_hash')
-    if not transaction_hash:
-        return Response({"error": "Transaction hash is required."}, status=status.HTTP_400_BAD_REQUEST)
-        
-    bid.transaction_hash = transaction_hash
-    bid.payment_status = 'paid'
-    bid.save()
-    return Response({"message": "Payment confirmed and hash recorded."})
+        quote = get_object_or_404(FPOQuote, pk=self.kwargs['quote_pk'])
+        if quote.status != 'open':
+            raise serializers.ValidationError("This quote is no longer open for bidding.")
+        serializer.save(retailer=self.request.user.user_obj, quote=quote)
 
 
 ================================================
@@ -2624,6 +2781,45 @@ class Migration(migrations.Migration):
                 ('accepted_bid', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='accepted_for_retailer_quote', to='fpo.fpobid')),
                 ('retailer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='quote_requests', to='retailer.retailer')),
             ],
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/retailer/migrations/0004_retailerbid_delete_retailerquoterequest.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-26 16:56
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('fpo', '0006_fpoquote_remove_fpoquoterequest_accepted_bid_and_more'),
+        ('retailer', '0003_retailerquoterequest'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='RetailerBid',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('bid_amount', models.DecimalField(decimal_places=2, help_text='Price per unit', max_digits=10)),
+                ('delivery_time_days', models.PositiveIntegerField()),
+                ('comments', models.TextField(blank=True)),
+                ('status', models.CharField(choices=[('submitted', 'Submitted'), ('accepted', 'Accepted'), ('rejected', 'Rejected')], default='submitted', max_length=10)),
+                ('submitted_at', models.DateTimeField(auto_now_add=True)),
+                ('payment_status', models.CharField(choices=[('pending', 'Pending'), ('paid', 'Paid'), ('failed', 'Failed')], default='pending', max_length=10)),
+                ('transaction_hash', models.CharField(blank=True, max_length=66, null=True)),
+                ('quote', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='fpo.fpoquote')),
+                ('retailer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='retailer.retailer')),
+            ],
+        ),
+        migrations.DeleteModel(
+            name='RetailerQuoteRequest',
         ),
     ]
 
@@ -3699,7 +3895,7 @@ export default function AuthForm() {
     city: "",
     state: "",
     wallet_address: "",
-    role: "farmer", // ðŸ‘ˆ added here
+    role: "farmer", // Ã°Å¸â€˜Ë† added here
   });
 
   // keep role and formData in sync
@@ -3733,18 +3929,29 @@ export default function AuthForm() {
     e.preventDefault();
 
     let endpoint = "";
+    let payload = {}; // <-- Create a payload object to send
+
     if (isLogin) {
-      if (role === "farmer") endpoint = "/api/token/";
-      if (role === "fpo") endpoint = "/api/token/";
-      if (role === "retailer") endpoint = "/api/token/";
+      endpoint = "/api/token/";
+      // --- THIS IS THE FIX ---
+      // For login, map the form's 'email' field to 'username' for the backend.
+      payload = {
+        username: formData.email,
+        password: formData.password,
+        role: formData.role,
+      };
+      // --- END OF FIX ---
     } else {
       if (role === "farmer") endpoint = "/api/farmer/register/";
       if (role === "fpo") endpoint = "/api/fpo/register/";
       if (role === "retailer") endpoint = "/api/retailer/register/";
+      // For registration, the formData is already in the correct format.
+      payload = formData;
     }
 
     try {
-      const res = await axios.post(endpoint, formData);
+      // Use the new payload object for the request
+      const res = await axios.post(endpoint, payload);
       console.log("Success:", res.data);
       alert("Success! Check console.");
     } catch (err) {
@@ -3887,7 +4094,6 @@ export default function AuthForm() {
     </div>
   );
 }
-
 
 
 ================================================

@@ -1,10 +1,7 @@
 from django.urls import path
-from .views import FarmerRegistrationView, FarmerListView, FarmerDetailView, farmer_login_check
 from .views import (
-    # ... existing imports
-    farmer_dashboard,
-    OpenQuoteListView,
-    FarmerBidCreateView
+    FarmerRegistrationView, FarmerListView, FarmerDetailView, farmer_login_check,
+    farmer_dashboard, FarmerQuoteListCreateView, FarmerQuoteDetailView, accept_fpo_bid
 )
 
 urlpatterns = [
@@ -13,6 +10,7 @@ urlpatterns = [
     path('', FarmerListView.as_view(), name='farmer-list'),
     path('<int:pk>/', FarmerDetailView.as_view(), name='farmer-detail'),
     path('dashboard/', farmer_dashboard, name='farmer-dashboard'),
-    path('quotes/open/', OpenQuoteListView.as_view(), name='farmer-open-quotes'),
-    path('quotes/<int:quote_pk>/bids/', FarmerBidCreateView.as_view(), name='farmer-create-bid'),
+    path('quotes/', FarmerQuoteListCreateView.as_view(), name='farmer-quote-list'),
+    path('quotes/<int:pk>/', FarmerQuoteDetailView.as_view(), name='farmer-quote-detail'),
+    path('bids/fpo/<int:bid_pk>/accept/', accept_fpo_bid, name='farmer-accept-fpo-bid'),
 ]

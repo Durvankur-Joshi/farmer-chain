@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import FPO
+from .models import FPO, FPOBid, FPOQuote
 
 class FPOSerializer(serializers.ModelSerializer):
     class Meta:
@@ -19,33 +19,70 @@ class FPORegistrationSerializer(serializers.ModelSerializer):
         fpo.set_password(password)
         fpo.save()
         return fpo
-    
-from rest_framework import serializers
-from .models import FPO, FPOQuoteRequest
-from farmer.serializers import FarmerBidSerializer # Import FarmerBidSerializer
-# Add these new serializers
-
-class FPOQuoteRequestSerializer(serializers.ModelSerializer):
-    bids = FarmerBidSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = FPOQuoteRequest
-        fields = '__all__'
-        read_only_fields = ('fpo', 'status', 'accepted_bid')
-        
-        
-# Add these new serializers to fpo/serializers.py
-from .models import FPO, FPOBid, RetailerReviewOfFPO
-# ... existing FPOSerializer and FPORegistrationSerializer ...
 
 class FPOBidSerializer(serializers.ModelSerializer):
+    fpo_name = serializers.CharField(source='fpo.name', read_only=True)
+    fpo_email = serializers.CharField(source='fpo.email', read_only=True)
+    quote_product_name = serializers.CharField(source='quote.product_name', read_only=True)
+    quote_farmer_name = serializers.CharField(source='quote.farmer.name', read_only=True)
+    quote_quantity = serializers.DecimalField(source='quote.quantity', read_only=True, max_digits=10, decimal_places=2)
+    quote_unit = serializers.CharField(source='quote.unit', read_only=True)
+    
     class Meta:
         model = FPOBid
-        fields = '__all__'
-        read_only_fields = ('fpo', 'quote','status', 'submitted_at', 'payment_status', 'transaction_hash')
+        fields = [
+            'id', 'fpo', 'quote', 'bid_amount', 'delivery_time_days', 
+            'comments', 'status', 'submitted_at', 'payment_status', 
+            'transaction_hash', 'fpo_name', 'fpo_email',
+            'quote_product_name', 'quote_farmer_name', 'quote_quantity', 'quote_unit'
+        ]
+        read_only_fields = ('fpo', 'quote', 'status', 'submitted_at', 'payment_status', 'transaction_hash')
 
-class RetailerReviewOfFPOSerializer(serializers.ModelSerializer):
+    def validate_bid_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Bid amount must be greater than zero.")
+        return value
+
+    def validate_delivery_time_days(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Delivery time must be greater than zero.")
+        return value
+
+class FPOQuoteSerializer(serializers.ModelSerializer):
+    fpo_name = serializers.CharField(source='fpo.name', read_only=True)
+    fpo_email = serializers.CharField(source='fpo.email', read_only=True)
+    # --- FIX START ---
+    bids = serializers.SerializerMethodField()
+    # --- FIX END ---
+    
     class Meta:
-        model = RetailerReviewOfFPO
-        fields = '__all__'
-        read_only_fields = ('retailer', 'bid')
+        model = FPOQuote
+        fields = [
+            'id', 'fpo', 'product_name', 'category', 'description', 
+            'quantity', 'unit', 'price_per_unit', 'status', 'deadline', 
+            'created_at', 'accepted_bid', 'fpo_name', 'fpo_email',
+            'bids' # <-- Add 'bids' to the fields list
+        ]
+        read_only_fields = ('fpo', 'status', 'created_at', 'accepted_bid')
+    
+    # --- FIX START ---
+    def get_bids(self, obj):
+        """
+        Custom method to get and serialize the bids for this quote.
+        """
+        from retailer.serializers import RetailerBidSerializer
+        bids_queryset = obj.bids.all()
+        serializer = RetailerBidSerializer(bids_queryset, many=True)
+        return serializer.data
+    # --- FIX END ---
+
+    def validate_quantity(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Quantity must be greater than zero.")
+        return value
+
+    def validate_deadline(self, value):
+        from django.utils import timezone
+        if value <= timezone.now().date():
+            raise serializers.ValidationError("Deadline must be in the future.")
+        return value

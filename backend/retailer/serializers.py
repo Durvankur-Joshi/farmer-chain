@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Retailer
+from .models import Retailer, RetailerBid
 
 class RetailerSerializer(serializers.ModelSerializer):
     class Meta:
@@ -19,19 +19,30 @@ class RetailerRegistrationSerializer(serializers.ModelSerializer):
         retailer.set_password(password)
         retailer.save()
         return retailer
+
+class RetailerBidSerializer(serializers.ModelSerializer):
+    retailer_name = serializers.CharField(source='retailer.name', read_only=True)
+    retailer_email = serializers.CharField(source='retailer.email', read_only=True)
+    quote_product_name = serializers.CharField(source='quote.product_name', read_only=True)
+    quote_quantity = serializers.DecimalField(source='quote.quantity', read_only=True, max_digits=10, decimal_places=2)
+    quote_unit = serializers.CharField(source='quote.unit', read_only=True)
     
-    
-# Update retailer/serializers.py
-from rest_framework import serializers
-from .models import Retailer, RetailerQuoteRequest
-from fpo.serializers import FPOBidSerializer # Important import
-
-# ... existing Retailer serializers ...
-
-class RetailerQuoteRequestSerializer(serializers.ModelSerializer):
-    bids = FPOBidSerializer(many=True, read_only=True)
-
     class Meta:
-        model = RetailerQuoteRequest
-        fields = '__all__'
-        read_only_fields = ('retailer', 'status', 'accepted_bid')
+        model = RetailerBid
+        fields = [
+            'id', 'retailer', 'quote', 'bid_amount', 'delivery_time_days', 
+            'comments', 'status', 'submitted_at', 'payment_status', 
+            'transaction_hash', 'retailer_name', 'retailer_email',
+            'quote_product_name', 'quote_quantity', 'quote_unit'
+        ]
+        read_only_fields = ('retailer', 'quote', 'status', 'submitted_at', 'payment_status', 'transaction_hash')
+
+    def validate_bid_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Bid amount must be greater than zero.")
+        return value
+
+    def validate_delivery_time_days(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Delivery time must be greater than zero.")
+        return value

@@ -3,10 +3,11 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
-from .models import Retailer
-from .serializers import RetailerSerializer, RetailerRegistrationSerializer
+from .models import Retailer, RetailerBid
+from .serializers import RetailerSerializer, RetailerRegistrationSerializer, RetailerBidSerializer
 from common.permissions import IsRetailer
-
+from fpo.models import FPOQuote
+from fpo.serializers import FPOQuoteSerializer
 
 class RetailerRegistrationView(generics.CreateAPIView):
     queryset = Retailer.objects.all()
@@ -23,7 +24,6 @@ class RetailerRegistrationView(generics.CreateAPIView):
             status=status.HTTP_201_CREATED,
             headers=headers
         )
-
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -57,94 +57,45 @@ def retailer_login_check(request):
             'status': 'not_found'
         }, status=status.HTTP_404_NOT_FOUND)
 
-
 class RetailerListView(generics.ListAPIView):
     queryset = Retailer.objects.all()
     serializer_class = RetailerSerializer
     permission_classes = [IsAuthenticated, IsRetailer]
 
-
 class RetailerDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Retailer.objects.all()
     serializer_class = RetailerSerializer
     permission_classes = [IsAuthenticated, IsRetailer]
-    
-    
-# Update retailer/views.py with dashboard and quote management views
-from fpo.models import FPOBid
-from .models import RetailerQuoteRequest
-from .serializers import RetailerQuoteRequestSerializer
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsRetailer])
 def retailer_dashboard(request):
     retailer = request.user.user_obj
 
-    my_quotes = RetailerQuoteRequest.objects.filter(retailer=retailer)
-    bids_received = FPOBid.objects.filter(quote__in=my_quotes)
+    fpo_quotes = FPOQuote.objects.filter(status='open')
+    my_bids = RetailerBid.objects.filter(retailer=retailer)
     
     data = {
-        "my_quotes_count": my_quotes.count(),
-        "bids_received_count": bids_received.count(),
-        "my_quotes": RetailerQuoteRequestSerializer(my_quotes, many=True).data,
+        "available_fpo_quotes_count": fpo_quotes.count(),
+        "my_bids_count": my_bids.count(),
+        "accepted_bids_count": my_bids.filter(status='accepted').count(),
     }
     return Response(data)
 
-class RetailerQuoteRequestListCreateView(generics.ListCreateAPIView):
-    serializer_class = RetailerQuoteRequestSerializer
+class FPOOpenQuoteListView(generics.ListAPIView):
+    serializer_class = FPOQuoteSerializer
     permission_classes = [IsAuthenticated, IsRetailer]
 
     def get_queryset(self):
-        return RetailerQuoteRequest.objects.filter(retailer=self.request.user.user_obj)
+        retailer = self.request.user.user_obj
+        return FPOQuote.objects.filter(status='open').exclude(bids__retailer=retailer)
+
+class RetailerBidCreateView(generics.CreateAPIView):
+    serializer_class = RetailerBidSerializer
+    permission_classes = [IsAuthenticated, IsRetailer]
 
     def perform_create(self, serializer):
-        serializer.save(retailer=self.request.user.user_obj)
-
-class RetailerQuoteRequestDetailView(generics.RetrieveUpdateAPIView):
-    serializer_class = RetailerQuoteRequestSerializer
-    permission_classes = [IsAuthenticated, IsRetailer]
-    queryset = RetailerQuoteRequest.objects.all()
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated, IsRetailer])
-def accept_fpo_bid(request, bid_pk):
-    bid = get_object_or_404(FPOBid, pk=bid_pk)
-    quote = bid.quote
-
-    if quote.retailer != request.user.user_obj:
-        return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
-    
-    bid.status = 'accepted'
-    bid.save()
-    quote.bids.exclude(pk=bid.pk).update(status='rejected')
-    quote.status = 'awarded'
-    quote.accepted_bid = bid
-    quote.save()
-    
-    payment_details = {
-        "recipient_address": bid.fpo.wallet_address,
-        "amount": str(bid.bid_amount * quote.quantity),
-        "bid_id": bid.pk,
-        "content_type": "fpo.fpobid" # For payment confirmation endpoint
-    }
-    
-    return Response({
-        "message": "Bid accepted. Please proceed with payment.",
-        "payment_details": payment_details
-    })
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated, IsRetailer]) # Only retailer can confirm payment for an FPO bid
-def confirm_fpo_bid_payment(request, bid_pk):
-    bid = get_object_or_404(FPOBid, pk=bid_pk)
-    if bid.quote.retailer != request.user.user_obj:
-        return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
-        
-    transaction_hash = request.data.get('transaction_hash')
-    if not transaction_hash:
-        return Response({"error": "Transaction hash is required."}, status=status.HTTP_400_BAD_REQUEST)
-        
-    bid.transaction_hash = transaction_hash
-    bid.payment_status = 'paid'
-    bid.save()
-    return Response({"message": "Payment confirmed and hash recorded."})
+        quote = get_object_or_404(FPOQuote, pk=self.kwargs['quote_pk'])
+        if quote.status != 'open':
+            raise serializers.ValidationError("This quote is no longer open for bidding.")
+        serializer.save(retailer=self.request.user.user_obj, quote=quote)

@@ -1,12 +1,7 @@
 from django.urls import path
-from .views import RetailerRegistrationView, RetailerListView, RetailerDetailView, retailer_login_check
 from .views import (
-    # ... existing ...
-    retailer_dashboard,
-    RetailerQuoteRequestListCreateView,
-    RetailerQuoteRequestDetailView,
-    accept_fpo_bid,
-    confirm_fpo_bid_payment
+    RetailerRegistrationView, RetailerListView, RetailerDetailView, retailer_login_check,
+    retailer_dashboard, FPOOpenQuoteListView, RetailerBidCreateView
 )
 
 urlpatterns = [
@@ -15,8 +10,6 @@ urlpatterns = [
     path('', RetailerListView.as_view(), name='retailer-list'),
     path('<int:pk>/', RetailerDetailView.as_view(), name='retailer-detail'),
     path('dashboard/', retailer_dashboard, name='retailer-dashboard'),
-    path('quotes/', RetailerQuoteRequestListCreateView.as_view(), name='retailer-quote-list-create'),
-    path('quotes/<int:pk>/', RetailerQuoteRequestDetailView.as_view(), name='retailer-quote-detail'),
-    path('bids/fpo/<int:bid_pk>/accept/', accept_fpo_bid, name='retailer-accept-fpo-bid'),
-    path('bids/fpo/<int:bid_pk>/confirm-payment/', confirm_fpo_bid_payment, name='retailer-confirm-payment'),
+    path('quotes/fpo/open/', FPOOpenQuoteListView.as_view(), name='retailer-fpo-open-quotes'),
+    path('quotes/fpo/<int:quote_pk>/bids/', RetailerBidCreateView.as_view(), name='retailer-create-bid-on-fpo-quote'),
 ]

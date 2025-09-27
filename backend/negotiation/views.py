@@ -1,5 +1,3 @@
-# backend/negotiation/views.py
-
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -9,8 +7,8 @@ from django.shortcuts import get_object_or_404
 from .models import Negotiation, NegotiationMessage
 from .serializers import NegotiationSerializer, CounterOfferSerializer
 
-def get_bid_and_user_type(content_type_str, object_id):
-    """Helper to get bid object and validate user type."""
+def get_bid_model_instance(content_type_str, object_id):
+    """Helper to get a bid object instance from its content type string and ID."""
     try:
         app_label, model = content_type_str.split('.')
         content_type = ContentType.objects.get(app_label=app_label, model=model)
@@ -20,22 +18,42 @@ def get_bid_and_user_type(content_type_str, object_id):
     except (ContentType.DoesNotExist, ValueError):
         return None
 
-class StartNegotiationView(generics.CreateAPIView):
+def check_negotiation_permission(user, negotiation):
+    """Checks if a user is part of a negotiation (either bidder or quote owner)."""
+    bid = negotiation.bid
+    quote = bid.quote
+    
+    current_user_obj = user.user_obj
+    
+    # Identify the bidder (FPO or Retailer)
+    bidder = getattr(bid, 'fpo', None) or getattr(bid, 'retailer', None)
+    
+    # Identify the quote owner (Farmer or FPO)
+    quote_owner = getattr(quote, 'farmer', None) or getattr(quote, 'fpo', None)
+
+    return current_user_obj == bidder or current_user_obj == quote_owner
+
+
+class StartNegotiationView(APIView):
     permission_classes = [IsAuthenticated]
     
     def post(self, request, *args, **kwargs):
-        content_type_str = request.data.get('content_type') # e.g., 'farmer.farmerbid'
+        content_type_str = request.data.get('content_type') # e.g., 'retailer.retailerbid'
         object_id = request.data.get('object_id')
         
-        bid = get_bid_and_user_type(content_type_str, object_id)
+        bid = get_bid_model_instance(content_type_str, object_id)
         if not bid:
-            return Response({"error": "Invalid bid type."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Invalid bid type or ID."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check permissions: only the buyer can start a negotiation
-        buyer = bid.quote.fpo if hasattr(bid.quote, 'fpo') else bid.quote.retailer
-        
-        # --- FIX #1: Changed request.user.user_id to request.user.id ---
-        if buyer.id != request.user.id:
+        # Correctly identify the owner of the quote the bid was placed on
+        quote = bid.quote
+        quote_owner = getattr(quote, 'farmer', None) or getattr(quote, 'fpo', None)
+
+        if not quote_owner:
+            return Response({"error": "Could not determine the quote owner."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check permissions: only the quote owner can start a negotiation.
+        if quote_owner.id != request.user.user_obj.id:
             return Response({"error": "Only the quote creator can start a negotiation."}, status=status.HTTP_403_FORBIDDEN)
             
         negotiation, created = Negotiation.objects.get_or_create(
@@ -44,16 +62,17 @@ class StartNegotiationView(generics.CreateAPIView):
         )
 
         if not created:
-            return Response({"message": "Negotiation already exists.", "negotiation_id": negotiation.id})
+            serializer = NegotiationSerializer(negotiation)
+            return Response(serializer.data, status=status.HTTP_200_OK)
             
         # Create initial message
+        sender_user = request.user.user_obj
         NegotiationMessage.objects.create(
             negotiation=negotiation,
             sender_role=request.user.role,
-            # --- FIX #2: Changed request.user.user_id to request.user.id ---
-            sender_id=request.user.id,
-            sender_name=request.user.name,
-            message=f"Negotiation started for bid amount {bid.bid_amount}."
+            sender_id=sender_user.id,
+            sender_name=sender_user.name,
+            message=f"Negotiation started for bid on '{bid.quote.product_name}'."
         )
 
         serializer = NegotiationSerializer(negotiation)
@@ -64,21 +83,28 @@ class NegotiationDetailView(APIView):
 
     def get(self, request, pk):
         negotiation = get_object_or_404(Negotiation, pk=pk)
-        # Add permission check here
+        
+        if not check_negotiation_permission(request.user, negotiation):
+            return Response({"error": "You do not have permission to view this negotiation."}, status=status.HTTP_403_FORBIDDEN)
+            
         serializer = NegotiationSerializer(negotiation)
         return Response(serializer.data)
 
     def post(self, request, pk):
         negotiation = get_object_or_404(Negotiation, pk=pk)
+        
+        if not check_negotiation_permission(request.user, negotiation):
+            return Response({"error": "You do not have permission to post in this negotiation."}, status=status.HTTP_403_FORBIDDEN)
+
         serializer = CounterOfferSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
+        sender_user = request.user.user_obj
         NegotiationMessage.objects.create(
             negotiation=negotiation,
             sender_role=request.user.role,
-            # --- FIX #3: Changed request.user.user_id to request.user.id ---
-            sender_id=request.user.id,
-            sender_name=request.user.name,
+            sender_id=sender_user.id,
+            sender_name=sender_user.name,
             **serializer.validated_data
         )
         return Response(NegotiationSerializer(negotiation).data, status=status.HTTP_201_CREATED)
