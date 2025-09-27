@@ -23,9 +23,7 @@ class FarmerRegistrationSerializer(serializers.ModelSerializer):
 class FarmerQuoteSerializer(serializers.ModelSerializer):
     farmer_name = serializers.CharField(source='farmer.name', read_only=True)
     farmer_email = serializers.CharField(source='farmer.email', read_only=True)
-    # --- FIX START ---
     bids = serializers.SerializerMethodField()
-    # --- FIX END ---
 
     class Meta:
         model = FarmerQuote
@@ -33,23 +31,27 @@ class FarmerQuoteSerializer(serializers.ModelSerializer):
             'id', 'farmer', 'product_name', 'category', 'description', 
             'quantity', 'unit', 'price_per_unit', 'status', 'deadline', 
             'created_at', 'accepted_bid', 'farmer_name', 'farmer_email',
-            'bids'  # <-- Add 'bids' to the fields list
+            'bids'
         ]
         read_only_fields = ('farmer', 'status', 'created_at', 'accepted_bid')
 
-    # --- FIX START ---
     def get_bids(self, obj):
         """
         Custom method to get and serialize the bids for this quote.
         This avoids the circular import issue at startup.
         """
-        # Import the serializer only when this method is called
-        from fpo.serializers import FPOBidSerializer
-        # We access bids through the related_name 'bids' on the FarmerQuote object 'obj'
-        bids_queryset = obj.bids.all()
-        serializer = FPOBidSerializer(bids_queryset, many=True)
-        return serializer.data
-    # --- FIX END ---
+        # Use a simple serializer to avoid circular imports
+        bids_data = []
+        for bid in obj.bids.all():
+            bids_data.append({
+                'id': bid.id,
+                'fpo_name': bid.fpo.name,
+                'bid_amount': str(bid.bid_amount),
+                'delivery_time_days': bid.delivery_time_days,
+                'status': bid.status,
+                'submitted_at': bid.submitted_at
+            })
+        return bids_data
 
     def validate_quantity(self, value):
         if value <= 0:

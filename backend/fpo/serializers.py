@@ -51,9 +51,7 @@ class FPOBidSerializer(serializers.ModelSerializer):
 class FPOQuoteSerializer(serializers.ModelSerializer):
     fpo_name = serializers.CharField(source='fpo.name', read_only=True)
     fpo_email = serializers.CharField(source='fpo.email', read_only=True)
-    # --- FIX START ---
     bids = serializers.SerializerMethodField()
-    # --- FIX END ---
     
     class Meta:
         model = FPOQuote
@@ -61,20 +59,25 @@ class FPOQuoteSerializer(serializers.ModelSerializer):
             'id', 'fpo', 'product_name', 'category', 'description', 
             'quantity', 'unit', 'price_per_unit', 'status', 'deadline', 
             'created_at', 'accepted_bid', 'fpo_name', 'fpo_email',
-            'bids' # <-- Add 'bids' to the fields list
+            'bids'
         ]
         read_only_fields = ('fpo', 'status', 'created_at', 'accepted_bid')
     
-    # --- FIX START ---
     def get_bids(self, obj):
         """
         Custom method to get and serialize the bids for this quote.
         """
-        from retailer.serializers import RetailerBidSerializer
-        bids_queryset = obj.bids.all()
-        serializer = RetailerBidSerializer(bids_queryset, many=True)
-        return serializer.data
-    # --- FIX END ---
+        bids_data = []
+        for bid in obj.bids.all():
+            bids_data.append({
+                'id': bid.id,
+                'retailer_name': bid.retailer.name,
+                'bid_amount': str(bid.bid_amount),
+                'delivery_time_days': bid.delivery_time_days,
+                'status': bid.status,
+                'submitted_at': bid.submitted_at
+            })
+        return bids_data
 
     def validate_quantity(self, value):
         if value <= 0:

@@ -6,6 +6,8 @@ from farmer.models import Farmer
 from fpo.models import FPO
 from retailer.models import Retailer
 from admin_app.models import Admin
+from rest_framework.response import Response
+from django.conf import settings
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -106,3 +108,47 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+
+        try:
+            serializer.is_valid(raise_exception=True)
+        except Exception as e:
+            return Response({"error": str(e)}, status=400)
+
+        # Get the token data from serializer
+        token_data = serializer.validated_data
+        
+        # Return tokens in both cookies AND response body for testing compatibility
+        response_data = {
+            "access": token_data['access'],
+            "refresh": token_data['refresh'],
+            "role": token_data['role'],
+            "user_id": token_data['user_id'],
+            "name": token_data['name'],
+            "message": "Login successful"
+        }
+        
+        response = Response(response_data)
+        
+        # Also set cookies for web clients
+        response.set_cookie(
+            key='access_token',
+            value=token_data['access'],
+            httponly=True,
+            secure=not settings.DEBUG,
+            samesite='Lax',
+            max_age=60 * 30
+        )
+        
+        response.set_cookie(
+            key='refresh_token',
+            value=token_data['refresh'],
+            httponly=True,
+            secure=not settings.DEBUG,
+            samesite='Lax',
+            max_age=60 * 60 * 24
+        )
+        
+        return response

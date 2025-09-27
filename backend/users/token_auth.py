@@ -8,12 +8,24 @@ from admin_app.models import Admin
 
 class CustomJWTAuthentication(JWTAuthentication):
     """
-    Custom authentication that does the following:
-    1. Builds a lightweight `request.user` object from the JWT payload.
-    2. Fetches the actual database model instance (Farmer, FPO, etc.).
-    3. Attaches the database instance to `request.user.user_obj` for easy access
-       in views and permissions, avoiding redundant lookups.
+    Custom authentication that reads JWT from cookies and builds user object.
     """
+
+    def authenticate(self, request):
+        # Try to get token from cookies first
+        access_token = request.COOKIES.get('access_token')
+        
+        if not access_token:
+            # Fall back to header for backward compatibility
+            return super().authenticate(request)
+        
+        # Validate the token from cookie
+        try:
+            validated_token = self.get_validated_token(access_token)
+            user = self.get_user(validated_token)
+            return (user, validated_token)
+        except InvalidToken:
+            return None
 
     def get_user(self, validated_token):
         user_id = validated_token.get("user_id")

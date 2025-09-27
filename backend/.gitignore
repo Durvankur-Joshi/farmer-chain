@@ -1,2 +1,44 @@
+# Python cache (applies inside every app)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
 venv/
+env/
+.venv/
+.env/
+
+# Django stuff
+*.log
+*.pot
+*.pyc
 db.sqlite3
+db.sqlite3-journal
+
+# Ignore all migration files across apps (optional)
+# Comment this out if you want to track migrations
+*/migrations/
+!*/migrations/__init__.py
+
+# Media and static files
+/media/
+staticfiles/
+static/
+
+# VS Code / PyCharm / IDE
+.vscode/
+.idea/
+
+# Environment variables
+*.env
+.env.*
+
+# Coverage / testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# System files
+.DS_Store
+Thumbs.db

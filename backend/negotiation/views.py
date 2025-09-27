@@ -6,6 +6,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.shortcuts import get_object_or_404
 from .models import Negotiation, NegotiationMessage
 from .serializers import NegotiationSerializer, CounterOfferSerializer
+from rest_framework import serializers  # Add this import
 
 def get_bid_model_instance(content_type_str, object_id):
     """Helper to get a bid object instance from its content type string and ID."""
