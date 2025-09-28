@@ -45,8 +45,8 @@ class LogoutView(APIView):
     def post(self, request):
         response = Response({"message": "Logged out successfully"})
         
-        # Clear the cookies
-        response.delete_cookie('access_token')
-        response.delete_cookie('refresh_token')
+        # Clear cookies with path and samesite
+        response.delete_cookie('access_token', path='/', samesite='Lax')
+        response.delete_cookie('refresh_token', path='/', samesite='Lax')
         
         return response
