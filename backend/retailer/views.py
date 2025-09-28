@@ -8,6 +8,7 @@ from .serializers import RetailerSerializer, RetailerRegistrationSerializer, Ret
 from common.permissions import IsRetailer
 from fpo.models import FPOQuote
 from fpo.serializers import FPOQuoteSerializer
+from .serializers import MyBidSerializer
 
 class RetailerRegistrationView(generics.CreateAPIView):
     queryset = Retailer.objects.all()
@@ -99,3 +100,11 @@ class RetailerBidCreateView(generics.CreateAPIView):
         if quote.status != 'open':
             raise serializers.ValidationError("This quote is no longer open for bidding.")
         serializer.save(retailer=self.request.user.user_obj, quote=quote)
+
+class MyBidsListView(generics.ListAPIView):
+    serializer_class = MyBidSerializer
+    permission_classes = [IsAuthenticated, IsRetailer]
+
+    def get_queryset(self):
+        retailer = self.request.user.user_obj
+        return RetailerBid.objects.filter(retailer=retailer).order_by('-submitted_at')

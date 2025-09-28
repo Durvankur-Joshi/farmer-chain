@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import (
-    RetailerRegistrationView, RetailerListView, RetailerDetailView, retailer_login_check,
+    RetailerRegistrationView, RetailerListView, RetailerDetailView,MyBidsListView, retailer_login_check,
     retailer_dashboard, FPOOpenQuoteListView, RetailerBidCreateView
 )
 
@@ -12,4 +12,5 @@ urlpatterns = [
     path('dashboard/', retailer_dashboard, name='retailer-dashboard'),
     path('quotes/fpo/open/', FPOOpenQuoteListView.as_view(), name='retailer-fpo-open-quotes'),
     path('quotes/fpo/<int:quote_pk>/bids/', RetailerBidCreateView.as_view(), name='retailer-create-bid-on-fpo-quote'),
+    path('bids/my/', MyBidsListView.as_view(), name='retailer-my-bids'),
 ]

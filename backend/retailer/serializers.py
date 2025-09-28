@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Retailer, RetailerBid
+from fpo.serializers import FPOQuoteSerializer
 
 class RetailerSerializer(serializers.ModelSerializer):
     class Meta:
@@ -20,6 +21,18 @@ class RetailerRegistrationSerializer(serializers.ModelSerializer):
         retailer.save()
         return retailer
 
+class MyBidSerializer(serializers.ModelSerializer):
+    quote = FPOQuoteSerializer(read_only=True)  # include all quote details
+    retailer_name = serializers.CharField(source='retailer.name', read_only=True)
+    retailer_email = serializers.CharField(source='retailer.email', read_only=True)
+
+    class Meta:
+        model = RetailerBid
+        fields = [
+            'id', 'bid_amount', 'delivery_time_days', 'status', 'submitted_at',
+            'retailer_name', 'retailer_email', 'quote'
+        ]
+        
 class RetailerBidSerializer(serializers.ModelSerializer):
     retailer_name = serializers.CharField(source='retailer.name', read_only=True)
     retailer_email = serializers.CharField(source='retailer.email', read_only=True)
