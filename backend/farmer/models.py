@@ -32,6 +32,7 @@ class FarmerQuote(models.Model):
         ('open', 'Open'),
         ('closed', 'Closed'),
         ('awarded', 'Awarded'),
+        ('accepted', 'Accepted'),
     ]
     
     farmer = models.ForeignKey(Farmer, on_delete=models.CASCADE, related_name='quotes')

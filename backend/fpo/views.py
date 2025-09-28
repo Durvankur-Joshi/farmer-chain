@@ -104,6 +104,12 @@ class FPOBidCreateView(generics.CreateAPIView):
         quote = get_object_or_404(FarmerQuote, pk=self.kwargs['quote_pk'])
         if quote.status != 'open':
             raise serializers.ValidationError("This quote is no longer open for bidding.")
+        
+        # Additional check to prevent duplicate bids
+        fpo = self.request.user.user_obj
+        if quote.bids.filter(fpo=fpo).exists():
+            raise serializers.ValidationError("You have already placed a bid on this quote.")
+            
         serializer.save(fpo=self.request.user.user_obj, quote=quote)
 
 class FPOQuoteListCreateView(generics.ListCreateAPIView):

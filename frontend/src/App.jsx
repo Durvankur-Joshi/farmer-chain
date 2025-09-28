@@ -5,11 +5,13 @@ import FPODashboard from "./pages/FPODashboard";
 import RetailerDashboard from "./pages/RetailerDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import ProtectedRoute from "./utils/ProtectedRoute";
+import AdminLogin from "./pages/AdminLogin";
 
 function App() {
   return (
     <Routes>
       <Route path="/auth" element={<AuthForm />} />
+      <Route path="/admin" element={<AdminLogin/>} />
 
       <Route
         path="/farmer-dashboard"

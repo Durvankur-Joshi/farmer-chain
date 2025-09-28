@@ -32,7 +32,7 @@ export default function AdminLogin() {
       // Tokens are automatically stored in cookies by the browser
       // No need to manually store them
       
-      navigate("/admin/dashboard");
+      navigate("/admin-dashboard");
     } catch (err) {
       setStatus("❌ Invalid credentials or server error");
     } finally {

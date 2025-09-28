@@ -3,19 +3,22 @@ import { Navigate } from "react-router-dom";
 import Cookies from "js-cookie";
 
 export default function ProtectedRoute({ children, allowedRoles }) {
-  // We can’t read HttpOnly token in JS, so just trust it’s there.
-  // The backend will reject requests if token is missing/expired.
- const role = Cookies.get("role");
+  // 🔹 Debug: log all cookies
+  console.log("All cookies:", Cookies.get());
 
-  console.log("Role:", role);
+  const role = Cookies.get("role");
+  console.log("Role cookie:", role);
 
   if (!role) {
+    console.warn("No role cookie found → redirecting to /auth");
     return <Navigate to="/auth" replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(role.toLowerCase())) {
+    console.warn(`Role '${role}' is not allowed. Allowed roles:`, allowedRoles);
     return <Navigate to="/auth" replace />;
   }
 
+  console.log(`Access granted for role: ${role}`);
   return children;
 }

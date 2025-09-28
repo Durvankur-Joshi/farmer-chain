@@ -117,10 +117,8 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         except Exception as e:
             return Response({"error": str(e)}, status=400)
 
-        # Get the token data from serializer
         token_data = serializer.validated_data
-        
-        # Return tokens in both cookies AND response body for testing compatibility
+
         response_data = {
             "access": token_data['access'],
             "refresh": token_data['refresh'],
@@ -129,10 +127,10 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             "name": token_data['name'],
             "message": "Login successful"
         }
-        
+
         response = Response(response_data)
-        
-        # Also set cookies for web clients
+
+        # 🔹 Set tokens in cookies
         response.set_cookie(
             key='access_token',
             value=token_data['access'],
@@ -150,5 +148,15 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             samesite='Lax',
             max_age=60 * 60 * 24
         )
-        
+
+        # 🔹 Always set role cookie (readable by frontend)
+        response.set_cookie(
+            key='role',
+            value=token_data['role'],
+            httponly=False,  # must be readable in JS for ProtectedRoute
+            secure=not settings.DEBUG,
+            samesite='Lax',
+            max_age=60 * 60 * 24
+        )
+
         return response

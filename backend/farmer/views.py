@@ -108,21 +108,22 @@ def accept_fpo_bid(request, bid_pk):
         return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
     
     if quote.status != 'open':
-        return Response({"error": "Quote is not open."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Quote is not open for bidding."}, status=status.HTTP_400_BAD_REQUEST)
 
     # Accept this bid
     bid.status = 'accepted'
     bid.save()
 
-    # Reject other bids
-    quote.bids.exclude(pk=bid.pk).update(status='rejected')
+    # Remove other bids from database (delete them)
+    quote.bids.exclude(pk=bid.pk).delete()
     
-    # Award quote
-    quote.status = 'awarded'
+    # Update quote status to 'accepted' and set accepted bid
+    quote.status = 'accepted'  # or 'awarded' if you prefer that terminology
     quote.accepted_bid = bid
     quote.save()
     
     return Response({
-        "message": "Bid accepted successfully.",
-        "bid_id": bid.pk
+        "message": "Bid accepted successfully. Other bids have been removed and quote is now closed.",
+        "bid_id": bid.pk,
+        "quote_status": quote.status
     })
