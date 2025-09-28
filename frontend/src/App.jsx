@@ -1,11 +1,11 @@
 import { Routes, Route } from "react-router-dom";
 import AuthForm from "./pages/AuthForm";
-import FarmerDashboard from "./pages/FarmerDashboard";
-import FPODashboard from "./pages/FPODashboard";
-import RetailerDashboard from "./pages/RetailerDashboard";
-import AdminDashboard from "./pages/AdminDashboard";
+import FarmerDashboard from "./pages/farmer/FarmerDashboard";
+import FPODashboard from "./pages/fpo/FpoDashboard";
+import RetailerDashboard from "./pages/retailer/RetailerDashboard";
+import AdminDashboard from "./pages/admin/AdminDashboard";
 import ProtectedRoute from "./utils/ProtectedRoute";
-import AdminLogin from "./pages/AdminLogin";
+import AdminLogin from "./pages/admin/AdminLogin";
 
 function App() {
   return (

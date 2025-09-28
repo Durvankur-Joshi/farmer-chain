@@ -2,9 +2,9 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import Cookies from "js-cookie";
 import { useNavigate } from "react-router-dom";
-import QuoteForm from "../components/farmer/QuoteForm";
-import QuoteHistory from "../components/farmer/QuoteHistory";
-import QuoteBids from "../components/farmer/QuoteBids";
+import QuoteForm from "../../components/farmer/QuoteForm";
+import QuoteHistory from "../../components/farmer/QuoteHistory";
+import QuoteBids from "../../components/farmer/QuoteBids";
 
 export default function FarmerDashboard() {
   const navigate = useNavigate();
