@@ -6,12 +6,12 @@ import RetailerDashboard from "./pages/retailer/RetailerDashboard";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import ProtectedRoute from "./utils/ProtectedRoute";
 import AdminLogin from "./pages/admin/AdminLogin";
-import Cor1 from "./components/Cor1";
+import Contract from "./contract/Contract";
 
 function App() {
   return (
     <Routes>
-      <Route path="/contract/0x6be52B0DFf8CfC6F389430fF958881d7842d4466" element={<Cor1/>} />
+      <Route path="/contract/0x6be52B0DFf8CfC6F389430fF958881d7842d4466" element={<Contract/>} />
       <Route path="/auth" element={<AuthForm />} />
       <Route path="/admin" element={<AdminLogin/>} />
 

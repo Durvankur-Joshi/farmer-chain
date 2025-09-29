@@ -50,7 +50,7 @@ const farmerContractABI = [
   },
 ];
 
-export default function Cor1() {
+export default function Contract() {
   const [web3, setWeb3] = useState(null);
   const [contract, setContract] = useState(null);
   const [farmer, setFarmer] = useState(null);
