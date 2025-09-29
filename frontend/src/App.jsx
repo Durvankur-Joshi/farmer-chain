@@ -52,7 +52,7 @@ function App() {
       />
 
       {/* Default redirect */}
-      <Route path="*" element={<AuthForm />} />
+      {/* <Route path="*" element={<AuthForm />} /> */}
     </Routes>
   );
 }
