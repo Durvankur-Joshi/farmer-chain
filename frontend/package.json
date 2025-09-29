@@ -14,11 +14,13 @@
     "axios": "^1.12.2",
     "ethers": "^5.8.0",
     "js-cookie": "^3.0.5",
+    "lucide-react": "^0.544.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.9.1",
-    "tailwindcss": "^4.1.13"
+    "tailwindcss": "^4.1.13",
+    "web3": "^4.16.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",
