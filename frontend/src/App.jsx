@@ -6,7 +6,7 @@ import RetailerDashboard from "./pages/retailer/RetailerDashboard";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import ProtectedRoute from "./utils/ProtectedRoute";
 import AdminLogin from "./pages/admin/AdminLogin";
-import Cor1 from "./contract/cor1";
+import Cor1 from "./components/Cor1";
 
 function App() {
   return (
