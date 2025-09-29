@@ -16,6 +16,8 @@ export default function FarmerQuotes() {
     try {
       await axios.post(`/api/fpo/quotes/farmer/${quoteId}/bids/`, {
         bid_amount: bidAmount[quoteId],
+        delivery_time_days:2
+        
       });
       alert("✅ Bid placed successfully!");
     } catch (err) {
