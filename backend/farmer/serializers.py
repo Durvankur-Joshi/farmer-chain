@@ -31,7 +31,7 @@ class FarmerQuoteSerializer(serializers.ModelSerializer):
             'id', 'farmer', 'product_name', 'category', 'description', 
             'quantity', 'unit', 'price_per_unit', 'status', 'deadline', 
             'created_at', 'accepted_bid', 'farmer_name', 'farmer_email',
-            'bids'
+            'bids', 'contract_address'
         ]
         read_only_fields = ('farmer', 'status', 'created_at', 'accepted_bid')
 

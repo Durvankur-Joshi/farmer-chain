@@ -4,10 +4,12 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
 from .models import Farmer, FarmerQuote
+from django.utils import timezone
 from .serializers import FarmerSerializer, FarmerRegistrationSerializer, FarmerQuoteSerializer
 from common.permissions import IsFarmer
 from fpo.models import FPOBid
 from fpo.serializers import FPOBidSerializer
+
 
 class FarmerRegistrationView(generics.CreateAPIView):
     queryset = Farmer.objects.all()
@@ -114,16 +116,75 @@ def accept_fpo_bid(request, bid_pk):
     bid.status = 'accepted'
     bid.save()
 
-    # Remove other bids from database (delete them)
-    quote.bids.exclude(pk=bid.pk).delete()
-    
-    # Update quote status to 'accepted' and set accepted bid
-    quote.status = 'accepted'  # or 'awarded' if you prefer that terminology
+    # Update quote status to 'accepted' (contract will be created in frontend)
+    quote.status = 'accepted'
     quote.accepted_bid = bid
     quote.save()
     
     return Response({
-        "message": "Bid accepted successfully. Other bids have been removed and quote is now closed.",
+        "message": "Bid accepted successfully. You can now create the smart contract.",
         "bid_id": bid.pk,
-        "quote_status": quote.status
+        "quote_id": quote.id,
+        "quote_status": quote.status,
+        "next_step": "create_smart_contract"  # Indicate next step
     })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsFarmer])
+def update_contract_address(request, quote_id):
+    """Update the contract address after smart contract creation"""
+    quote = get_object_or_404(FarmerQuote, id=quote_id)
+    
+    # Check if the farmer owns this quote
+    if quote.farmer != request.user.user_obj:
+        return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+    
+    contract_address = request.data.get('contract_address')
+    if not contract_address:
+        return Response({"error": "Contract address is required"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Validate Ethereum address format
+    if not contract_address.startswith('0x') or len(contract_address) != 42:
+        return Response({"error": "Invalid contract address format"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    quote.contract_address = contract_address
+    quote.status = 'contract_created'
+    quote.contract_created_at = timezone.now()
+    quote.save()
+    
+    return Response({
+        "message": "Contract address updated successfully",
+        "contract_address": contract_address,
+        "quote_id": quote.id
+    })
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])  # Public access
+def get_contract_details(request, contract_address):
+    """Get contract details for public viewing"""
+    quote = get_object_or_404(FarmerQuote, contract_address=contract_address)
+    
+    serializer = FarmerQuoteSerializer(quote)
+    
+    # Include additional contract information
+    response_data = {
+        'quote': serializer.data,
+        'contract_address': contract_address,
+        'farmer_info': {
+            'name': quote.farmer.name,
+            'location': f"{quote.farmer.city}, {quote.farmer.state}"
+        },
+        'fpo_info': None,
+        'retailer_info': None
+    }
+    
+    # If there's an accepted bid, include FPO info
+    if quote.accepted_bid:
+        response_data['fpo_info'] = {
+            'name': quote.accepted_bid.fpo.name,
+            'email': quote.accepted_bid.fpo.email
+        }
+    
+    return Response(response_data)

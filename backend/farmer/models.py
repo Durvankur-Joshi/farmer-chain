@@ -33,6 +33,7 @@ class FarmerQuote(models.Model):
         ('closed', 'Closed'),
         ('awarded', 'Awarded'),
         ('accepted', 'Accepted'),
+        ('contract_created', 'Contract Created'),  # Add new status
     ]
     
     farmer = models.ForeignKey(Farmer, on_delete=models.CASCADE, related_name='quotes')
@@ -42,7 +43,7 @@ class FarmerQuote(models.Model):
     quantity = models.DecimalField(max_digits=10, decimal_places=2)
     unit = models.CharField(max_length=20, help_text="e.g., kg, quintal, ton")
     price_per_unit = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='open')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')  # Increased max_length
     deadline = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
     
@@ -53,6 +54,10 @@ class FarmerQuote(models.Model):
         blank=True,
         related_name='accepted_for_farmer_quote'
     )
+    
+    # Add contract fields
+    contract_address = models.CharField(max_length=42, blank=True, null=True)  # Ethereum address length
+    contract_created_at = models.DateTimeField(null=True, blank=True)
     
     def __str__(self):
         return f"{self.product_name} quote from {self.farmer.name}"

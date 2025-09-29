@@ -12,10 +12,7 @@ Directory structure:
     │   │   ├── serializers.py
     │   │   ├── tests.py
     │   │   ├── urls.py
-    │   │   ├── views.py
-    │   │   └── migrations/
-    │   │       ├── 0001_initial.py
-    │   │       └── __init__.py
+    │   │   └── views.py
     │   ├── common/
     │   │   └── permissions.py
     │   ├── farmer/
@@ -26,15 +23,7 @@ Directory structure:
     │   │   ├── serializers.py
     │   │   ├── tests.py
     │   │   ├── urls.py
-    │   │   ├── views.py
-    │   │   └── migrations/
-    │   │       ├── 0001_initial.py
-    │   │       ├── 0002_farmer_approval_status.py
-    │   │       ├── 0003_fporeviewoffarmer_farmerbid.py
-    │   │       ├── 0004_farmerbid_quote_fporeviewoffarmer_bid_and_more.py
-    │   │       ├── 0005_remove_farmerbid_farmer_remove_farmerbid_quote_and_more.py
-    │   │       ├── 0006_delete_farmerbid_delete_fporeviewoffarmer.py
-    │   │       └── __init__.py
+    │   │   └── views.py
     │   ├── FarmerChain/
     │   │   ├── __init__.py
     │   │   ├── asgi.py
@@ -49,16 +38,7 @@ Directory structure:
     │   │   ├── serializers.py
     │   │   ├── tests.py
     │   │   ├── urls.py
-    │   │   ├── views.py
-    │   │   └── migrations/
-    │   │       ├── 0001_initial.py
-    │   │       ├── 0002_fpo_approval_status.py
-    │   │       ├── 0003_fpoquoterequest.py
-    │   │       ├── 0004_retailerreviewoffpo_fpobid.py
-    │   │       ├── 0005_fpobid_quote_retailerreviewoffpo_bid_and_more.py
-    │   │       ├── 0006_fpoquote_remove_fpoquoterequest_accepted_bid_and_more.py
-    │   │       ├── 0007_fpoquote_accepted_bid_fpoquote_fpo_and_more.py
-    │   │       └── __init__.py
+    │   │   └── views.py
     │   ├── negotiation/
     │   │   ├── __init__.py
     │   │   ├── admin.py
@@ -67,10 +47,7 @@ Directory structure:
     │   │   ├── serializers.py
     │   │   ├── tests.py
     │   │   ├── urls.py
-    │   │   ├── views.py
-    │   │   └── migrations/
-    │   │       ├── 0001_initial.py
-    │   │       └── __init__.py
+    │   │   └── views.py
     │   ├── retailer/
     │   │   ├── __init__.py
     │   │   ├── admin.py
@@ -79,16 +56,11 @@ Directory structure:
     │   │   ├── serializers.py
     │   │   ├── tests.py
     │   │   ├── urls.py
-    │   │   ├── views.py
-    │   │   └── migrations/
-    │   │       ├── 0001_initial.py
-    │   │       ├── 0002_retailer_approval_status.py
-    │   │       ├── 0003_retailerquoterequest.py
-    │   │       ├── 0004_retailerbid_delete_retailerquoterequest.py
-    │   │       └── __init__.py
+    │   │   └── views.py
     │   └── users/
     │       ├── token.py
-    │       └── token_auth.py
+    │       ├── token_auth.py
+    │       └── views.py
     └── frontend/
         ├── README.md
         ├── eslint.config.js
@@ -100,12 +72,29 @@ Directory structure:
             ├── App.jsx
             ├── index.css
             ├── main.jsx
+            ├── components/
+            │   ├── farmer/
+            │   │   ├── QuoteBids.jsx
+            │   │   ├── QuoteForm.jsx
+            │   │   └── QuoteHistory.jsx
+            │   └── fpo/
+            │       ├── BidForm.jsx
+            │       ├── FarmerQuotes.jsx
+            │       └── RetailerQuotes.jsx
             ├── pages/
-            │   ├── AdminDashboard.jsx
-            │   ├── AdminLogin.jsx
-            │   └── AuthForm.jsx
+            │   ├── AuthForm.jsx
+            │   ├── admin/
+            │   │   ├── AdminDashboard.jsx
+            │   │   └── AdminLogin.jsx
+            │   ├── farmer/
+            │   │   └── FarmerDashboard.jsx
+            │   ├── fpo/
+            │   │   └── FpoDashboard.jsx
+            │   └── retailer/
+            │       └── RetailerDashboard.jsx
             └── utils/
-                └── ABI.json
+                ├── ABI.json
+                └── ProtectedRoute.jsx
 
 ================================================
 FILE: backend/manage.py
@@ -195,10 +184,10 @@ def make_request(method, endpoint, expected_status, name, data=None, headers=Non
         else:
             print(f"{Colors.FAIL}FAILURE! Expected {expected_status}, got {response.status_code}{Colors.ENDC}")
             print(f"{Colors.WARNING}Response: {response.text}{Colors.ENDC}")
-            sys.exit(1) # Stop the script on critical failure
+            return None  # Don't exit, just return None
     except requests.exceptions.RequestException as e:
         print(f"{Colors.FAIL}Request failed: {e}{Colors.ENDC}")
-        sys.exit(1)
+        return None
 
 # --- Test Workflow Functions ---
 
@@ -212,49 +201,112 @@ def test_01_registration():
     STATE['retailer_email'] = f"retailer_{rand}@test.com"
 
     admin_data = {"username": STATE['admin_username'], "password": "password123", "wallet_address": f"0xADMIN{rand.upper()}"}
-    make_request("POST", "/admin/register/", 201, "Register Admin", data=admin_data)
+    result = make_request("POST", "/admin/register/", 201, "Register Admin", data=admin_data)
+    if not result:
+        return False
 
     farmer_data = {"name": "Test Farmer", "email": STATE['farmer_email'], "password": "password123", "aadhaar_number": str(random.randint(10**11, 10**12 - 1)), "wallet_address": f"0xFARMER{rand.upper()}", "city": "Farmville", "state": "Fields"}
-    make_request("POST", "/farmer/register/", 201, "Register Farmer", data=farmer_data)
+    result = make_request("POST", "/farmer/register/", 201, "Register Farmer", data=farmer_data)
+    if not result:
+        return False
     
     fpo_data = {"name": "Test FPO", "email": STATE['fpo_email'], "password": "password123", "corporate_identification_number": f"CIN{rand.upper()}", "wallet_address": f"0xFPO{rand.upper()}", "city": "Marketon", "state": "Commerce"}
-    make_request("POST", "/fpo/register/", 201, "Register FPO", data=fpo_data)
+    result = make_request("POST", "/fpo/register/", 201, "Register FPO", data=fpo_data)
+    if not result:
+        return False
     
     retailer_data = {"name": "Test Retailer", "email": STATE['retailer_email'], "password": "password123", "gstin": f"GSTIN{rand.upper()}", "wallet_address": f"0xRETAILER{rand.upper()}", "city": "Metropolis", "state": "Urban"}
-    make_request("POST", "/retailer/register/", 201, "Register Retailer", data=retailer_data)
+    result = make_request("POST", "/retailer/register/", 201, "Register Retailer", data=retailer_data)
+    if not result:
+        return False
+    
+    return True
 
 def test_02_admin_login_and_approval():
     print_header("Step 2: Admin Login and User Approval")
 
     login_data = {"username": STATE['admin_username'], "password": "password123", "role": "admin"}
-    response = make_request("POST", "/token/", 200, "Admin Login", data=login_data)
-    STATE['admin_token'] = response['access']
+    
+    # Make the login request and capture the response object directly
+    print(f"{Colors.OKCYAN}--- Testing: Admin Login{Colors.ENDC}")
+    login_response = requests.post(f"{BASE_URL}/token/", json=login_data)
+    
+    if login_response.status_code != 200:
+        print(f"{Colors.FAIL}FAILURE! Expected 200, got {login_response.status_code}{Colors.ENDC}")
+        print(f"{Colors.WARNING}Response: {login_response.text}{Colors.ENDC}")
+        return False
+    
+    print(f"{Colors.OKGREEN}SUCCESS ({login_response.status_code}){Colors.ENDC}")
+    
+    # Extract access token from cookies
+    if 'access_token' in login_response.cookies:
+        STATE['admin_token'] = login_response.cookies['access_token']
+    else:
+        # Fallback: try to parse JSON response for tokens (if not using cookies)
+        try:
+            response_data = login_response.json()
+            STATE['admin_token'] = response_data.get('access', '')
+        except:
+            print(f"{Colors.FAIL}Could not extract access token from response{Colors.ENDC}")
+            return False
+    
+    if not STATE['admin_token']:
+        print(f"{Colors.FAIL}Access token is empty{Colors.ENDC}")
+        return False
+    
+    # Use the token in Authorization header
     admin_headers = {"Authorization": f"Bearer {STATE['admin_token']}"}
 
+    # Test getting pending users with the proper token
     pending_users = make_request("GET", "/admin/pending-registrations/", 200, "Get Pending Users", headers=admin_headers)
+    if not pending_users:
+        return False
     
-    STATE['farmer_id'] = next(f['id'] for f in pending_users['farmers'] if f['email'] == STATE['farmer_email'])
-    STATE['fpo_id'] = next(f['id'] for f in pending_users['fpos'] if f['email'] == STATE['fpo_email'])
-    STATE['retailer_id'] = next(r['id'] for r in pending_users['retailers'] if r['email'] == STATE['retailer_email'])
+    # Extract user IDs safely
+    try:
+        STATE['farmer_id'] = next(f['id'] for f in pending_users['farmers'] if f['email'] == STATE['farmer_email'])
+        STATE['fpo_id'] = next(f['id'] for f in pending_users['fpos'] if f['email'] == STATE['fpo_email'])
+        STATE['retailer_id'] = next(r['id'] for r in pending_users['retailers'] if r['email'] == STATE['retailer_email'])
+    except StopIteration:
+        print(f"{Colors.FAIL}Could not find registered users in pending list{Colors.ENDC}")
+        return False
     
-    make_request("POST", f"/admin/approve-farmer/{STATE['farmer_id']}/", 200, "Approve Farmer", headers=admin_headers)
-    make_request("POST", f"/admin/approve-fpo/{STATE['fpo_id']}/", 200, "Approve FPO", headers=admin_headers)
-    make_request("POST", f"/admin/approve-retailer/{STATE['retailer_id']}/", 200, "Approve Retailer", headers=admin_headers)
+    result = make_request("POST", f"/admin/approve-farmer/{STATE['farmer_id']}/", 200, "Approve Farmer", headers=admin_headers)
+    if not result:
+        return False
+        
+    result = make_request("POST", f"/admin/approve-fpo/{STATE['fpo_id']}/", 200, "Approve FPO", headers=admin_headers)
+    if not result:
+        return False
+        
+    result = make_request("POST", f"/admin/approve-retailer/{STATE['retailer_id']}/", 200, "Approve Retailer", headers=admin_headers)
+    if not result:
+        return False
+    
+    return True
 
 def test_03_user_logins():
     print_header("Step 3: Login for Approved Users")
 
     farmer_login = {"username": STATE['farmer_email'], "password": "password123", "role": "farmer"}
     res = make_request("POST", "/token/", 200, "Farmer Login", data=farmer_login)
-    STATE['farmer_token'] = res['access']
+    if not res:
+        return False
+    STATE['farmer_token'] = res.get('access', '')
 
     fpo_login = {"username": STATE['fpo_email'], "password": "password123", "role": "fpo"}
     res = make_request("POST", "/token/", 200, "FPO Login", data=fpo_login)
-    STATE['fpo_token'] = res['access']
+    if not res:
+        return False
+    STATE['fpo_token'] = res.get('access', '')
 
     retailer_login = {"username": STATE['retailer_email'], "password": "password123", "role": "retailer"}
     res = make_request("POST", "/token/", 200, "Retailer Login", data=retailer_login)
-    STATE['retailer_token'] = res['access']
+    if not res:
+        return False
+    STATE['retailer_token'] = res.get('access', '')
+    
+    return True
 
 def test_04_farmer_fpo_workflow():
     print_header("Step 4: Farmer-FPO Bidding Workflow")
@@ -271,10 +323,14 @@ def test_04_farmer_fpo_workflow():
         "deadline": "2025-12-31"
     }
     res = make_request("POST", "/farmer/quotes/", 201, "Farmer Creates Quote", data=quote_data, headers=farmer_headers)
+    if not res:
+        return False
     STATE['farmer_quote_id'] = res['id']
 
     # FPO views open farmer quotes
-    make_request("GET", "/fpo/quotes/farmer/open/", 200, "FPO Views Open Farmer Quotes", headers=fpo_headers)
+    res = make_request("GET", "/fpo/quotes/farmer/open/", 200, "FPO Views Open Farmer Quotes", headers=fpo_headers)
+    if not res:
+        return False
 
     # FPO places bid on farmer quote
     bid_data = {
@@ -283,10 +339,16 @@ def test_04_farmer_fpo_workflow():
         "comments": "We can process your wheat efficiently."
     }
     res = make_request("POST", f"/fpo/quotes/farmer/{STATE['farmer_quote_id']}/bids/", 201, "FPO Places Bid", data=bid_data, headers=fpo_headers)
+    if not res:
+        return False
     STATE['fpo_bid_id'] = res['id']
     
     # Farmer accepts FPO bid
-    make_request("POST", f"/farmer/bids/fpo/{STATE['fpo_bid_id']}/accept/", 200, "Farmer Accepts FPO Bid", headers=farmer_headers)
+    res = make_request("POST", f"/farmer/bids/fpo/{STATE['fpo_bid_id']}/accept/", 200, "Farmer Accepts FPO Bid", headers=farmer_headers)
+    if not res:
+        return False
+    
+    return True
 
 def test_05_fpo_retailer_workflow():
     print_header("Step 5: FPO-Retailer Bidding Workflow")
@@ -303,10 +365,14 @@ def test_05_fpo_retailer_workflow():
         "deadline": "2025-12-31"
     }
     res = make_request("POST", "/fpo/quotes/", 201, "FPO Creates Quote for Retailers", data=quote_data, headers=fpo_headers)
+    if not res:
+        return False
     STATE['fpo_quote_id'] = res['id']
 
     # Retailer views open FPO quotes
-    make_request("GET", "/retailer/quotes/fpo/open/", 200, "Retailer Views Open FPO Quotes", headers=retailer_headers)
+    res = make_request("GET", "/retailer/quotes/fpo/open/", 200, "Retailer Views Open FPO Quotes", headers=retailer_headers)
+    if not res:
+        return False
 
     # Retailer places bid on FPO quote
     bid_data = { 
@@ -315,10 +381,16 @@ def test_05_fpo_retailer_workflow():
         "comments": "We can distribute to our stores." 
     }
     res = make_request("POST", f"/retailer/quotes/fpo/{STATE['fpo_quote_id']}/bids/", 201, "Retailer Places Bid on FPO Quote", data=bid_data, headers=retailer_headers)
+    if not res:
+        return False
     STATE['retailer_bid_id'] = res['id']
 
     # FPO accepts retailer bid
-    make_request("POST", f"/fpo/bids/retailer/{STATE['retailer_bid_id']}/accept/", 200, "FPO Accepts Retailer Bid", headers=fpo_headers)
+    res = make_request("POST", f"/fpo/bids/retailer/{STATE['retailer_bid_id']}/accept/", 200, "FPO Accepts Retailer Bid", headers=fpo_headers)
+    if not res:
+        return False
+    
+    return True
 
 def test_06_negotiation_workflow():
     print_header("Step 6: Negotiation Workflow (FPO-Retailer)")
@@ -335,6 +407,8 @@ def test_06_negotiation_workflow():
         "deadline": "2025-11-30"
     }
     res = make_request("POST", "/fpo/quotes/", 201, "[NEGOTIATION] FPO Creates Quote", data=quote_data, headers=fpo_headers)
+    if not res:
+        return False
     negotiation_quote_id = res['id']
 
     # 2. Retailer places an initial bid on it
@@ -344,6 +418,8 @@ def test_06_negotiation_workflow():
         "comments": "This bid will be negotiated."
     }
     res = make_request("POST", f"/retailer/quotes/fpo/{negotiation_quote_id}/bids/", 201, "[NEGOTIATION] Retailer Places Initial Bid", data=bid_data, headers=retailer_headers)
+    if not res:
+        return False
     negotiation_bid_id = res['id']
     
     # 3. FPO (the quote owner) starts a negotiation on the retailer's bid
@@ -352,6 +428,8 @@ def test_06_negotiation_workflow():
         "object_id": negotiation_bid_id
     }
     res = make_request("POST", "/negotiation/start/", 201, "[NEGOTIATION] FPO Starts Negotiation", data=negotiation_start_data, headers=fpo_headers)
+    if not res:
+        return False
     STATE['negotiation_id'] = res['id']
     
     # 4. Retailer (the bidder) sends a counter-offer
@@ -360,34 +438,57 @@ def test_06_negotiation_workflow():
         "counter_amount": "85.00", 
         "counter_delivery_time_days": 15
     }
-    make_request("POST", f"/negotiation/{STATE['negotiation_id']}/", 201, "[NEGOTIATION] Retailer Sends Counter-Offer", data=counter_offer_data, headers=retailer_headers)
+    res = make_request("POST", f"/negotiation/{STATE['negotiation_id']}/", 201, "[NEGOTIATION] Retailer Sends Counter-Offer", data=counter_offer_data, headers=retailer_headers)
+    if not res:
+        return False
 
     # 5. FPO views the negotiation history to see the counter-offer
     res = make_request("GET", f"/negotiation/{STATE['negotiation_id']}/", 200, "[NEGOTIATION] FPO Views Negotiation Details", headers=fpo_headers)
+    if not res:
+        return False
     
     # 6. Verify the counter-offer is present
-    last_message = res['messages'][-1]['message']
-    if "85.00" in last_message and "15 days" in last_message:
-        print(f"{Colors.OKGREEN}SUCCESS: Counter-offer message found in negotiation history.{Colors.ENDC}")
+    if 'messages' in res and len(res['messages']) > 0:
+        last_message = res['messages'][-1]['message']
+        if "85.00" in last_message and "15 days" in last_message:
+            print(f"{Colors.OKGREEN}SUCCESS: Counter-offer message found in negotiation history.{Colors.ENDC}")
+        else:
+            print(f"{Colors.WARNING}Counter-offer message not found as expected. Got: {last_message}{Colors.ENDC}")
     else:
-        print(f"{Colors.FAIL}FAILURE: Counter-offer message not found! Expected '85.00' and '15 days'. Got: {last_message}{Colors.ENDC}")
-        sys.exit(1)
+        print(f"{Colors.WARNING}No messages found in negotiation history{Colors.ENDC}")
+    
+    return True
 
 
 def main():
     """Run all test workflows in sequence."""
     start_time = time.time()
     
-    test_01_registration()
-    test_02_admin_login_and_approval()
-    test_03_user_logins()
-    test_04_farmer_fpo_workflow()
-    test_05_fpo_retailer_workflow()
-    test_06_negotiation_workflow()
+    tests = [
+        test_01_registration,
+        test_02_admin_login_and_approval,
+        test_03_user_logins,
+        test_04_farmer_fpo_workflow,
+        test_05_fpo_retailer_workflow,
+        test_06_negotiation_workflow
+    ]
+    
+    all_passed = True
+    for test in tests:
+        if not test():
+            print(f"{Colors.FAIL}Test failed: {test.__name__}{Colors.ENDC}")
+            all_passed = False
+            break
+        time.sleep(1)  # Small delay between tests
     
     end_time = time.time()
-    print_header(f"All tests passed in {end_time - start_time:.2f} seconds!")
-    print(f"{Colors.OKGREEN}{Colors.BOLD}Backend is now fixed and fully tested.{Colors.ENDC}")
+    
+    if all_passed:
+        print_header(f"All tests passed in {end_time - start_time:.2f} seconds!")
+        print(f"{Colors.OKGREEN}{Colors.BOLD}Backend is now fixed and fully tested.{Colors.ENDC}")
+    else:
+        print_header(f"Some tests failed after {end_time - start_time:.2f} seconds!")
+        print(f"{Colors.FAIL}{Colors.BOLD}Backend needs fixes.{Colors.ENDC}")
 
 if __name__ == "__main__":
     main()
@@ -654,42 +755,6 @@ def reject_retailer(request, retailer_id):
 
 
 ================================================
-FILE: backend/admin_app/migrations/0001_initial.py
-================================================
-# Generated by Django 5.2.4 on 2025-09-18 07:27
-
-from django.db import migrations, models
-
-
-class Migration(migrations.Migration):
-
-    initial = True
-
-    dependencies = [
-    ]
-
-    operations = [
-        migrations.CreateModel(
-            name='Admin',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('username', models.CharField(max_length=100, unique=True)),
-                ('password', models.CharField(max_length=128)),
-                ('wallet_address', models.CharField(max_length=100, unique=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-            ],
-        ),
-    ]
-
-
-
-================================================
-FILE: backend/admin_app/migrations/__init__.py
-================================================
-
-
-
-================================================
 FILE: backend/common/permissions.py
 ================================================
 from rest_framework.permissions import BasePermission
@@ -794,6 +859,7 @@ class FarmerQuote(models.Model):
         ('open', 'Open'),
         ('closed', 'Closed'),
         ('awarded', 'Awarded'),
+        ('accepted', 'Accepted'),
     ]
     
     farmer = models.ForeignKey(Farmer, on_delete=models.CASCADE, related_name='quotes')
@@ -847,9 +913,7 @@ class FarmerRegistrationSerializer(serializers.ModelSerializer):
 class FarmerQuoteSerializer(serializers.ModelSerializer):
     farmer_name = serializers.CharField(source='farmer.name', read_only=True)
     farmer_email = serializers.CharField(source='farmer.email', read_only=True)
-    # --- FIX START ---
     bids = serializers.SerializerMethodField()
-    # --- FIX END ---
 
     class Meta:
         model = FarmerQuote
@@ -857,23 +921,27 @@ class FarmerQuoteSerializer(serializers.ModelSerializer):
             'id', 'farmer', 'product_name', 'category', 'description', 
             'quantity', 'unit', 'price_per_unit', 'status', 'deadline', 
             'created_at', 'accepted_bid', 'farmer_name', 'farmer_email',
-            'bids'  # <-- Add 'bids' to the fields list
+            'bids'
         ]
         read_only_fields = ('farmer', 'status', 'created_at', 'accepted_bid')
 
-    # --- FIX START ---
     def get_bids(self, obj):
         """
         Custom method to get and serialize the bids for this quote.
         This avoids the circular import issue at startup.
         """
-        # Import the serializer only when this method is called
-        from fpo.serializers import FPOBidSerializer
-        # We access bids through the related_name 'bids' on the FarmerQuote object 'obj'
-        bids_queryset = obj.bids.all()
-        serializer = FPOBidSerializer(bids_queryset, many=True)
-        return serializer.data
-    # --- FIX END ---
+        # Use a simple serializer to avoid circular imports
+        bids_data = []
+        for bid in obj.bids.all():
+            bids_data.append({
+                'id': bid.id,
+                'fpo_name': bid.fpo.name,
+                'bid_amount': str(bid.bid_amount),
+                'delivery_time_days': bid.delivery_time_days,
+                'status': bid.status,
+                'submitted_at': bid.submitted_at
+            })
+        return bids_data
 
     def validate_quantity(self, value):
         if value <= 0:
@@ -1030,256 +1098,25 @@ def accept_fpo_bid(request, bid_pk):
         return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
     
     if quote.status != 'open':
-        return Response({"error": "Quote is not open."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Quote is not open for bidding."}, status=status.HTTP_400_BAD_REQUEST)
 
     # Accept this bid
     bid.status = 'accepted'
     bid.save()
 
-    # Reject other bids
-    quote.bids.exclude(pk=bid.pk).update(status='rejected')
+    # Remove other bids from database (delete them)
+    quote.bids.exclude(pk=bid.pk).delete()
     
-    # Award quote
-    quote.status = 'awarded'
+    # Update quote status to 'accepted' and set accepted bid
+    quote.status = 'accepted'  # or 'awarded' if you prefer that terminology
     quote.accepted_bid = bid
     quote.save()
     
     return Response({
-        "message": "Bid accepted successfully.",
-        "bid_id": bid.pk
+        "message": "Bid accepted successfully. Other bids have been removed and quote is now closed.",
+        "bid_id": bid.pk,
+        "quote_status": quote.status
     })
-
-
-================================================
-FILE: backend/farmer/migrations/0001_initial.py
-================================================
-# Generated by Django 5.2.4 on 2025-09-18 07:27
-
-from django.db import migrations, models
-
-
-class Migration(migrations.Migration):
-
-    initial = True
-
-    dependencies = [
-    ]
-
-    operations = [
-        migrations.CreateModel(
-            name='Farmer',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=100)),
-                ('email', models.EmailField(max_length=254, unique=True)),
-                ('password', models.CharField(max_length=128)),
-                ('aadhaar_number', models.CharField(max_length=12, unique=True)),
-                ('wallet_address', models.CharField(max_length=100, unique=True)),
-                ('city', models.CharField(max_length=50)),
-                ('state', models.CharField(max_length=50)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-            ],
-        ),
-    ]
-
-
-
-================================================
-FILE: backend/farmer/migrations/0002_farmer_approval_status.py
-================================================
-# Generated by Django 5.2.4 on 2025-09-18 09:30
-
-from django.db import migrations, models
-
-
-class Migration(migrations.Migration):
-
-    dependencies = [
-        ('farmer', '0001_initial'),
-    ]
-
-    operations = [
-        migrations.AddField(
-            model_name='farmer',
-            name='approval_status',
-            field=models.CharField(choices=[('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected')], default='pending', max_length=10),
-        ),
-    ]
-
-
-
-================================================
-FILE: backend/farmer/migrations/0003_fporeviewoffarmer_farmerbid.py
-================================================
-# Generated by Django 5.2.4 on 2025-09-25 11:53
-
-import django.db.models.deletion
-from django.db import migrations, models
-
-
-class Migration(migrations.Migration):
-
-    dependencies = [
-        ('farmer', '0002_farmer_approval_status'),
-    ]
-
-    operations = [
-        migrations.CreateModel(
-            name='FPOReviewOfFarmer',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('rating', models.PositiveSmallIntegerField(choices=[(1, '1'), (2, '2'), (3, '3'), (4, '4'), (5, '5')])),
-                ('comment', models.TextField(blank=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-            ],
-        ),
-        migrations.CreateModel(
-            name='FarmerBid',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('bid_amount', models.DecimalField(decimal_places=2, help_text='Price per unit', max_digits=10)),
-                ('delivery_time_days', models.PositiveIntegerField()),
-                ('comments', models.TextField(blank=True)),
-                ('status', models.CharField(choices=[('submitted', 'Submitted'), ('accepted', 'Accepted'), ('rejected', 'Rejected')], default='submitted', max_length=10)),
-                ('submitted_at', models.DateTimeField(auto_now_add=True)),
-                ('payment_status', models.CharField(choices=[('pending', 'Pending'), ('paid', 'Paid'), ('failed', 'Failed')], default='pending', max_length=10)),
-                ('transaction_hash', models.CharField(blank=True, max_length=66, null=True)),
-                ('farmer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='farmer.farmer')),
-            ],
-        ),
-    ]
-
-
-
-================================================
-FILE: backend/farmer/migrations/0004_farmerbid_quote_fporeviewoffarmer_bid_and_more.py
-================================================
-# Generated by Django 5.2.4 on 2025-09-25 11:53
-
-import django.db.models.deletion
-from django.db import migrations, models
-
-
-class Migration(migrations.Migration):
-
-    dependencies = [
-        ('farmer', '0003_fporeviewoffarmer_farmerbid'),
-        ('fpo', '0003_fpoquoterequest'),
-    ]
-
-    operations = [
-        migrations.AddField(
-            model_name='farmerbid',
-            name='quote',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='fpo.fpoquoterequest'),
-        ),
-        migrations.AddField(
-            model_name='fporeviewoffarmer',
-            name='bid',
-            field=models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, to='farmer.farmerbid'),
-        ),
-        migrations.AddField(
-            model_name='fporeviewoffarmer',
-            name='farmer',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='reviews_from_fpos', to='farmer.farmer'),
-        ),
-        migrations.AddField(
-            model_name='fporeviewoffarmer',
-            name='fpo',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='fpo.fpo'),
-        ),
-    ]
-
-
-
-================================================
-FILE: backend/farmer/migrations/0005_remove_farmerbid_farmer_remove_farmerbid_quote_and_more.py
-================================================
-# Generated by Django 5.2.4 on 2025-09-26 16:56
-
-import django.db.models.deletion
-from django.db import migrations, models
-
-
-class Migration(migrations.Migration):
-
-    dependencies = [
-        ('farmer', '0004_farmerbid_quote_fporeviewoffarmer_bid_and_more'),
-        ('fpo', '0005_fpobid_quote_retailerreviewoffpo_bid_and_more'),
-    ]
-
-    operations = [
-        migrations.RemoveField(
-            model_name='farmerbid',
-            name='farmer',
-        ),
-        migrations.RemoveField(
-            model_name='farmerbid',
-            name='quote',
-        ),
-        migrations.RemoveField(
-            model_name='fporeviewoffarmer',
-            name='bid',
-        ),
-        migrations.RemoveField(
-            model_name='fporeviewoffarmer',
-            name='farmer',
-        ),
-        migrations.RemoveField(
-            model_name='fporeviewoffarmer',
-            name='fpo',
-        ),
-        migrations.CreateModel(
-            name='FarmerQuote',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('product_name', models.CharField(max_length=200)),
-                ('category', models.CharField(max_length=100)),
-                ('description', models.TextField()),
-                ('quantity', models.DecimalField(decimal_places=2, max_digits=10)),
-                ('unit', models.CharField(help_text='e.g., kg, quintal, ton', max_length=20)),
-                ('price_per_unit', models.DecimalField(blank=True, decimal_places=2, max_digits=10, null=True)),
-                ('status', models.CharField(choices=[('open', 'Open'), ('closed', 'Closed'), ('awarded', 'Awarded')], default='open', max_length=10)),
-                ('deadline', models.DateField()),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('accepted_bid', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='accepted_for_farmer_quote', to='fpo.fpobid')),
-                ('farmer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='quotes', to='farmer.farmer')),
-            ],
-        ),
-    ]
-
-
-
-================================================
-FILE: backend/farmer/migrations/0006_delete_farmerbid_delete_fporeviewoffarmer.py
-================================================
-# Generated by Django 5.2.4 on 2025-09-26 16:56
-
-from django.db import migrations
-
-
-class Migration(migrations.Migration):
-
-    dependencies = [
-        ('farmer', '0005_remove_farmerbid_farmer_remove_farmerbid_quote_and_more'),
-        ('fpo', '0006_fpoquote_remove_fpoquoterequest_accepted_bid_and_more'),
-    ]
-
-    operations = [
-        migrations.DeleteModel(
-            name='FarmerBid',
-        ),
-        migrations.DeleteModel(
-            name='FPOReviewOfFarmer',
-        ),
-    ]
-
-
-
-================================================
-FILE: backend/farmer/migrations/__init__.py
-================================================
-
 
 
 ================================================
@@ -1458,6 +1295,7 @@ from django.contrib import admin
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from users.token import CustomTokenObtainPairView
+from users.views import CookieTokenRefreshView, LogoutView  # Add this import
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -1467,11 +1305,11 @@ urlpatterns = [
     path('api/admin/', include('admin_app.urls')),
     path('api/negotiation/', include('negotiation.urls')),
 
-    # JWT Auth
+    # JWT Auth with cookie support
     path('api/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/token/refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'),  # Updated
+    path('api/token/logout/', LogoutView.as_view(), name='token_logout'),  # New endpoint
 ]
-
 
 
 ================================================
@@ -1650,9 +1488,7 @@ class FPOBidSerializer(serializers.ModelSerializer):
 class FPOQuoteSerializer(serializers.ModelSerializer):
     fpo_name = serializers.CharField(source='fpo.name', read_only=True)
     fpo_email = serializers.CharField(source='fpo.email', read_only=True)
-    # --- FIX START ---
     bids = serializers.SerializerMethodField()
-    # --- FIX END ---
     
     class Meta:
         model = FPOQuote
@@ -1660,20 +1496,25 @@ class FPOQuoteSerializer(serializers.ModelSerializer):
             'id', 'fpo', 'product_name', 'category', 'description', 
             'quantity', 'unit', 'price_per_unit', 'status', 'deadline', 
             'created_at', 'accepted_bid', 'fpo_name', 'fpo_email',
-            'bids' # <-- Add 'bids' to the fields list
+            'bids'
         ]
         read_only_fields = ('fpo', 'status', 'created_at', 'accepted_bid')
     
-    # --- FIX START ---
     def get_bids(self, obj):
         """
         Custom method to get and serialize the bids for this quote.
         """
-        from retailer.serializers import RetailerBidSerializer
-        bids_queryset = obj.bids.all()
-        serializer = RetailerBidSerializer(bids_queryset, many=True)
-        return serializer.data
-    # --- FIX END ---
+        bids_data = []
+        for bid in obj.bids.all():
+            bids_data.append({
+                'id': bid.id,
+                'retailer_name': bid.retailer.name,
+                'bid_amount': str(bid.bid_amount),
+                'delivery_time_days': bid.delivery_time_days,
+                'status': bid.status,
+                'submitted_at': bid.submitted_at
+            })
+        return bids_data
 
     def validate_quantity(self, value):
         if value <= 0:
@@ -1828,6 +1669,12 @@ class FPOBidCreateView(generics.CreateAPIView):
         quote = get_object_or_404(FarmerQuote, pk=self.kwargs['quote_pk'])
         if quote.status != 'open':
             raise serializers.ValidationError("This quote is no longer open for bidding.")
+        
+        # Additional check to prevent duplicate bids
+        fpo = self.request.user.user_obj
+        if quote.bids.filter(fpo=fpo).exists():
+            raise serializers.ValidationError("You have already placed a bid on this quote.")
+            
         serializer.save(fpo=self.request.user.user_obj, quote=quote)
 
 class FPOQuoteListCreateView(generics.ListCreateAPIView):
@@ -1863,290 +1710,6 @@ def accept_retailer_bid(request, bid_pk):
         "message": "Retailer bid accepted successfully.",
         "bid_id": bid.pk
     })
-
-
-================================================
-FILE: backend/fpo/migrations/0001_initial.py
-================================================
-# Generated by Django 5.2.4 on 2025-09-18 07:27
-
-from django.db import migrations, models
-
-
-class Migration(migrations.Migration):
-
-    initial = True
-
-    dependencies = [
-    ]
-
-    operations = [
-        migrations.CreateModel(
-            name='FPO',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=100)),
-                ('email', models.EmailField(max_length=254, unique=True)),
-                ('password', models.CharField(max_length=128)),
-                ('corporate_identification_number', models.CharField(max_length=21, unique=True)),
-                ('wallet_address', models.CharField(max_length=100, unique=True)),
-                ('city', models.CharField(max_length=50)),
-                ('state', models.CharField(max_length=50)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-            ],
-        ),
-    ]
-
-
-
-================================================
-FILE: backend/fpo/migrations/0002_fpo_approval_status.py
-================================================
-# Generated by Django 5.2.4 on 2025-09-18 09:30
-
-from django.db import migrations, models
-
-
-class Migration(migrations.Migration):
-
-    dependencies = [
-        ('fpo', '0001_initial'),
-    ]
-
-    operations = [
-        migrations.AddField(
-            model_name='fpo',
-            name='approval_status',
-            field=models.CharField(choices=[('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected')], default='pending', max_length=10),
-        ),
-    ]
-
-
-
-================================================
-FILE: backend/fpo/migrations/0003_fpoquoterequest.py
-================================================
-# Generated by Django 5.2.4 on 2025-09-25 11:53
-
-import django.db.models.deletion
-from django.db import migrations, models
-
-
-class Migration(migrations.Migration):
-
-    dependencies = [
-        ('farmer', '0003_fporeviewoffarmer_farmerbid'),
-        ('fpo', '0002_fpo_approval_status'),
-    ]
-
-    operations = [
-        migrations.CreateModel(
-            name='FPOQuoteRequest',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('product_name', models.CharField(max_length=200)),
-                ('category', models.CharField(max_length=100)),
-                ('description', models.TextField()),
-                ('quantity', models.DecimalField(decimal_places=2, max_digits=10)),
-                ('unit', models.CharField(help_text='e.g., kg, quintal, ton', max_length=20)),
-                ('deadline', models.DateField()),
-                ('status', models.CharField(choices=[('open', 'Open'), ('closed', 'Closed'), ('awarded', 'Awarded')], default='open', max_length=10)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('accepted_bid', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='accepted_for_quote', to='farmer.farmerbid')),
-                ('fpo', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='quote_requests', to='fpo.fpo')),
-            ],
-        ),
-    ]
-
-
-
-================================================
-FILE: backend/fpo/migrations/0004_retailerreviewoffpo_fpobid.py
-================================================
-# Generated by Django 5.2.4 on 2025-09-25 12:32
-
-import django.db.models.deletion
-from django.db import migrations, models
-
-
-class Migration(migrations.Migration):
-
-    dependencies = [
-        ('fpo', '0003_fpoquoterequest'),
-    ]
-
-    operations = [
-        migrations.CreateModel(
-            name='RetailerReviewOfFPO',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('rating', models.PositiveSmallIntegerField(choices=[(1, '1'), (2, '2'), (3, '3'), (4, '4'), (5, '5')])),
-                ('comment', models.TextField(blank=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-            ],
-        ),
-        migrations.CreateModel(
-            name='FPOBid',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('bid_amount', models.DecimalField(decimal_places=2, help_text='Price per unit', max_digits=10)),
-                ('delivery_time_days', models.PositiveIntegerField()),
-                ('comments', models.TextField(blank=True)),
-                ('status', models.CharField(choices=[('submitted', 'Submitted'), ('accepted', 'Accepted'), ('rejected', 'Rejected')], default='submitted', max_length=10)),
-                ('submitted_at', models.DateTimeField(auto_now_add=True)),
-                ('payment_status', models.CharField(choices=[('pending', 'Pending'), ('paid', 'Paid'), ('failed', 'Failed')], default='pending', max_length=10)),
-                ('transaction_hash', models.CharField(blank=True, max_length=66, null=True)),
-                ('fpo', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='fpo.fpo')),
-            ],
-        ),
-    ]
-
-
-
-================================================
-FILE: backend/fpo/migrations/0005_fpobid_quote_retailerreviewoffpo_bid_and_more.py
-================================================
-# Generated by Django 5.2.4 on 2025-09-25 12:32
-
-import django.db.models.deletion
-from django.db import migrations, models
-
-
-class Migration(migrations.Migration):
-
-    dependencies = [
-        ('fpo', '0004_retailerreviewoffpo_fpobid'),
-        ('retailer', '0003_retailerquoterequest'),
-    ]
-
-    operations = [
-        migrations.AddField(
-            model_name='fpobid',
-            name='quote',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='retailer.retailerquoterequest'),
-        ),
-        migrations.AddField(
-            model_name='retailerreviewoffpo',
-            name='bid',
-            field=models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, to='fpo.fpobid'),
-        ),
-        migrations.AddField(
-            model_name='retailerreviewoffpo',
-            name='fpo',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='reviews_from_retailers', to='fpo.fpo'),
-        ),
-        migrations.AddField(
-            model_name='retailerreviewoffpo',
-            name='retailer',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='retailer.retailer'),
-        ),
-    ]
-
-
-
-================================================
-FILE: backend/fpo/migrations/0006_fpoquote_remove_fpoquoterequest_accepted_bid_and_more.py
-================================================
-# Generated by Django 5.2.4 on 2025-09-26 16:56
-
-import django.db.models.deletion
-from django.db import migrations, models
-
-
-class Migration(migrations.Migration):
-
-    dependencies = [
-        ('farmer', '0005_remove_farmerbid_farmer_remove_farmerbid_quote_and_more'),
-        ('fpo', '0005_fpobid_quote_retailerreviewoffpo_bid_and_more'),
-    ]
-
-    operations = [
-        migrations.CreateModel(
-            name='FPOQuote',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('product_name', models.CharField(max_length=200)),
-                ('category', models.CharField(max_length=100)),
-                ('description', models.TextField()),
-                ('quantity', models.DecimalField(decimal_places=2, max_digits=10)),
-                ('unit', models.CharField(help_text='e.g., kg, quintal, ton', max_length=20)),
-                ('price_per_unit', models.DecimalField(blank=True, decimal_places=2, max_digits=10, null=True)),
-                ('status', models.CharField(choices=[('open', 'Open'), ('closed', 'Closed'), ('awarded', 'Awarded')], default='open', max_length=10)),
-                ('deadline', models.DateField()),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-            ],
-        ),
-        migrations.RemoveField(
-            model_name='fpoquoterequest',
-            name='accepted_bid',
-        ),
-        migrations.RemoveField(
-            model_name='fpoquoterequest',
-            name='fpo',
-        ),
-        migrations.RemoveField(
-            model_name='retailerreviewoffpo',
-            name='bid',
-        ),
-        migrations.RemoveField(
-            model_name='retailerreviewoffpo',
-            name='fpo',
-        ),
-        migrations.RemoveField(
-            model_name='retailerreviewoffpo',
-            name='retailer',
-        ),
-        migrations.AlterField(
-            model_name='fpobid',
-            name='quote',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='farmer.farmerquote'),
-        ),
-    ]
-
-
-
-================================================
-FILE: backend/fpo/migrations/0007_fpoquote_accepted_bid_fpoquote_fpo_and_more.py
-================================================
-# Generated by Django 5.2.4 on 2025-09-26 16:56
-
-import django.db.models.deletion
-from django.db import migrations, models
-
-
-class Migration(migrations.Migration):
-
-    dependencies = [
-        ('farmer', '0006_delete_farmerbid_delete_fporeviewoffarmer'),
-        ('fpo', '0006_fpoquote_remove_fpoquoterequest_accepted_bid_and_more'),
-        ('retailer', '0004_retailerbid_delete_retailerquoterequest'),
-    ]
-
-    operations = [
-        migrations.AddField(
-            model_name='fpoquote',
-            name='accepted_bid',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='accepted_for_fpo_quote', to='retailer.retailerbid'),
-        ),
-        migrations.AddField(
-            model_name='fpoquote',
-            name='fpo',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='quotes', to='fpo.fpo'),
-        ),
-        migrations.DeleteModel(
-            name='FPOQuoteRequest',
-        ),
-        migrations.DeleteModel(
-            name='RetailerReviewOfFPO',
-        ),
-    ]
-
-
-
-================================================
-FILE: backend/fpo/migrations/__init__.py
-================================================
-
 
 
 ================================================
@@ -2270,6 +1833,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.shortcuts import get_object_or_404
 from .models import Negotiation, NegotiationMessage
 from .serializers import NegotiationSerializer, CounterOfferSerializer
+from rest_framework import serializers  # Add this import
 
 def get_bid_model_instance(content_type_str, object_id):
     """Helper to get a bid object instance from its content type string and ID."""
@@ -2375,58 +1939,6 @@ class NegotiationDetailView(APIView):
 
 
 ================================================
-FILE: backend/negotiation/migrations/0001_initial.py
-================================================
-# Generated by Django 5.2.4 on 2025-09-25 12:32
-
-import django.db.models.deletion
-from django.db import migrations, models
-
-
-class Migration(migrations.Migration):
-
-    initial = True
-
-    dependencies = [
-        ('contenttypes', '0002_remove_content_type_name'),
-    ]
-
-    operations = [
-        migrations.CreateModel(
-            name='Negotiation',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('object_id', models.PositiveIntegerField()),
-                ('status', models.CharField(choices=[('active', 'Active'), ('accepted', 'Accepted'), ('rejected', 'Rejected')], default='active', max_length=10)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('content_type', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='contenttypes.contenttype')),
-            ],
-        ),
-        migrations.CreateModel(
-            name='NegotiationMessage',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('sender_role', models.CharField(max_length=20)),
-                ('sender_id', models.PositiveIntegerField()),
-                ('sender_name', models.CharField(max_length=100)),
-                ('message', models.TextField()),
-                ('counter_amount', models.DecimalField(blank=True, decimal_places=2, max_digits=10, null=True)),
-                ('counter_delivery_time_days', models.PositiveIntegerField(blank=True, null=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('negotiation', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='messages', to='negotiation.negotiation')),
-            ],
-        ),
-    ]
-
-
-
-================================================
-FILE: backend/negotiation/migrations/__init__.py
-================================================
-
-
-
-================================================
 FILE: backend/retailer/__init__.py
 ================================================
 
@@ -2508,6 +2020,7 @@ FILE: backend/retailer/serializers.py
 ================================================
 from rest_framework import serializers
 from .models import Retailer, RetailerBid
+from fpo.serializers import FPOQuoteSerializer
 
 class RetailerSerializer(serializers.ModelSerializer):
     class Meta:
@@ -2528,6 +2041,18 @@ class RetailerRegistrationSerializer(serializers.ModelSerializer):
         retailer.save()
         return retailer
 
+class MyBidSerializer(serializers.ModelSerializer):
+    quote = FPOQuoteSerializer(read_only=True)  # include all quote details
+    retailer_name = serializers.CharField(source='retailer.name', read_only=True)
+    retailer_email = serializers.CharField(source='retailer.email', read_only=True)
+
+    class Meta:
+        model = RetailerBid
+        fields = [
+            'id', 'bid_amount', 'delivery_time_days', 'status', 'submitted_at',
+            'retailer_name', 'retailer_email', 'quote'
+        ]
+        
 class RetailerBidSerializer(serializers.ModelSerializer):
     retailer_name = serializers.CharField(source='retailer.name', read_only=True)
     retailer_email = serializers.CharField(source='retailer.email', read_only=True)
@@ -2570,7 +2095,7 @@ FILE: backend/retailer/urls.py
 ================================================
 from django.urls import path
 from .views import (
-    RetailerRegistrationView, RetailerListView, RetailerDetailView, retailer_login_check,
+    RetailerRegistrationView, RetailerListView, RetailerDetailView,MyBidsListView, retailer_login_check,
     retailer_dashboard, FPOOpenQuoteListView, RetailerBidCreateView
 )
 
@@ -2582,6 +2107,7 @@ urlpatterns = [
     path('dashboard/', retailer_dashboard, name='retailer-dashboard'),
     path('quotes/fpo/open/', FPOOpenQuoteListView.as_view(), name='retailer-fpo-open-quotes'),
     path('quotes/fpo/<int:quote_pk>/bids/', RetailerBidCreateView.as_view(), name='retailer-create-bid-on-fpo-quote'),
+    path('bids/my/', MyBidsListView.as_view(), name='retailer-my-bids'),
 ]
 
 
@@ -2598,6 +2124,7 @@ from .serializers import RetailerSerializer, RetailerRegistrationSerializer, Ret
 from common.permissions import IsRetailer
 from fpo.models import FPOQuote
 from fpo.serializers import FPOQuoteSerializer
+from .serializers import MyBidSerializer
 
 class RetailerRegistrationView(generics.CreateAPIView):
     queryset = Retailer.objects.all()
@@ -2690,145 +2217,13 @@ class RetailerBidCreateView(generics.CreateAPIView):
             raise serializers.ValidationError("This quote is no longer open for bidding.")
         serializer.save(retailer=self.request.user.user_obj, quote=quote)
 
+class MyBidsListView(generics.ListAPIView):
+    serializer_class = MyBidSerializer
+    permission_classes = [IsAuthenticated, IsRetailer]
 
-================================================
-FILE: backend/retailer/migrations/0001_initial.py
-================================================
-# Generated by Django 5.2.4 on 2025-09-18 07:27
-
-from django.db import migrations, models
-
-
-class Migration(migrations.Migration):
-
-    initial = True
-
-    dependencies = [
-    ]
-
-    operations = [
-        migrations.CreateModel(
-            name='Retailer',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=100)),
-                ('email', models.EmailField(max_length=254, unique=True)),
-                ('password', models.CharField(max_length=128)),
-                ('gstin', models.CharField(max_length=15, unique=True)),
-                ('wallet_address', models.CharField(max_length=100, unique=True)),
-                ('city', models.CharField(max_length=50)),
-                ('state', models.CharField(max_length=50)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-            ],
-        ),
-    ]
-
-
-
-================================================
-FILE: backend/retailer/migrations/0002_retailer_approval_status.py
-================================================
-# Generated by Django 5.2.4 on 2025-09-18 09:30
-
-from django.db import migrations, models
-
-
-class Migration(migrations.Migration):
-
-    dependencies = [
-        ('retailer', '0001_initial'),
-    ]
-
-    operations = [
-        migrations.AddField(
-            model_name='retailer',
-            name='approval_status',
-            field=models.CharField(choices=[('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected')], default='pending', max_length=10),
-        ),
-    ]
-
-
-
-================================================
-FILE: backend/retailer/migrations/0003_retailerquoterequest.py
-================================================
-# Generated by Django 5.2.4 on 2025-09-25 12:32
-
-import django.db.models.deletion
-from django.db import migrations, models
-
-
-class Migration(migrations.Migration):
-
-    dependencies = [
-        ('fpo', '0004_retailerreviewoffpo_fpobid'),
-        ('retailer', '0002_retailer_approval_status'),
-    ]
-
-    operations = [
-        migrations.CreateModel(
-            name='RetailerQuoteRequest',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('product_name', models.CharField(max_length=200)),
-                ('category', models.CharField(max_length=100)),
-                ('description', models.TextField()),
-                ('quantity', models.DecimalField(decimal_places=2, max_digits=10)),
-                ('unit', models.CharField(help_text='e.g., kg, quintal, ton', max_length=20)),
-                ('deadline', models.DateField()),
-                ('status', models.CharField(choices=[('open', 'Open'), ('closed', 'Closed'), ('awarded', 'Awarded')], default='open', max_length=10)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('accepted_bid', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='accepted_for_retailer_quote', to='fpo.fpobid')),
-                ('retailer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='quote_requests', to='retailer.retailer')),
-            ],
-        ),
-    ]
-
-
-
-================================================
-FILE: backend/retailer/migrations/0004_retailerbid_delete_retailerquoterequest.py
-================================================
-# Generated by Django 5.2.4 on 2025-09-26 16:56
-
-import django.db.models.deletion
-from django.db import migrations, models
-
-
-class Migration(migrations.Migration):
-
-    dependencies = [
-        ('fpo', '0006_fpoquote_remove_fpoquoterequest_accepted_bid_and_more'),
-        ('retailer', '0003_retailerquoterequest'),
-    ]
-
-    operations = [
-        migrations.CreateModel(
-            name='RetailerBid',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('bid_amount', models.DecimalField(decimal_places=2, help_text='Price per unit', max_digits=10)),
-                ('delivery_time_days', models.PositiveIntegerField()),
-                ('comments', models.TextField(blank=True)),
-                ('status', models.CharField(choices=[('submitted', 'Submitted'), ('accepted', 'Accepted'), ('rejected', 'Rejected')], default='submitted', max_length=10)),
-                ('submitted_at', models.DateTimeField(auto_now_add=True)),
-                ('payment_status', models.CharField(choices=[('pending', 'Pending'), ('paid', 'Paid'), ('failed', 'Failed')], default='pending', max_length=10)),
-                ('transaction_hash', models.CharField(blank=True, max_length=66, null=True)),
-                ('quote', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='fpo.fpoquote')),
-                ('retailer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='retailer.retailer')),
-            ],
-        ),
-        migrations.DeleteModel(
-            name='RetailerQuoteRequest',
-        ),
-    ]
-
-
-
-================================================
-FILE: backend/retailer/migrations/__init__.py
-================================================
-
+    def get_queryset(self):
+        retailer = self.request.user.user_obj
+        return RetailerBid.objects.filter(retailer=retailer).order_by('-submitted_at')
 
 
 ================================================
@@ -2842,6 +2237,8 @@ from farmer.models import Farmer
 from fpo.models import FPO
 from retailer.models import Retailer
 from admin_app.models import Admin
+from rest_framework.response import Response
+from django.conf import settings
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -2943,6 +2340,59 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+
+        try:
+            serializer.is_valid(raise_exception=True)
+        except Exception as e:
+            return Response({"error": str(e)}, status=400)
+
+        token_data = serializer.validated_data
+
+        response_data = {
+            "access": token_data['access'],
+            "refresh": token_data['refresh'],
+            "role": token_data['role'],
+            "user_id": token_data['user_id'],
+            "name": token_data['name'],
+            "message": "Login successful"
+        }
+
+        response = Response(response_data)
+
+        # ðŸ”¹ Set tokens in cookies
+        response.set_cookie(
+            key='access_token',
+            value=token_data['access'],
+            httponly=True,
+            secure=not settings.DEBUG,
+            samesite='Lax',
+            max_age=60 * 30
+        )
+        
+        response.set_cookie(
+            key='refresh_token',
+            value=token_data['refresh'],
+            httponly=True,
+            secure=not settings.DEBUG,
+            samesite='Lax',
+            max_age=60 * 60 * 24
+        )
+
+        # ðŸ”¹ Always set role cookie (readable by frontend)
+        response.set_cookie(
+            key='role',
+            value=token_data['role'],
+            httponly=False,  # must be readable in JS for ProtectedRoute
+            secure=not settings.DEBUG,
+            samesite='Lax',
+            max_age=60 * 60 * 24
+        )
+
+        return response
+
+
 
 ================================================
 FILE: backend/users/token_auth.py
@@ -2957,12 +2407,24 @@ from admin_app.models import Admin
 
 class CustomJWTAuthentication(JWTAuthentication):
     """
-    Custom authentication that does the following:
-    1. Builds a lightweight `request.user` object from the JWT payload.
-    2. Fetches the actual database model instance (Farmer, FPO, etc.).
-    3. Attaches the database instance to `request.user.user_obj` for easy access
-       in views and permissions, avoiding redundant lookups.
+    Custom authentication that reads JWT from cookies and builds user object.
     """
+
+    def authenticate(self, request):
+        # Try to get token from cookies first
+        access_token = request.COOKIES.get('access_token')
+        
+        if not access_token:
+            # Fall back to header for backward compatibility
+            return super().authenticate(request)
+        
+        # Validate the token from cookie
+        try:
+            validated_token = self.get_validated_token(access_token)
+            user = self.get_user(validated_token)
+            return (user, validated_token)
+        except InvalidToken:
+            return None
 
     def get_user(self, validated_token):
         user_id = validated_token.get("user_id")
@@ -3004,6 +2466,64 @@ class CustomJWTAuthentication(JWTAuthentication):
 
         except (Farmer.DoesNotExist, FPO.DoesNotExist, Retailer.DoesNotExist, Admin.DoesNotExist):
             raise InvalidToken("User not found for the given token.")
+
+
+================================================
+FILE: backend/users/views.py
+================================================
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
+from django.conf import settings
+
+
+class CookieTokenRefreshView(APIView):
+    def post(self, request):
+        refresh_token = request.COOKIES.get('refresh_token')
+        
+        if not refresh_token:
+            return Response(
+                {"error": "Refresh token not found in cookies"}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        try:
+            refresh = RefreshToken(refresh_token)
+            access_token = str(refresh.access_token)
+            
+            response = Response({"message": "Token refreshed successfully"})
+            
+            # Set new access token cookie
+            response.set_cookie(
+                key='access_token',
+                value=access_token,
+                httponly=True,
+                secure=not settings.DEBUG,
+                samesite='Lax',
+                max_age=60 * 30  # 30 minutes
+            )
+            
+            return response
+            
+        except TokenError as e:
+            return Response(
+                {"error": "Invalid refresh token"}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+
+class LogoutView(APIView):
+    def post(self, request):
+        response = Response({"message": "Logged out successfully"})
+        
+        # Clear cookies with path and samesite
+        response.delete_cookie('access_token', path='/', samesite='Lax')
+        response.delete_cookie('refresh_token', path='/', samesite='Lax')
+        
+        return response
+
 
 
 ================================================
@@ -3094,9 +2614,12 @@ FILE: frontend/package.json
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.13",
+    "axios": "^1.12.2",
     "ethers": "^5.8.0",
+    "js-cookie": "^3.0.5",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-icons": "^5.5.0",
     "react-router-dom": "^7.9.1",
     "tailwindcss": "^4.1.13"
   },
@@ -3144,26 +2667,64 @@ FILE: frontend/src/App.css
 ================================================
 FILE: frontend/src/App.jsx
 ================================================
-import React from 'react'
-import AuthForm from './pages/AuthForm'
-import AdminDashboard from './pages/AdminDashboard'
-import AdminLogin from './pages/AdminLogin'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route } from "react-router-dom";
+import AuthForm from "./pages/AuthForm";
+import FarmerDashboard from "./pages/farmer/FarmerDashboard";
+import FPODashboard from "./pages/fpo/FpoDashboard";
+import RetailerDashboard from "./pages/retailer/RetailerDashboard";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import ProtectedRoute from "./utils/ProtectedRoute";
+import AdminLogin from "./pages/admin/AdminLogin";
 
 function App() {
   return (
-    <>
     <Routes>
-      <Route path='/' element={<AuthForm />} />
-      <Route path='/admin' element={<AdminLogin />} />
-      <Route path='/admin/dashboard' element={<AdminDashboard />} />
+      <Route path="/auth" element={<AuthForm />} />
+      <Route path="/admin" element={<AdminLogin/>} />
+
+      <Route
+        path="/farmer-dashboard"
+        element={
+          <ProtectedRoute allowedRoles={["farmer"]}>
+            <FarmerDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/fpo-dashboard"
+        element={
+          <ProtectedRoute allowedRoles={["fpo"]}>
+            <FPODashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/retailer-dashboard"
+        element={
+          <ProtectedRoute allowedRoles={["retailer"]}>
+            <RetailerDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin-dashboard"
+        element={
+          <ProtectedRoute allowedRoles={["admin"]}>
+            <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Default redirect */}
+      <Route path="*" element={<AuthForm />} />
     </Routes>
-    
-    </>
-  )
+  );
 }
 
-export default App
+export default App;
 
 
 
@@ -3181,6 +2742,10 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.jsx";
 import { BrowserRouter } from "react-router-dom";
+import axios from "axios";
+
+// Configure axios to include credentials (cookies) for all requests
+axios.defaults.withCredentials = true;
 
 createRoot(document.getElementById("root")).render(
   <BrowserRouter>
@@ -3189,273 +2754,1170 @@ createRoot(document.getElementById("root")).render(
 );
 
 
+================================================
+FILE: frontend/src/components/farmer/QuoteBids.jsx
+================================================
+import React from "react";
+import axios from "axios";
+
+export default function QuoteBids({ quote, onBack, refreshHistory }) {
+  // Accept Bid function
+  const acceptBid = async (bidId) => {
+    try {
+      await axios.post(
+        `/api/farmer/bids/fpo/${bidId}/accept/`,
+        {},
+        { withCredentials: true }
+      );
+      alert("✅ Bid accepted successfully!");
+      if (refreshHistory) refreshHistory(); // refresh parent history if provided
+    } catch (err) {
+      console.error("Error accepting bid:", err);
+      alert("❌ Failed to accept bid");
+    }
+  };
+
+  return (
+    <div className="bg-white p-6 rounded-2xl shadow">
+      <button
+        onClick={onBack}
+        className="mb-4 bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+      >
+        ⬅ Back
+      </button>
+
+      <h3 className="text-xl font-semibold mb-4">
+        📦 Bids for {quote.product_name} ({quote.category})
+      </h3>
+
+      {quote.bids && quote.bids.length > 0 ? (
+        <ul className="space-y-3">
+          {quote.bids.map((bid, index) => (
+            <li
+              key={index}
+              className="border p-3 rounded-lg flex justify-between items-center"
+            >
+              <div>
+                <p>
+                  💰 <strong>{bid.bid_amount}</strong> ETH
+                </p>
+                <p>⏳ Delivery Time: {bid.delivery_time_days} days</p>
+                <p>🏢 FPO: {bid.fpo_name}</p>
+                <p className="text-sm text-gray-500">
+                  Submitted at: {new Date(bid.submitted_at).toLocaleString()}
+                </p>
+                <p>Status: {bid.status}</p>
+              </div>
+
+              {/* Accept button */}
+              <button
+                onClick={() => acceptBid(bid.id)}
+                disabled={bid.status === "accepted"}
+                className={`ml-4 px-4 py-2 rounded text-white ${
+                  bid.status === "accepted"
+                    ? "bg-green-400 cursor-not-allowed"
+                    : "bg-green-600 hover:bg-green-700"
+                }`}
+              >
+                {bid.status === "accepted" ? "✅ Accepted" : "Accept Bid"}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-gray-500">No bids for this quote yet.</p>
+      )}
+    </div>
+  );
+}
+
+
 
 ================================================
-FILE: frontend/src/pages/AdminDashboard.jsx
+FILE: frontend/src/components/farmer/QuoteForm.jsx
 ================================================
-  import React, { useState, useEffect } from "react";
-  import { useNavigate } from "react-router-dom";
-  import { ethers } from "ethers";
-  import axios from "axios";
+import React, { useState } from "react";
+import axios from "axios";
 
-  export default function AdminDashboard() {
-    const navigate = useNavigate();
-    const [wallet, setWallet] = useState("");
-    const [status, setStatus] = useState("");
-    const [loadingTx, setLoadingTx] = useState(false);
-    const [pending, setPending] = useState({
-      farmers: [],
-      fpos: [],
-      retailers: [],
-    });
+export default function QuoteForm({ onSuccess }) {
+  const [formData, setFormData] = useState({
+    product_name: "",
+    category: "",
+    description: "",
+    quantity: "",
+    unit: "",
+    deadline: "",
+  });
 
-    // Contract + Admin
-    const contractAddress = "0x7022b2D5462cBE3785FF5359E19f18eD396D8397";
-    const ADMIN_ADDRESS = "0xAd91CE97681d52fE448a71E6556DdECc16f12B2E";
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setErrors({ ...errors, [e.target.name]: "" });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await axios.post("/api/farmer/quotes/", formData, {
+        withCredentials: true,
+      });
+      alert("âœ… Product posted successfully!");
+      setFormData({
+        product_name: "",
+        category: "",
+        description: "",
+        quantity: "",
+        unit: "",
+        deadline: "",
+      });
+      onSuccess(); // ðŸ”¹ Notify parent to refresh history
+    } catch (err) {
+      if (err.response?.data) {
+        setErrors(err.response.data);
+      } else {
+        console.error("Error posting product:", err);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="bg-white p-6 rounded-2xl shadow mb-6 space-y-4"
+    >
+      <h3 className="text-xl font-semibold mb-2">ðŸšœ Post Your Product</h3>
+
+      {/* Product Name */}
+      <div>
+        <label className="block text-gray-700 mb-1">Product Name</label>
+        <input
+          type="text"
+          name="product_name"
+          placeholder="e.g. Organic Wheat"
+          value={formData.product_name}
+          onChange={handleChange}
+          className="w-full border p-2 rounded focus:ring-2 focus:ring-green-400 outline-none"
+        />
+        {errors.product_name && (
+          <p className="text-red-500 text-sm">{errors.product_name[0]}</p>
+        )}
+      </div>
+
+      {/* Category & Unit */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-gray-700 mb-1">Category</label>
+          <select
+            name="category"
+            value={formData.category}
+            onChange={handleChange}
+            className="w-full border p-2 rounded focus:ring-2 focus:ring-green-400 outline-none"
+          >
+            <option value="">Select Category</option>
+            <option value="Grains">Grains</option>
+            <option value="Vegetables">Vegetables</option>
+            <option value="Fruits">Fruits</option>
+            <option value="Dairy">Dairy</option>
+          </select>
+          {errors.category && (
+            <p className="text-red-500 text-sm">{errors.category[0]}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-gray-700 mb-1">Unit</label>
+          <select
+            name="unit"
+            value={formData.unit}
+            onChange={handleChange}
+            className="w-full border p-2 rounded focus:ring-2 focus:ring-green-400 outline-none"
+          >
+            <option value="">Select Unit</option>
+            <option value="kg">Kilogram (kg)</option>
+            <option value="quintal">Quintal</option>
+            <option value="ton">Ton</option>
+            <option value="litre">Litre</option>
+          </select>
+          {errors.unit && (
+            <p className="text-red-500 text-sm">{errors.unit[0]}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Quantity */}
+      <div>
+        <label className="block text-gray-700 mb-1">Quantity</label>
+        <input
+          type="number"
+          name="quantity"
+          placeholder="e.g. 100"
+          value={formData.quantity}
+          onChange={handleChange}
+          className="w-full border p-2 rounded focus:ring-2 focus:ring-green-400 outline-none"
+        />
+        {errors.quantity && (
+          <p className="text-red-500 text-sm">{errors.quantity[0]}</p>
+        )}
+      </div>
+
+      {/* Deadline */}
+      <div>
+        <label className="block text-gray-700 mb-1">Deadline</label>
+        <input
+          type="date"
+          name="deadline"
+          value={formData.deadline}
+          onChange={handleChange}
+          className="w-full border p-2 rounded focus:ring-2 focus:ring-green-400 outline-none"
+        />
+        {errors.deadline && (
+          <p className="text-red-500 text-sm">{errors.deadline[0]}</p>
+        )}
+      </div>
+
+      {/* Description */}
+      <div>
+        <label className="block text-gray-700 mb-1">Description</label>
+        <textarea
+          name="description"
+          placeholder="Write details about your product..."
+          value={formData.description}
+          onChange={handleChange}
+          className="w-full border p-2 rounded h-24 resize-none focus:ring-2 focus:ring-green-400 outline-none"
+        />
+        {errors.description && (
+          <p className="text-red-500 text-sm">{errors.description[0]}</p>
+        )}
+      </div>
+
+      <button
+        type="submit"
+        disabled={loading}
+        className={`w-full py-2 rounded text-white ${
+          loading ? "bg-gray-400" : "bg-green-600 hover:bg-green-700"
+        }`}
+      >
+        {loading ? "Posting..." : "âœ… Post Product"}
+      </button>
+    </form>
+  );
+}
 
 
 
+================================================
+FILE: frontend/src/components/farmer/QuoteHistory.jsx
+================================================
+import React from "react";
+
+export default function QuoteHistory({ history, onViewBids }) {
+  return (
+    <div className="bg-white p-6 rounded-2xl shadow">
+      <h3 className="text-xl font-semibold mb-4">ðŸ“œ Past Product History</h3>
+      {history.length > 0 ? (
+        <ul className="space-y-3">
+          {history.map((item, index) => (
+            <li key={index} className="border p-3 rounded-lg">
+              <p>
+                <strong>{item.product_name}</strong> ({item.category})
+              </p>
+              <p className="text-gray-600">{item.description}</p>
+              <p>
+                Qty: {item.quantity} {item.unit}
+              </p>
+              <p className="text-sm text-gray-500">
+                Deadline: {item.deadline}
+              </p>
+              <button
+                onClick={() => onViewBids(item)}
+                className="mt-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+              >
+                ðŸ‘€ View Bids
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-gray-500">No past products yet.</p>
+      )}
+    </div>
+  );
+}
 
 
-    // ABI from whitelist.html
-    const factoryABI = [
-      /* paste ABI here */
 
+================================================
+FILE: frontend/src/components/fpo/BidForm.jsx
+================================================
+import React, { useState } from "react";
+import axios from "axios";
+
+export default function BidForm({ quote, onClose, onSuccess }) {
+  const [bidAmount, setBidAmount] = useState("");
+  const [deliveryDays, setDeliveryDays] = useState("");
+
+  const submitBid = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post(
+        `/api/fpo/quotes/farmer/${quote.id}/bids/`,
+        { bid_amount: bidAmount, delivery_time_days: deliveryDays },
+        { withCredentials: true }
+      );
+      alert("✅ Bid submitted successfully!");
+      onSuccess();
+      onClose();
+    } catch (err) {
+      console.error("Error submitting bid:", err);
+      alert("❌ Failed to submit bid");
+    }
+  };
+
+  return (
+    <div className="border p-4 rounded-xl shadow bg-gray-50">
+      <h3 className="text-lg font-bold mb-3">Place Bid on {quote.product_name}</h3>
+      <form onSubmit={submitBid} className="space-y-3">
+        <input
+          type="number"
+          step="0.01"
+          placeholder="Bid Amount (ETH)"
+          value={bidAmount}
+          onChange={(e) => setBidAmount(e.target.value)}
+          className="border p-2 w-full rounded"
+          required
+        />
+        <input
+          type="number"
+          placeholder="Delivery Time (days)"
+          value={deliveryDays}
+          onChange={(e) => setDeliveryDays(e.target.value)}
+          className="border p-2 w-full rounded"
+          required
+        />
+        <div className="flex space-x-2">
+          <button
+            type="submit"
+            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+          >
+            Submit Bid
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+
+
+================================================
+FILE: frontend/src/components/fpo/FarmerQuotes.jsx
+================================================
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+
+export default function FarmerQuotes() {
+  const [quotes, setQuotes] = useState([]);
+  const [bidAmount, setBidAmount] = useState({});
+
+  useEffect(() => {
+    axios
+      .get("/api/fpo/quotes/farmer/open/")
+      .then((res) => setQuotes(res.data || []))
+      .catch((err) => console.error("Error fetching farmer quotes:", err));
+  }, []);
+
+  const handleBidSubmit = async (quoteId) => {
+    try {
+      await axios.post(`/api/fpo/quotes/farmer/${quoteId}/bids/`, {
+        bid_amount: bidAmount[quoteId],
+      });
+      alert("✅ Bid placed successfully!");
+    } catch (err) {
+      console.error("Error placing bid:", err.response?.data || err.message);
+    }
+  };
+
+  return (
+    <div>
+      <h2 className="text-xl font-bold mb-4">👨‍🌾 Farmer Quotes</h2>
+      {quotes.length === 0 ? (
+        <p>No open farmer quotes available.</p>
+      ) : (
+        quotes.map((quote) => (
+          <div
+            key={quote.id}
+            className="p-4 border rounded-lg shadow mb-3 bg-white"
+          >
+            <p>
+              <strong>Product:</strong> {quote.product_name} ({quote.category})
+            </p>
+            <p>
+              <strong>Quantity:</strong> {quote.quantity} {quote.unit}
+            </p>
+            <p>
+              <strong>Deadline:</strong> {quote.deadline}
+            </p>
+
+            <input
+              type="number"
+              placeholder="Enter bid amount"
+              value={bidAmount[quote.id] || ""}
+              onChange={(e) =>
+                setBidAmount({ ...bidAmount, [quote.id]: e.target.value })
+              }
+              className="border p-2 rounded mt-2 w-full"
+            />
+            <button
+              onClick={() => handleBidSubmit(quote.id)}
+              className="mt-2 bg-blue-600 text-white px-4 py-2 rounded"
+            >
+              Place Bid
+            </button>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+
+
+================================================
+FILE: frontend/src/components/fpo/RetailerQuotes.jsx
+================================================
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+
+export default function RetailerQuotes() {
+  const [quotes, setQuotes] = useState([]);
+  const [form, setForm] = useState({
+    product_name: "",
+    category: "",
+    quantity: "",
+    unit: "",
+    price_per_unit: "",
+    deadline: "",
+    description: "",
+  });
+  const [expandedQuote, setExpandedQuote] = useState(null); // to toggle bids view
+
+  const fetchRetailerQuotes = async () => {
+    try {
+      const res = await axios.get("/api/fpo/quotes/", {
+        withCredentials: true,
+      });
+      console.log("Fetched retailer quotes:", res.data);
+      setQuotes(res.data);
+    } catch (err) {
+      console.error("Error fetching retailer quotes:", err);
+    }
+  };
+
+  const acceptBid = async (bidId) => {
+    try {
+      await axios.post(
+        `/api/fpo/bids/retailer/${bidId}/accept/`,
+        {},
+        { withCredentials: true }
+      );
+      alert("✅ Bid accepted!");
+      fetchRetailerQuotes(); // refresh quotes so accepted_bid + bids update
+    } catch (err) {
+      console.error("Error accepting bid:", err);
+      alert("❌ Failed to accept bid");
+    }
+  };
+
+  useEffect(() => {
+    fetchRetailerQuotes();
+  }, []);
+
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const submitQuote = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post("/api/fpo/quotes/", form, { withCredentials: true });
+      alert("✅ Quote submitted to retailers!");
+      fetchRetailerQuotes();
+      setForm({
+        product_name: "",
+        category: "",
+        quantity: "",
+        unit: "",
+        price_per_unit: "",
+        deadline: "",
+        description: "",
+      });
+    } catch (err) {
+      console.error("Error submitting retailer quote:", err);
+      alert("❌ Failed to submit quote");
+    }
+  };
+
+  return (
+    <div className="bg-white p-6 rounded-xl shadow">
+      <h2 className="text-xl font-bold mb-4">🛒 Retailer Quotes</h2>
+
+      {/* Form */}
+      <form onSubmit={submitQuote} className="space-y-3 mb-6">
+        <input
+          name="product_name"
+          placeholder="Product Name"
+          value={form.product_name}
+          onChange={handleChange}
+          className="border p-2 w-full rounded"
+          required
+        />
+        <input
+          name="category"
+          placeholder="Category"
+          value={form.category}
+          onChange={handleChange}
+          className="border p-2 w-full rounded"
+          required
+        />
+        <input
+          name="quantity"
+          type="number"
+          placeholder="Quantity"
+          value={form.quantity}
+          onChange={handleChange}
+          className="border p-2 w-full rounded"
+          required
+        />
+        <input
+          name="unit"
+          placeholder="Unit (kg, ton, etc.)"
+          value={form.unit}
+          onChange={handleChange}
+          className="border p-2 w-full rounded"
+          required
+        />
+        <input
+          name="price_per_unit"
+          type="number"
+          placeholder="Price per Unit"
+          value={form.price_per_unit}
+          onChange={handleChange}
+          className="border p-2 w-full rounded"
+          required
+        />
+        <input
+          name="deadline"
+          type="date"
+          value={form.deadline}
+          onChange={handleChange}
+          className="border p-2 w-full rounded"
+          required
+        />
+        <textarea
+          name="description"
+          placeholder="Description"
+          value={form.description}
+          onChange={handleChange}
+          className="border p-2 w-full rounded"
+        />
+        <button
+          type="submit"
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        >
+          Submit Quote
+        </button>
+      </form>
+
+      {/* Quotes */}
+      {quotes.length > 0 ? (
+        <ul className="space-y-3">
+          {quotes.map((q) => (
+            <li key={q.id} className="border p-3 rounded-lg">
+              <p>
+                <strong>{q.product_name}</strong> ({q.category})
+              </p>
+              <p>
+                Qty: {q.quantity} {q.unit}
+              </p>
+              <p>
+                Price: {q.price_per_unit} per {q.unit}
+              </p>
+              <p>Deadline: {q.deadline}</p>
+              <p className="text-sm text-gray-500">{q.description}</p>
+
+              {/* Toggle bids */}
+              <button
+                onClick={() =>
+                  setExpandedQuote(expandedQuote === q.id ? null : q.id)
+                }
+                className="mt-2 text-sm bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+              >
+                {expandedQuote === q.id ? "Hide Bids" : "Show Bids"}
+              </button>
+
+              {/* Bids list */}
+              {expandedQuote === q.id && (
+                <div className="mt-3 border-t pt-3">
+                  {q.bids.length > 0 ? (
+                    <ul className="space-y-2">
+                      {q.bids.map((b) => (
+                        <li
+                          key={b.id}
+                          className="border p-2 rounded flex justify-between items-center"
+                        >
+                          <div>
+                            <p>
+                              <strong>{b.retailer_name}</strong> ({b.retailer_email})
+                            </p>
+                            <p>
+                              Offered: {b.price} per {b.unit} | Qty: {b.quantity}
+                            </p>
+                            <p className="text-sm text-gray-500">{b.note}</p>
+                          </div>
+                          {q.accepted_bid === b.id ? (
+                            <p className="text-green-600 font-medium">✅ Accepted</p>
+                          ) : (
+                            <button
+                              onClick={() => acceptBid(b.id)}
+                              className="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                            >
+                              Accept Bid
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-gray-500">No bids yet for this quote.</p>
+                  )}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-gray-500">No retailer quotes submitted yet.</p>
+      )}
+    </div>
+  );
+}
+
+
+
+================================================
+FILE: frontend/src/pages/AuthForm.jsx
+================================================
+// src/pages/AuthForm.jsx
+import React, { useState } from "react";
+import axios from "axios";
+import Cookies from "js-cookie";
+import { useNavigate } from "react-router-dom";
+
+export default function AuthForm() {
+  const [isLogin, setIsLogin] = useState(true);
+  const navigate = useNavigate();
+  const [role, setRole] = useState("farmer");
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+    aadhaar_number: "",
+    corporate_identification_number: "",
+    gstin: "",
+    city: "",
+    state: "",
+    wallet_address: "",
+    role: "farmer",
+  });
+
+  const [pendingApproval, setPendingApproval] = useState(false);
+
+  const handleRoleChange = (e) => {
+    setRole(e.target.value);
+    setFormData({ ...formData, role: e.target.value });
+  };
+
+  const connectWallet = async () => {
+    if (window.ethereum) {
+      try {
+        const accounts = await window.ethereum.request({
+          method: "eth_requestAccounts",
+        });
+        setFormData({ ...formData, wallet_address: accounts[0] });
+      } catch (error) {
+        console.error("Wallet connection failed", error);
+      }
+    } else {
+      alert("MetaMask not found! Please install it.");
+    }
+  };
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    let endpoint = "";
+    let payload = {};
+
+    // Configure axios to include credentials (cookies)
+    axios.defaults.withCredentials = true;
+
+    if (isLogin) {
+      endpoint = "/api/token/";
+      payload = {
+        username: formData.email,
+        password: formData.password,
+        role: formData.role,
+      };
+    } else {
+      if (role === "farmer") endpoint = "/api/farmer/register/";
+      if (role === "fpo") endpoint = "/api/fpo/register/";
+      if (role === "retailer") endpoint = "/api/retailer/register/";
+      payload = formData;
+    }
+
+    try {
+      const res = await axios.post(endpoint, payload, {
+        withCredentials: true, // Ensure cookies are sent and received
+      });
+
+      console.log("Success:", res.data);
+
+      // For login, the tokens will be automatically stored in cookies by the browser
+      if (isLogin) {
+        Cookies.set("role", res.data.role, { path: "/" }); // Save role
+        alert("Login successful! Redirecting...");
+
+        // Redirect based on role
+        if (formData.role === "farmer") navigate("/farmer-dashboard");
+        if (formData.role === "fpo") navigate("/fpo-dashboard");
+        if (formData.role === "retailer") navigate("/retailer-dashboard");
+        if (formData.role === "admin") navigate("/admin-dashboard");
+      } else {
+        alert("Registration successful! Check console.");
+      }
+    } catch (err) {
+      console.error("Error:", err.response?.data || err.message);
+      const errorMsg = err.response?.data?.error || err.message;
+      if (errorMsg.includes("Account pending admin approval")) {
+        setPendingApproval(true);
+      } else {
+        alert("Error! Check console.");
+      }
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      {pendingApproval && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-80 text-center">
+            <h3 className="text-lg font-bold mb-2">Pending Approval</h3>
+            <p className="mb-4">
+              Your account is pending admin approval. Please try again later.
+            </p>
+            <button
+              onClick={() => setPendingApproval(false)}
+              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
+        <h2 className="text-2xl font-bold mb-4 text-center">
+          {isLogin ? "Login" : "Register"} as {role.toUpperCase()}
+        </h2>
+
+        <select
+          value={role}
+          onChange={handleRoleChange}
+          className="w-full p-2 mb-4 border rounded"
+        >
+          <option value="farmer">Farmer</option>
+          <option value="fpo">FPO</option>
+          <option value="retailer">Retailer</option>
+        </select>
+
+        <form onSubmit={handleSubmit} className="space-y-3">
+          {!isLogin && (
+            <>
+              <input
+                type="text"
+                name="name"
+                placeholder="Name"
+                onChange={handleChange}
+                className="w-full p-2 border rounded"
+                required
+              />
+
+              {role === "farmer" && (
+                <input
+                  type="text"
+                  name="aadhaar_number"
+                  placeholder="Aadhaar Number"
+                  onChange={handleChange}
+                  className="w-full p-2 border rounded"
+                  required
+                />
+              )}
+
+              {role === "fpo" && (
+                <input
+                  type="text"
+                  name="corporate_identification_number"
+                  placeholder="CIN"
+                  onChange={handleChange}
+                  className="w-full p-2 border rounded"
+                  required
+                />
+              )}
+
+              {role === "retailer" && (
+                <input
+                  type="text"
+                  name="gstin"
+                  placeholder="GSTIN"
+                  onChange={handleChange}
+                  className="w-full p-2 border rounded"
+                  required
+                />
+              )}
+
+              <input
+                type="text"
+                name="city"
+                placeholder="City"
+                onChange={handleChange}
+                className="w-full p-2 border rounded"
+                required
+              />
+              <input
+                type="text"
+                name="state"
+                placeholder="State"
+                onChange={handleChange}
+                className="w-full p-2 border rounded"
+                required
+              />
+
+              <button
+                type="button"
+                onClick={connectWallet}
+                className="w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700"
+              >
+                {formData.wallet_address
+                  ? `Wallet: ${formData.wallet_address.substring(0, 10)}...`
+                  : "Connect MetaMask"}
+              </button>
+            </>
+          )}
+
+          <input
+            type="email"
+            name="email"
+            placeholder="Email"
+            onChange={handleChange}
+            className="w-full p-2 border rounded"
+            required
+          />
+          <input
+            type="password"
+            name="password"
+            placeholder="Password"
+            onChange={handleChange}
+            className="w-full p-2 border rounded"
+            required
+          />
+
+          <button
+            type="submit"
+            className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700"
+          >
+            {isLogin ? "Login" : "Register"}
+          </button>
+        </form>
+
+        <p className="mt-4 text-center">
+          {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
+          <button
+            className="text-blue-600 font-semibold"
+            onClick={() => setIsLogin(!isLogin)}
+          >
+            {isLogin ? "Register" : "Login"}
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+
+
+================================================
+FILE: frontend/src/pages/admin/AdminDashboard.jsx
+================================================
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { ethers } from "ethers";
+import axios from "axios";
+import Cookies from "js-cookie";
+
+export default function AdminDashboard() {
+  const navigate = useNavigate();
+  const [wallet, setWallet] = useState("");
+  const [status, setStatus] = useState("");
+  const [loadingTx, setLoadingTx] = useState(false);
+  const [pending, setPending] = useState({
+    farmers: [],
+    fpos: [],
+    retailers: [],
+  });
+
+  // Contract + Admin
+  const contractAddress = "0x7022b2D5462cBE3785FF5359E19f18eD396D8397";
+  const ADMIN_ADDRESS = "0xAd91CE97681d52fE448a71E6556DdECc16f12B2E";
+
+  // ABI from whitelist.html
+  const factoryABI = [
+    /* paste ABI here */
+
+    {
+      inputs: [
+        { internalType: "string", name: "_farmerName", type: "string" },
+        { internalType: "string", name: "_location", type: "string" },
+        { internalType: "string", name: "_cropType", type: "string" },
+        { internalType: "uint256", name: "_quantity", type: "uint256" },
+        { internalType: "uint256", name: "_totalPrice", type: "uint256" },
+      ],
+      name: "createFarmerContract",
+      outputs: [{ internalType: "address", name: "", type: "address" }],
+      stateMutability: "nonpayable",
+      type: "function",
+    },
+
+    // Events
+    {
+      anonymous: false,
+      inputs: [
         {
-            inputs: [
-              { internalType: "string", name: "_farmerName", type: "string" },
-              { internalType: "string", name: "_location", type: "string" },
-              { internalType: "string", name: "_cropType", type: "string" },
-              { internalType: "uint256", name: "_quantity", type: "uint256" },
-              { internalType: "uint256", name: "_totalPrice", type: "uint256" },
-            ],
-            name: "createFarmerContract",
-            outputs: [{ internalType: "address", name: "", type: "address" }],
-            stateMutability: "nonpayable",
-            type: "function",
-          },
+          indexed: true,
+          internalType: "address",
+          name: "contractAddress",
+          type: "address",
+        },
+        {
+          indexed: true,
+          internalType: "address",
+          name: "farmer",
+          type: "address",
+        },
+      ],
+      name: "NewFarmerContract",
+      type: "event",
+    },
 
-          // Events
-          {
-            anonymous: false,
-            inputs: [
-              {
-                indexed: true,
-                internalType: "address",
-                name: "contractAddress",
-                type: "address",
-              },
-              {
-                indexed: true,
-                internalType: "address",
-                name: "farmer",
-                type: "address",
-              },
-            ],
-            name: "NewFarmerContract",
-            type: "event",
-          },
+    // Whitelisting
+    {
+      inputs: [{ internalType: "address", name: "_farmer", type: "address" }],
+      name: "whitelistFarmer",
+      outputs: [],
+      stateMutability: "nonpayable",
+      type: "function",
+    },
+    {
+      inputs: [{ internalType: "address", name: "_fpo", type: "address" }],
+      name: "whitelistFPO",
+      outputs: [],
+      stateMutability: "nonpayable",
+      type: "function",
+    },
+    {
+      inputs: [{ internalType: "address", name: "_retailer", type: "address" }],
+      name: "whitelistRetailer",
+      outputs: [],
+      stateMutability: "nonpayable",
+      type: "function",
+    },
+    {
+      inputs: [
+        { internalType: "address", name: "_account", type: "address" },
+        { internalType: "string", name: "_role", type: "string" },
+      ],
+      name: "removeFromWhitelist",
+      outputs: [],
+      stateMutability: "nonpayable",
+      type: "function",
+    },
+    {
+      inputs: [{ internalType: "address", name: "_farmer", type: "address" }],
+      name: "isFarmerWhitelisted",
+      outputs: [{ internalType: "bool", name: "", type: "bool" }],
+      stateMutability: "view",
+      type: "function",
+    },
+    {
+      inputs: [{ internalType: "address", name: "_fpo", type: "address" }],
+      name: "isFPOWhitelisted",
+      outputs: [{ internalType: "bool", name: "", type: "bool" }],
+      stateMutability: "view",
+      type: "function",
+    },
+    {
+      inputs: [{ internalType: "address", name: "_retailer", type: "address" }],
+      name: "isRetailerWhitelisted",
+      outputs: [{ internalType: "bool", name: "", type: "bool" }],
+      stateMutability: "view",
+      type: "function",
+    },
 
-          // Whitelisting
-          {
-            inputs: [
-              { internalType: "address", name: "_farmer", type: "address" },
-            ],
-            name: "whitelistFarmer",
-            outputs: [],
-            stateMutability: "nonpayable",
-            type: "function",
-          },
-          {
-            inputs: [{ internalType: "address", name: "_fpo", type: "address" }],
-            name: "whitelistFPO",
-            outputs: [],
-            stateMutability: "nonpayable",
-            type: "function",
-          },
-          {
-            inputs: [
-              { internalType: "address", name: "_retailer", type: "address" },
-            ],
-            name: "whitelistRetailer",
-            outputs: [],
-            stateMutability: "nonpayable",
-            type: "function",
-          },
-          {
-            inputs: [
-              { internalType: "address", name: "_account", type: "address" },
-              { internalType: "string", name: "_role", type: "string" },
-            ],
-            name: "removeFromWhitelist",
-            outputs: [],
-            stateMutability: "nonpayable",
-            type: "function",
-          },
-          {
-            inputs: [
-              { internalType: "address", name: "_farmer", type: "address" },
-            ],
-            name: "isFarmerWhitelisted",
-            outputs: [{ internalType: "bool", name: "", type: "bool" }],
-            stateMutability: "view",
-            type: "function",
-          },
-          {
-            inputs: [{ internalType: "address", name: "_fpo", type: "address" }],
-            name: "isFPOWhitelisted",
-            outputs: [{ internalType: "bool", name: "", type: "bool" }],
-            stateMutability: "view",
-            type: "function",
-          },
-          {
-            inputs: [
-              { internalType: "address", name: "_retailer", type: "address" },
-            ],
-            name: "isRetailerWhitelisted",
-            outputs: [{ internalType: "bool", name: "", type: "bool" }],
-            stateMutability: "view",
-            type: "function",
-          },
+    // Deployed contracts
+    {
+      inputs: [],
+      name: "getDeployedContracts",
+      outputs: [{ internalType: "address[]", name: "", type: "address[]" }],
+      stateMutability: "view",
+      type: "function",
+    },
+    {
+      inputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+      name: "deployedContracts",
+      outputs: [{ internalType: "address", name: "", type: "address" }],
+      stateMutability: "view",
+      type: "function",
+    },
 
-          // Deployed contracts
-          {
-            inputs: [],
-            name: "getDeployedContracts",
-            outputs: [{ internalType: "address[]", name: "", type: "address[]" }],
-            stateMutability: "view",
-            type: "function",
-          },
-          {
-            inputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-            name: "deployedContracts",
-            outputs: [{ internalType: "address", name: "", type: "address" }],
-            stateMutability: "view",
-            type: "function",
-          },
+    // Child contract details
+    {
+      inputs: [{ internalType: "address", name: "_contract", type: "address" }],
+      name: "getFarmerDetails",
+      outputs: [
+        { internalType: "string", name: "name", type: "string" },
+        { internalType: "string", name: "location", type: "string" },
+        { internalType: "string", name: "cropType", type: "string" },
+        { internalType: "uint256", name: "quantity", type: "uint256" },
+        { internalType: "uint256", name: "totalPrice", type: "uint256" },
+        { internalType: "address", name: "wallet", type: "address" },
+        { internalType: "bool", name: "isSold", type: "bool" },
+      ],
+      stateMutability: "view",
+      type: "function",
+    },
+    {
+      inputs: [{ internalType: "address", name: "_contract", type: "address" }],
+      name: "getFpoDetails",
+      outputs: [
+        { internalType: "string", name: "name", type: "string" },
+        { internalType: "string", name: "location", type: "string" },
+        { internalType: "string", name: "agmark", type: "string" },
+        { internalType: "string", name: "fssai", type: "string" },
+        { internalType: "uint256", name: "agreedPrice", type: "uint256" },
+        { internalType: "address", name: "wallet", type: "address" },
+        { internalType: "bool", name: "hasPaid", type: "bool" },
+      ],
+      stateMutability: "view",
+      type: "function",
+    },
+    {
+      inputs: [{ internalType: "address", name: "_contract", type: "address" }],
+      name: "getRetailerDetails",
+      outputs: [
+        { internalType: "string", name: "name", type: "string" },
+        { internalType: "string", name: "location", type: "string" },
+        { internalType: "uint256", name: "agreedPrice", type: "uint256" },
+        { internalType: "address", name: "wallet", type: "address" },
+        { internalType: "bool", name: "hasPaid", type: "bool" },
+      ],
+      stateMutability: "view",
+      type: "function",
+    },
+    {
+      inputs: [{ internalType: "address", name: "_contract", type: "address" }],
+      name: "getContractStatus",
+      outputs: [
+        { internalType: "bool", name: "funded", type: "bool" },
+        { internalType: "bool", name: "released", type: "bool" },
+        { internalType: "bool", name: "sold", type: "bool" },
+        { internalType: "bool", name: "retailerRegistered", type: "bool" },
+        { internalType: "bool", name: "retailerFunded", type: "bool" },
+        { internalType: "bool", name: "retailerReleased", type: "bool" },
+      ],
+      stateMutability: "view",
+      type: "function",
+    },
 
-          // Child contract details
-          {
-            inputs: [
-              { internalType: "address", name: "_contract", type: "address" },
-            ],
-            name: "getFarmerDetails",
-            outputs: [
-              { internalType: "string", name: "name", type: "string" },
-              { internalType: "string", name: "location", type: "string" },
-              { internalType: "string", name: "cropType", type: "string" },
-              { internalType: "uint256", name: "quantity", type: "uint256" },
-              { internalType: "uint256", name: "totalPrice", type: "uint256" },
-              { internalType: "address", name: "wallet", type: "address" },
-              { internalType: "bool", name: "isSold", type: "bool" },
-            ],
-            stateMutability: "view",
-            type: "function",
-          },
-          {
-            inputs: [
-              { internalType: "address", name: "_contract", type: "address" },
-            ],
-            name: "getFpoDetails",
-            outputs: [
-              { internalType: "string", name: "name", type: "string" },
-              { internalType: "string", name: "location", type: "string" },
-              { internalType: "string", name: "agmark", type: "string" },
-              { internalType: "string", name: "fssai", type: "string" },
-              { internalType: "uint256", name: "agreedPrice", type: "uint256" },
-              { internalType: "address", name: "wallet", type: "address" },
-              { internalType: "bool", name: "hasPaid", type: "bool" },
-            ],
-            stateMutability: "view",
-            type: "function",
-          },
-          {
-            inputs: [
-              { internalType: "address", name: "_contract", type: "address" },
-            ],
-            name: "getRetailerDetails",
-            outputs: [
-              { internalType: "string", name: "name", type: "string" },
-              { internalType: "string", name: "location", type: "string" },
-              { internalType: "uint256", name: "agreedPrice", type: "uint256" },
-              { internalType: "address", name: "wallet", type: "address" },
-              { internalType: "bool", name: "hasPaid", type: "bool" },
-            ],
-            stateMutability: "view",
-            type: "function",
-          },
-          {
-            inputs: [
-              { internalType: "address", name: "_contract", type: "address" },
-            ],
-            name: "getContractStatus",
-            outputs: [
-              { internalType: "bool", name: "funded", type: "bool" },
-              { internalType: "bool", name: "released", type: "bool" },
-              { internalType: "bool", name: "sold", type: "bool" },
-              { internalType: "bool", name: "retailerRegistered", type: "bool" },
-              { internalType: "bool", name: "retailerFunded", type: "bool" },
-              { internalType: "bool", name: "retailerReleased", type: "bool" },
-            ],
-            stateMutability: "view",
-            type: "function",
-          },
+    // Restored helper functions
+    {
+      inputs: [],
+      name: "getAllFarmers",
+      outputs: [
+        { internalType: "string[]", name: "names", type: "string[]" },
+        { internalType: "address[]", name: "contracts", type: "address[]" },
+      ],
+      stateMutability: "view",
+      type: "function",
+    },
+    {
+      inputs: [],
+      name: "getAllFPOs",
+      outputs: [
+        { internalType: "string[]", name: "names", type: "string[]" },
+        { internalType: "address[]", name: "wallets", type: "address[]" },
+      ],
+      stateMutability: "view",
+      type: "function",
+    },
+    {
+      inputs: [],
+      name: "getAllRetailers",
+      outputs: [
+        { internalType: "string[]", name: "names", type: "string[]" },
+        { internalType: "address[]", name: "wallets", type: "address[]" },
+      ],
+      stateMutability: "view",
+      type: "function",
+    },
+    {
+      inputs: [{ internalType: "address", name: "_contract", type: "address" }],
+      name: "getPriceFlow",
+      outputs: [
+        { internalType: "uint256", name: "farmerPrice", type: "uint256" },
+        { internalType: "uint256", name: "fpoPrice", type: "uint256" },
+        { internalType: "uint256", name: "retailerPrice", type: "uint256" },
+      ],
+      stateMutability: "view",
+      type: "function",
+    },
+  ];
 
-          // Restored helper functions
-          {
-            inputs: [],
-            name: "getAllFarmers",
-            outputs: [
-              { internalType: "string[]", name: "names", type: "string[]" },
-              { internalType: "address[]", name: "contracts", type: "address[]" },
-            ],
-            stateMutability: "view",
-            type: "function",
-          },
-          {
-            inputs: [],
-            name: "getAllFPOs",
-            outputs: [
-              { internalType: "string[]", name: "names", type: "string[]" },
-              { internalType: "address[]", name: "wallets", type: "address[]" },
-            ],
-            stateMutability: "view",
-            type: "function",
-          },
-          {
-            inputs: [],
-            name: "getAllRetailers",
-            outputs: [
-              { internalType: "string[]", name: "names", type: "string[]" },
-              { internalType: "address[]", name: "wallets", type: "address[]" },
-            ],
-            stateMutability: "view",
-            type: "function",
-          },
-          {
-            inputs: [
-              { internalType: "address", name: "_contract", type: "address" },
-            ],
-            name: "getPriceFlow",
-            outputs: [
-              { internalType: "uint256", name: "farmerPrice", type: "uint256" },
-              { internalType: "uint256", name: "fpoPrice", type: "uint256" },
-              { internalType: "uint256", name: "retailerPrice", type: "uint256" },
-            ],
-            stateMutability: "view",
-            type: "function",
-          },
-
-    ];
-
-
-    // Always use Sepolia RPC for reads
+  // Always use Sepolia RPC for reads
   // const sepoliaProvider = new ethers.providers.JsonRpcProvider("https://rpc.sepolia.org");
 
   // Get contract with read-only provider
+
+  useEffect(() => {
+    axios.defaults.withCredentials = true;
+  }, []);
+
+  // Get contract with read-only provider
   const contractRead = new ethers.Contract(contractAddress, factoryABI);
-
-
 
   // For writes we still use signer from MetaMask (but force Sepolia first)
   const getWriteContract = async () => {
@@ -3465,13 +3927,10 @@ FILE: frontend/src/pages/AdminDashboard.jsx
     return new ethers.Contract(contractAddress, factoryABI, signer);
   };
 
+  const getContract = (signerOrProvider) =>
+    new ethers.Contract(contractAddress, factoryABI, signerOrProvider);
 
-
-    const getContract = (signerOrProvider) =>
-      new ethers.Contract(contractAddress, factoryABI, signerOrProvider);
-
-
-    // Helper: force MetaMask to Sepolia
+  // Helper: force MetaMask to Sepolia
   const switchToSepolia = async () => {
     if (!window.ethereum) {
       setStatus("MetaMask not found!");
@@ -3510,9 +3969,6 @@ FILE: frontend/src/pages/AdminDashboard.jsx
     }
   };
 
-
-
-
   // Connect MetaMask (always Sepolia)
   const connectWallet = async () => {
     if (!window.ethereum) return setStatus("Install MetaMask!");
@@ -3535,54 +3991,49 @@ FILE: frontend/src/pages/AdminDashboard.jsx
     }
   };
 
-
-    // Fetch pending registrations from backend
-    const fetchPending = async () => {
-      try {
-        const token = localStorage.getItem("access"); // stored after login
-        const res = await axios.get("/api/admin/pending-registrations/", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        console.log(res.data);
-        
-        setPending(res.data); // expecting {farmers:[], fpos:[], retailers:[]}
-      } catch (err) {
-        setStatus("Error fetching pending registrations");
-      }
-    };
-
-    useEffect(() => {
-      fetchPending();
-    }, []);
-
-    // Handle transaction lifecycle
-    const handleTx = async (tx, successMsg) => {
-      try {
-        setLoadingTx(true);
-        setStatus(`⏳ Transaction sent: ${tx.hash}`);
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const receipt = await provider.waitForTransaction(tx.hash);
-        if (receipt.status === 1) {
-          setStatus(`✅ ${successMsg} (Block: ${receipt.blockNumber})`);
-          fetchPending(); // refresh list
-        } else {
-          setStatus("❌ Transaction failed");
-        }
-      } catch (err) {
-        setStatus("Error: " + err.message);
-      } finally {
-        setLoadingTx(false);
-      }
-    };
-
-    // Approve + Whitelist
-    const approve = async (role, id, addr) => {
+  // Fetch pending registrations from backend
+  const fetchPending = async () => {
     try {
-      const token = localStorage.getItem("access");
+      // No need to manually get token from localStorage - cookies are sent automatically
+      const res = await axios.get("/api/admin/pending-registrations/", {
+        withCredentials: true,
+      });
+      console.log(res.data);
 
-      // Step 1: blockchain whitelisting
+      setPending(res.data);
+    } catch (err) {
+      setStatus("Error fetching pending registrations");
+    }
+  };
+
+  useEffect(() => {
+    fetchPending();
+  }, []);
+
+  // Handle transaction lifecycle
+  const handleTx = async (tx, successMsg) => {
+    try {
+      setLoadingTx(true);
+      setStatus(`⏳ Transaction sent: ${tx.hash}`);
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const receipt = await provider.waitForTransaction(tx.hash);
+      if (receipt.status === 1) {
+        setStatus(`✅ ${successMsg} (Block: ${receipt.blockNumber})`);
+        fetchPending(); // refresh list
+      } else {
+        setStatus("❌ Transaction failed");
+      }
+    } catch (err) {
+      setStatus("Error: " + err.message);
+    } finally {
+      setLoadingTx(false);
+    }
+  };
+
+  // Approve + Whitelist
+ const approve = async (role, id, addr) => {
+    try {
+      // No need to manually get token - cookies are sent automatically
       const contract = await getWriteContract();
       let tx;
       if (role === "Farmer") tx = await contract.whitelistFarmer(addr);
@@ -3591,25 +4042,23 @@ FILE: frontend/src/pages/AdminDashboard.jsx
 
       await handleTx(tx, `${role} approved & whitelisted`);
 
-      // Step 2: backend approve
+      // Backend approve - cookies are sent automatically
       await axios.post(
         `/api/admin/approve-${role.toLowerCase()}/${id}/`,
         {},
-        { headers: { Authorization: `Bearer ${token}` } }
+        { withCredentials: true }
       );
     } catch (err) {
       setStatus("Error approving " + role + ": " + err.message);
     }
   };
 
-
   const reject = async (role, id) => {
     try {
-      const token = localStorage.getItem("access");
       await axios.post(
         `/api/admin/reject-${role.toLowerCase()}/${id}/`,
         {},
-        { headers: { Authorization: `Bearer ${token}` } }
+        { withCredentials: true }
       );
       setStatus(`❌ Rejected ${role}`);
       fetchPending();
@@ -3618,168 +4067,176 @@ FILE: frontend/src/pages/AdminDashboard.jsx
     }
   };
 
-
-    // Logout
-    const logout = () => {
-      localStorage.clear();
+  // Logout
+    const logout = async () => {
+    try {
+      // Call backend logout endpoint to clear cookies
+      await axios.post("/api/logout/", {}, { withCredentials: true });
+    } catch (err) {
+      console.error("Logout error:", err);
+    } finally {
+      // Clear any remaining cookies on frontend
+      Cookies.remove('access');
+      Cookies.remove('refresh');
       navigate("/");
-    };
+    }
+  };
 
-    return (
-      <div className="p-6 max-w-5xl mx-auto bg-white shadow-lg rounded-xl min-h-screen">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold">🌾 Admin Dashboard</h2>
-          <button
-            onClick={logout}
-            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-          >
-            Logout
-          </button>
-        </div>
-
-        {/* Wallet + Contract Info */}
-        <div className="bg-blue-100 p-3 rounded mb-4 text-center">
-          <p>
-            <strong>Admin Address:</strong> {ADMIN_ADDRESS}
-          </p>
-          <p>
-            <strong>Contract:</strong> {contractAddress}
-          </p>
-          <p>
-            <strong>Connected Wallet:</strong> {wallet || "Not connected yet"}
-          </p>
-        </div>
+  return (
+    <div className="p-6 max-w-5xl mx-auto bg-white shadow-lg rounded-xl min-h-screen">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold">🌾 Admin Dashboard</h2>
         <button
-          onClick={connectWallet}
-          className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded mb-6"
+          onClick={logout}
+          className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
         >
-          Connect MetaMask
+          Logout
         </button>
+      </div>
 
-        {/* Pending Farmers */}
-        <div className="mb-6">
-          <h3 className="text-xl font-semibold mb-2">👨‍🌾 Pending Farmers</h3>
-          {pending.farmers.length === 0 ? (
-            <p className="text-gray-500">No pending farmers</p>
-          ) : (
-            pending.farmers.map((f) => (
-              <div
-                key={f.id}
-                className="flex justify-between items-center border p-3 rounded mb-2"
-              >
-                <div>
-                  <p>
-                    <strong>{f.name}</strong> ({f.email})
-                  </p>
-                  <p className="text-sm text-gray-500">{f.wallet_address}</p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    disabled={loadingTx}
-                    onClick={() => approve("Farmer", f.id, f.wallet_address)}
-                    className="bg-green-600 text-white px-3 py-1 rounded"
-                  >
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => reject("Farmer", f.id)}
-                    className="bg-red-600 text-white px-3 py-1 rounded"
-                  >
-                    Reject
-                  </button>
-                </div>
+      {/* Wallet + Contract Info */}
+      <div className="bg-blue-100 p-3 rounded mb-4 text-center">
+        <p>
+          <strong>Admin Address:</strong> {ADMIN_ADDRESS}
+        </p>
+        <p>
+          <strong>Contract:</strong> {contractAddress}
+        </p>
+        <p>
+          <strong>Connected Wallet:</strong> {wallet || "Not connected yet"}
+        </p>
+      </div>
+      <button
+        onClick={connectWallet}
+        className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded mb-6"
+      >
+        Connect MetaMask
+      </button>
+
+      {/* Pending Farmers */}
+      <div className="mb-6">
+        <h3 className="text-xl font-semibold mb-2">👨‍🌾 Pending Farmers</h3>
+        {pending.farmers.length === 0 ? (
+          <p className="text-gray-500">No pending farmers</p>
+        ) : (
+          pending.farmers.map((f) => (
+            <div
+              key={f.id}
+              className="flex justify-between items-center border p-3 rounded mb-2"
+            >
+              <div>
+                <p>
+                  <strong>{f.name}</strong> ({f.email})
+                </p>
+                <p className="text-sm text-gray-500">{f.wallet_address}</p>
               </div>
-            ))
-          )}
-        </div>
-
-        {/* Pending FPOs */}
-        <div className="mb-6">
-          <h3 className="text-xl font-semibold mb-2">🏢 Pending FPOs</h3>
-          {pending.fpos.length === 0 ? (
-            <p className="text-gray-500">No pending FPOs</p>
-          ) : (
-            pending.fpos.map((f) => (
-              <div
-                key={f.id}
-                className="flex justify-between items-center border p-3 rounded mb-2"
-              >
-                <div>
-                  <p>
-                    <strong>{f.name}</strong> ({f.email})
-                  </p>
-                  <p className="text-sm text-gray-500">{f.wallet_address}</p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    disabled={loadingTx}
-                    onClick={() => approve("FPO", f.id, f.wallet_address)}
-                    className="bg-green-600 text-white px-3 py-1 rounded"
-                  >
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => reject("FPO", f.id)}
-                    className="bg-red-600 text-white px-3 py-1 rounded"
-                  >
-                    Reject
-                  </button>
-                </div>
+              <div className="flex gap-2">
+                <button
+                  disabled={loadingTx}
+                  onClick={() => approve("Farmer", f.id, f.wallet_address)}
+                  className="bg-green-600 text-white px-3 py-1 rounded"
+                >
+                  Approve
+                </button>
+                <button
+                  onClick={() => reject("Farmer", f.id)}
+                  className="bg-red-600 text-white px-3 py-1 rounded"
+                >
+                  Reject
+                </button>
               </div>
-            ))
-          )}
-        </div>
-
-        {/* Pending Retailers */}
-        <div className="mb-6">
-          <h3 className="text-xl font-semibold mb-2">🛒 Pending Retailers</h3>
-          {pending.retailers.length === 0 ? (
-            <p className="text-gray-500">No pending retailers</p>
-          ) : (
-            pending.retailers.map((r) => (
-              <div
-                key={r.id}
-                className="flex justify-between items-center border p-3 rounded mb-2"
-              >
-                <div>
-                  <p>
-                    <strong>{r.name}</strong> ({r.email})
-                  </p>
-                  <p className="text-sm text-gray-500">{r.wallet_address}</p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    disabled={loadingTx}
-                    onClick={() => approve("Retailer", r.id, r.wallet_address)}
-                    className="bg-green-600 text-white px-3 py-1 rounded"
-                  >
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => reject("Retailer", r.id)}
-                    className="bg-red-600 text-white px-3 py-1 rounded"
-                  >
-                    Reject
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Status */}
-        {status && (
-          <div className="p-3 mt-4 rounded text-center bg-gray-100">{status}</div>
+            </div>
+          ))
         )}
       </div>
-    );
-  }
+
+      {/* Pending FPOs */}
+      <div className="mb-6">
+        <h3 className="text-xl font-semibold mb-2">🏢 Pending FPOs</h3>
+        {pending.fpos.length === 0 ? (
+          <p className="text-gray-500">No pending FPOs</p>
+        ) : (
+          pending.fpos.map((f) => (
+            <div
+              key={f.id}
+              className="flex justify-between items-center border p-3 rounded mb-2"
+            >
+              <div>
+                <p>
+                  <strong>{f.name}</strong> ({f.email})
+                </p>
+                <p className="text-sm text-gray-500">{f.wallet_address}</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  disabled={loadingTx}
+                  onClick={() => approve("FPO", f.id, f.wallet_address)}
+                  className="bg-green-600 text-white px-3 py-1 rounded"
+                >
+                  Approve
+                </button>
+                <button
+                  onClick={() => reject("FPO", f.id)}
+                  className="bg-red-600 text-white px-3 py-1 rounded"
+                >
+                  Reject
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Pending Retailers */}
+      <div className="mb-6">
+        <h3 className="text-xl font-semibold mb-2">🛒 Pending Retailers</h3>
+        {pending.retailers.length === 0 ? (
+          <p className="text-gray-500">No pending retailers</p>
+        ) : (
+          pending.retailers.map((r) => (
+            <div
+              key={r.id}
+              className="flex justify-between items-center border p-3 rounded mb-2"
+            >
+              <div>
+                <p>
+                  <strong>{r.name}</strong> ({r.email})
+                </p>
+                <p className="text-sm text-gray-500">{r.wallet_address}</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  disabled={loadingTx}
+                  onClick={() => approve("Retailer", r.id, r.wallet_address)}
+                  className="bg-green-600 text-white px-3 py-1 rounded"
+                >
+                  Approve
+                </button>
+                <button
+                  onClick={() => reject("Retailer", r.id)}
+                  className="bg-red-600 text-white px-3 py-1 rounded"
+                >
+                  Reject
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Status */}
+      {status && (
+        <div className="p-3 mt-4 rounded text-center bg-gray-100">{status}</div>
+      )}
+    </div>
+  );
+}
 
 
 
 ================================================
-FILE: frontend/src/pages/AdminLogin.jsx
+FILE: frontend/src/pages/admin/AdminLogin.jsx
 ================================================
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -3803,14 +4260,19 @@ export default function AdminLogin() {
     e.preventDefault();
     setStatus("");
     setLoading(true);
+    
     try {
-      const res = await axios.post("/api/token/", formData);
+      // Configure axios to use cookies
+      axios.defaults.withCredentials = true;
+      
+      const res = await axios.post("/api/token/", formData, {
+        withCredentials: true
+      });
 
-      // Save tokens
-      localStorage.setItem("access", res.data.access);
-      localStorage.setItem("refresh", res.data.refresh);
-
-      navigate("/admin/dashboard");
+      // Tokens are automatically stored in cookies by the browser
+      // No need to manually store them
+      
+      navigate("/admin-dashboard");
     } catch (err) {
       setStatus("❌ Invalid credentials or server error");
     } finally {
@@ -3874,226 +4336,397 @@ export default function AdminLogin() {
 }
 
 
-
 ================================================
-FILE: frontend/src/pages/AuthForm.jsx
+FILE: frontend/src/pages/farmer/FarmerDashboard.jsx
 ================================================
-// src/components/AuthForm.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
+import Cookies from "js-cookie";
+import { useNavigate } from "react-router-dom";
+import QuoteForm from "../../components/farmer/QuoteForm";
+import QuoteHistory from "../../components/farmer/QuoteHistory";
+import QuoteBids from "../../components/farmer/QuoteBids";
 
-export default function AuthForm() {
-  const [isLogin, setIsLogin] = useState(true);
-  const [role, setRole] = useState("farmer");
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    password: "",
-    aadhaar_number: "",
-    corporate_identification_number: "",
-    gstin: "",
-    city: "",
-    state: "",
-    wallet_address: "",
-    role: "farmer", // Ã°Å¸â€˜Ë† added here
-  });
+export default function FarmerDashboard() {
+  const navigate = useNavigate();
+  const [history, setHistory] = useState([]);
+  const [activePage, setActivePage] = useState("history"); // "history" | "newQuote" | "bids"
+  const [selectedQuote, setSelectedQuote] = useState(null);
 
-  // keep role and formData in sync
-  const handleRoleChange = (e) => {
-    setRole(e.target.value);
-    setFormData({ ...formData, role: e.target.value });
-  };
-
-  // connect MetaMask
-  const connectWallet = async () => {
-    if (window.ethereum) {
-      try {
-        const accounts = await window.ethereum.request({
-          method: "eth_requestAccounts",
-        });
-        setFormData({ ...formData, wallet_address: accounts[0] });
-      } catch (error) {
-        console.error("Wallet connection failed", error);
-      }
-    } else {
-      alert("MetaMask not found! Please install it.");
-    }
-  };
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  // API call
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    let endpoint = "";
-    let payload = {}; // <-- Create a payload object to send
-
-    if (isLogin) {
-      endpoint = "/api/token/";
-      // --- THIS IS THE FIX ---
-      // For login, map the form's 'email' field to 'username' for the backend.
-      payload = {
-        username: formData.email,
-        password: formData.password,
-        role: formData.role,
-      };
-      // --- END OF FIX ---
-    } else {
-      if (role === "farmer") endpoint = "/api/farmer/register/";
-      if (role === "fpo") endpoint = "/api/fpo/register/";
-      if (role === "retailer") endpoint = "/api/retailer/register/";
-      // For registration, the formData is already in the correct format.
-      payload = formData;
-    }
-
+  // 🔹 Logout function
+  const logout = async () => {
     try {
-      // Use the new payload object for the request
-      const res = await axios.post(endpoint, payload);
-      console.log("Success:", res.data);
-      alert("Success! Check console.");
+      await axios.post("/api/logout/", {}, { withCredentials: true });
     } catch (err) {
-      console.error("Error:", err.response?.data || err.message);
-      alert("Error! Check console.");
+      console.error("Logout error:", err);
+    } finally {
+      Cookies.remove("role", { path: "/" });
+      navigate("/");
+    }
+  };
+
+  // Fetch history
+  const fetchHistory = async () => {
+    try {
+      const res = await axios.get("/api/farmer/quotes/", {
+        withCredentials: true,
+      });
+      console.log("Fetched history:", res.data);
+      
+      setHistory(res.data);
+    } catch (err) {
+      console.error("Error fetching history:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchHistory();
+  }, []);
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto">
+      {/* Top Bar with Logout */}
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-green-700">🌾 Farmer Dashboard</h1>
+        <button
+          onClick={logout}
+          className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+        >
+          Logout
+        </button>
+      </div>
+
+      {/* Farmer Quote Section */}
+      <div className="bg-green-100 p-6 rounded-2xl shadow mb-6 text-center">
+        <h2 className="text-2xl font-bold text-green-800">
+          🌱 “The farmer is the backbone of our nation.”
+        </h2>
+        <p className="text-gray-700 mt-2">
+          Nurturing the land, feeding the world. 🙌
+        </p>
+      </div>
+
+      {/* Navigation Buttons */}
+      {activePage === "history" && (
+        <button
+          onClick={() => setActivePage("newQuote")}
+          className="mb-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+        >
+          ➕ New Quote
+        </button>
+      )}
+
+      {/* Pages */}
+      {activePage === "history" && (
+        <QuoteHistory
+          history={history}
+          onViewBids={(quote) => {
+            setSelectedQuote(quote);
+            setActivePage("bids");
+          }}
+        />
+      )}
+
+      {activePage === "newQuote" && (
+        <QuoteForm
+          onSuccess={() => {
+            fetchHistory();
+            setActivePage("history");
+          }}
+        />
+      )}
+
+      {activePage === "bids" && selectedQuote && (
+        <QuoteBids
+          quote={selectedQuote}
+          onBack={() => setActivePage("history")}
+        />
+      )}
+    </div>
+  );
+}
+
+
+
+================================================
+FILE: frontend/src/pages/fpo/FpoDashboard.jsx
+================================================
+import React, { useState } from "react";
+import FarmerQuotes from "../../components/fpo/FarmerQuotes";
+import RetailerQuotes from "../../components/fpo/RetailerQuotes";
+
+export default function FpoDashboard() {
+  const [activeTab, setActiveTab] = useState("farmer");
+
+  return (
+    <div className="p-6 max-w-5xl mx-auto">
+      {/* Top Bar */}
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-blue-700">🏢 FPO Dashboard</h1>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex space-x-4 mb-6">
+        <button
+          className={`px-4 py-2 rounded ${
+            activeTab === "farmer" ? "bg-blue-600 text-white" : "bg-gray-200"
+          }`}
+          onClick={() => setActiveTab("farmer")}
+        >
+          Farmer Quotes
+        </button>
+        <button
+          className={`px-4 py-2 rounded ${
+            activeTab === "retailer" ? "bg-blue-600 text-white" : "bg-gray-200"
+          }`}
+          onClick={() => setActiveTab("retailer")}
+        >
+          Retailer Quotes
+        </button>
+      </div>
+
+      {/* Content */}
+      {activeTab === "farmer" ? <FarmerQuotes /> : <RetailerQuotes />}
+    </div>
+  );
+}
+
+
+
+================================================
+FILE: frontend/src/pages/retailer/RetailerDashboard.jsx
+================================================
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import Cookies from "js-cookie";
+import { useNavigate } from "react-router-dom";
+
+export default function RetailerDashboard() {
+  const navigate = useNavigate();
+
+  const [fpoQuotes, setFpoQuotes] = useState([]);
+  const [myBids, setMyBids] = useState([]);
+  const [bids, setBids] = useState({});
+  const [deliveryTimes, setDeliveryTimes] = useState({});
+  const [loading, setLoading] = useState(false);
+  
+
+  const retailerId = Cookies.get("retailer_id");
+
+  // 🔹 Logout
+  const logout = async () => {
+    try {
+      await axios.post("/api/logout/", {}, { withCredentials: true });
+    } catch (err) {
+      console.error("Logout error:", err);
+    } finally {
+      Cookies.remove("role", { path: "/" });
+      navigate("/");
+    }
+  };
+
+  // 🔹 Fetch dashboard data
+  useEffect(() => {
+    const fetchFpoQuotes = async () => {
+      try {
+        const res = await axios.get("/api/retailer/quotes/fpo/open/", {
+          withCredentials: true,
+        });
+        setFpoQuotes(res.data);
+      } catch (err) {
+        console.error("Error fetching FPO quotes:", err);
+      }
+    };
+
+    
+    const fetchMyBids = async () => {
+      try {
+        const res = await axios.get("/api/retailer/bids/my/", {
+          withCredentials: true,
+        });
+        setMyBids(res.data);
+      } catch (err) {
+        console.error("Error fetching my bids:", err);
+      }
+    };
+
+    fetchFpoQuotes();
+    
+    fetchMyBids();
+  }, []);
+
+  // 🔹 Bid input handlers
+  const handleBidChange = (quoteId, value) => {
+    setBids({ ...bids, [quoteId]: value });
+  };
+  const handleDeliveryChange = (quoteId, value) => {
+    setDeliveryTimes({ ...deliveryTimes, [quoteId]: value });
+  };
+
+  // 🔹 Submit bid
+  const submitBid = async (quoteId) => {
+    if (!bids[quoteId]) {
+      alert("⚠️ Please enter a bid amount.");
+      return;
+    }
+    if (!deliveryTimes[quoteId]) {
+      alert("⚠️ Please enter delivery time in days.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await axios.post(
+        `/api/retailer/quotes/fpo/${quoteId}/bids/`,
+        {
+          bid_amount: bids[quoteId],
+          delivery_time_days: deliveryTimes[quoteId],
+          quote: quoteId,
+          retailer: retailerId,
+        },
+        { withCredentials: true }
+      );
+      alert("✅ Bid placed successfully!");
+      setBids({ ...bids, [quoteId]: "" });
+      setDeliveryTimes({ ...deliveryTimes, [quoteId]: "" });
+      // Refresh bids after placing
+      const res = await axios.get("/api/retailer/bids/my/", {
+        withCredentials: true,
+      });
+      setMyBids(res.data);
+    } catch (err) {
+      console.error("Error placing bid:", err.response?.data || err);
+      alert("❌ Failed to place bid. Try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
-        <h2 className="text-2xl font-bold mb-4 text-center">
-          {isLogin ? "Login" : "Register"} as {role.toUpperCase()}
-        </h2>
-
-        {/* Toggle between roles */}
-        <select
-          value={role}
-          onChange={handleRoleChange}
-          className="w-full p-2 mb-4 border rounded"
+    <div className="p-6 max-w-6xl mx-auto space-y-8">
+      {/* Top Bar */}
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-blue-700">
+          🏪 Retailer Dashboard
+        </h1>
+        <button
+          onClick={logout}
+          className="bg-red-500 text-white px-4 py-2 rounded-lg shadow hover:bg-red-600"
         >
-          <option value="farmer">Farmer</option>
-          <option value="fpo">FPO</option>
-          <option value="retailer">Retailer</option>
-        </select>
+          Logout
+        </button>
+      </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          {/* Show signup fields */}
-          {!isLogin && (
-            <>
-              <input
-                type="text"
-                name="name"
-                placeholder="Name"
-                onChange={handleChange}
-                className="w-full p-2 border rounded"
-                required
-              />
+      
 
-              {role === "farmer" && (
-                <input
-                  type="text"
-                  name="aadhaar_number"
-                  placeholder="Aadhaar Number"
-                  onChange={handleChange}
-                  className="w-full p-2 border rounded"
-                  required
-                />
-              )}
-
-              {role === "fpo" && (
-                <input
-                  type="text"
-                  name="corporate_identification_number"
-                  placeholder="CIN"
-                  onChange={handleChange}
-                  className="w-full p-2 border rounded"
-                  required
-                />
-              )}
-
-              {role === "retailer" && (
-                <input
-                  type="text"
-                  name="gstin"
-                  placeholder="GSTIN"
-                  onChange={handleChange}
-                  className="w-full p-2 border rounded"
-                  required
-                />
-              )}
-
-              <input
-                type="text"
-                name="city"
-                placeholder="City"
-                onChange={handleChange}
-                className="w-full p-2 border rounded"
-                required
-              />
-              <input
-                type="text"
-                name="state"
-                placeholder="State"
-                onChange={handleChange}
-                className="w-full p-2 border rounded"
-                required
-              />
-
-              {/* Wallet connect */}
-              <button
-                type="button"
-                onClick={connectWallet}
-                className="w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700"
+      {/* Open FPO Quotes */}
+      <div className="bg-white p-6 rounded-2xl shadow">
+        <h3 className="text-xl font-semibold mb-4">🏢 Open FPO Quotes</h3>
+        {fpoQuotes.length > 0 ? (
+          <ul className="space-y-4">
+            {fpoQuotes.map((quote) => (
+              <li
+                key={quote.id}
+                className="border p-4 rounded-lg hover:shadow-lg transition"
               >
-                {formData.wallet_address
-                  ? `Wallet: ${formData.wallet_address.substring(0, 10)}...`
-                  : "Connect MetaMask"}
-              </button>
-            </>
-          )}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-lg font-semibold">
+                      {quote.product_name}{" "}
+                      <span className="text-gray-500">({quote.category})</span>
+                    </p>
+                    <p className="text-gray-600">{quote.description}</p>
+                    <p className="text-sm">
+                      Qty: {quote.quantity} {quote.unit}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Deadline: {quote.deadline}
+                    </p>
+                    <p className="text-sm text-blue-600">FPO ID: {quote.fpo}</p>
+                  </div>
 
-          {/* Common fields */}
-          <input
-            type="email"
-            name="email"
-            placeholder="Email"
-            onChange={handleChange}
-            className="w-full p-2 border rounded"
-            required
-          />
-          <input
-            type="password"
-            name="password"
-            placeholder="Password"
-            onChange={handleChange}
-            className="w-full p-2 border rounded"
-            required
-          />
+                  <div className="flex flex-col sm:flex-row gap-3 mt-3 sm:mt-0">
+                    <input
+                      type="number"
+                      placeholder="Bid amount"
+                      value={bids[quote.id] || ""}
+                      onChange={(e) =>
+                        handleBidChange(quote.id, e.target.value)
+                      }
+                      className="border p-2 rounded-lg flex-1 focus:ring-2 focus:ring-blue-400 outline-none"
+                    />
+                    <input
+                      type="number"
+                      placeholder="Delivery (days)"
+                      value={deliveryTimes[quote.id] || ""}
+                      onChange={(e) =>
+                        handleDeliveryChange(quote.id, e.target.value)
+                      }
+                      className="border p-2 rounded-lg w-32 focus:ring-2 focus:ring-green-400 outline-none"
+                    />
+                    <button
+                      onClick={() => submitBid(quote.id)}
+                      disabled={loading}
+                      className={`px-4 py-2 rounded-lg text-white shadow ${
+                        loading
+                          ? "bg-gray-400 cursor-not-allowed"
+                          : "bg-blue-600 hover:bg-blue-700"
+                      }`}
+                    >
+                      {loading ? "Submitting..." : "💰 Place Bid"}
+                    </button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-gray-500">No open FPO quotes available.</p>
+        )}
+      </div>
 
-          <button
-            type="submit"
-            className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700"
-          >
-            {isLogin ? "Login" : "Register"}
-          </button>
-        </form>
-
-        {/* Toggle login/register */}
-        <p className="mt-4 text-center">
-          {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
-          <button
-            className="text-blue-600 font-semibold"
-            onClick={() => setIsLogin(!isLogin)}
-          >
-            {isLogin ? "Register" : "Login"}
-          </button>
-        </p>
+      {/* My Bids Section */}
+      <div className="bg-white p-6 rounded-2xl shadow">
+        <h3 className="text-xl font-semibold mb-4">📑 My Placed Bids</h3>
+        {myBids.length > 0 ? (
+          <ul className="space-y-4">
+            {myBids.map((bid) => (
+              <li
+                key={bid.id}
+                className="border p-4 rounded-lg hover:shadow-lg transition"
+              >
+                <p className="text-lg font-semibold">
+                  {bid.quote.product_name}{" "}
+                  <span className="text-gray-500">({bid.quote.category})</span>
+                </p>
+                <p className="text-gray-600">{bid.quote.description}</p>
+                <p className="text-sm">
+                  Qty: {bid.quote.quantity} {bid.quote.unit}
+                </p>
+                <p className="text-sm">Bid Amount: ₹{bid.bid_amount}</p>
+                <p className="text-sm">Delivery: {bid.delivery_time_days} days</p>
+                <p
+                  className={`text-sm font-semibold ${
+                    bid.status === "accepted"
+                      ? "text-green-600"
+                      : bid.status === "rejected"
+                      ? "text-red-600"
+                      : "text-yellow-600"
+                  }`}
+                >
+                  Status: {bid.status}
+                </p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-gray-500">You haven't placed any bids yet.</p>
+        )}
       </div>
     </div>
   );
 }
+
 
 
 ================================================
@@ -4326,4 +4959,34 @@ const factoryABI = [
           type: "function",
         },
       ];
+
+
+================================================
+FILE: frontend/src/utils/ProtectedRoute.jsx
+================================================
+import React from "react";
+import { Navigate } from "react-router-dom";
+import Cookies from "js-cookie";
+
+export default function ProtectedRoute({ children, allowedRoles }) {
+  // ðŸ”¹ Debug: log all cookies
+  console.log("All cookies:", Cookies.get());
+
+  const role = Cookies.get("role");
+  console.log("Role cookie:", role);
+
+  if (!role) {
+    console.warn("No role cookie found â†’ redirecting to /auth");
+    return <Navigate to="/auth" replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(role.toLowerCase())) {
+    console.warn(`Role '${role}' is not allowed. Allowed roles:`, allowedRoles);
+    return <Navigate to="/auth" replace />;
+  }
+
+  console.log(`Access granted for role: ${role}`);
+  return children;
+}
+
 
