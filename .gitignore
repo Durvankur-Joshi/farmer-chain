@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+env/
+
+# Django
+db.sqlite3
+backend/db.sqlite3
+media/
+staticfiles/
+*.log
+
+# Environment variables
+.env
+.env.*
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-lock.yaml
+
+# Vite
+dist/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
