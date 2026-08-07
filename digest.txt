@@ -1,5 +1,6 @@
 Directory structure:
 └── farmerChain/
+    ├── render.yaml
     ├── backend/
     │   ├── manage.py
     │   ├── requirements.txt
@@ -66,7 +67,10 @@ Directory structure:
         ├── eslint.config.js
         ├── index.html
         ├── package.json
+        ├── vercel.json
         ├── vite.config.js
+        ├── public/
+        │   └── _redirects
         └── src/
             ├── App.css
             ├── App.jsx
@@ -81,6 +85,8 @@ Directory structure:
             │       ├── BidForm.jsx
             │       ├── FarmerQuotes.jsx
             │       └── RetailerQuotes.jsx
+            ├── contract/
+            │   └── Contract.jsx
             ├── pages/
             │   ├── AuthForm.jsx
             │   ├── admin/
@@ -95,6 +101,22 @@ Directory structure:
             └── utils/
                 ├── ABI.json
                 └── ProtectedRoute.jsx
+
+================================================
+FILE: render.yaml
+================================================
+services:
+  - type: static
+    name: farmerchain-frontend
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    publishDir: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+
 
 ================================================
 FILE: backend/manage.py
@@ -131,7 +153,10 @@ Django==5.2.4
 djangorestframework==3.16.0
 djangorestframework-simplejwt==5.5.0
 django-cors-headers==4.7.0
-
+web3
+python-dotenv
+pillow
+requests
 
 
 ================================================
@@ -497,15 +522,19 @@ if __name__ == "__main__":
 ================================================
 FILE: backend/admin_app/__init__.py
 ================================================
-
+[Empty file]
 
 
 ================================================
 FILE: backend/admin_app/admin.py
 ================================================
 from django.contrib import admin
+from .models import Admin
 
-# Register your models here.
+@admin.register(Admin)
+class AdminModelAdmin(admin.ModelAdmin):
+    list_display = ('username', 'wallet_address', 'created_at')
+    search_fields = ('username', 'wallet_address')
 
 
 
@@ -798,15 +827,26 @@ class IsAdminApp(BasePermission):
 ================================================
 FILE: backend/farmer/__init__.py
 ================================================
-
+[Empty file]
 
 
 ================================================
 FILE: backend/farmer/admin.py
 ================================================
 from django.contrib import admin
+from .models import Farmer, FarmerQuote
 
-# Register your models here.
+@admin.register(Farmer)
+class FarmerAdmin(admin.ModelAdmin):
+    list_display = ('name', 'email', 'approval_status', 'city', 'state', 'created_at')
+    list_filter = ('approval_status', 'state', 'city')
+    search_fields = ('name', 'email', 'aadhaar_number', 'wallet_address')
+
+@admin.register(FarmerQuote)
+class FarmerQuoteAdmin(admin.ModelAdmin):
+    list_display = ('product_name', 'farmer', 'quantity', 'unit', 'status', 'deadline')
+    list_filter = ('status', 'category')
+    search_fields = ('product_name', 'farmer__name')
 
 
 
@@ -860,6 +900,7 @@ class FarmerQuote(models.Model):
         ('closed', 'Closed'),
         ('awarded', 'Awarded'),
         ('accepted', 'Accepted'),
+        ('contract_created', 'Contract Created'),  # Add new status
     ]
     
     farmer = models.ForeignKey(Farmer, on_delete=models.CASCADE, related_name='quotes')
@@ -869,7 +910,7 @@ class FarmerQuote(models.Model):
     quantity = models.DecimalField(max_digits=10, decimal_places=2)
     unit = models.CharField(max_length=20, help_text="e.g., kg, quintal, ton")
     price_per_unit = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='open')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')  # Increased max_length
     deadline = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
     
@@ -880,6 +921,10 @@ class FarmerQuote(models.Model):
         blank=True,
         related_name='accepted_for_farmer_quote'
     )
+    
+    # Add contract fields
+    contract_address = models.CharField(max_length=42, blank=True, null=True)  # Ethereum address length
+    contract_created_at = models.DateTimeField(null=True, blank=True)
     
     def __str__(self):
         return f"{self.product_name} quote from {self.farmer.name}"
@@ -921,7 +966,7 @@ class FarmerQuoteSerializer(serializers.ModelSerializer):
             'id', 'farmer', 'product_name', 'category', 'description', 
             'quantity', 'unit', 'price_per_unit', 'status', 'deadline', 
             'created_at', 'accepted_bid', 'farmer_name', 'farmer_email',
-            'bids'
+            'bids', 'contract_address'
         ]
         read_only_fields = ('farmer', 'status', 'created_at', 'accepted_bid')
 
@@ -970,7 +1015,7 @@ FILE: backend/farmer/urls.py
 from django.urls import path
 from .views import (
     FarmerRegistrationView, FarmerListView, FarmerDetailView, farmer_login_check,
-    farmer_dashboard, FarmerQuoteListCreateView, FarmerQuoteDetailView, accept_fpo_bid
+    farmer_dashboard, FarmerQuoteListCreateView, FarmerQuoteDetailView, accept_fpo_bid, update_contract_address, get_contract_details
 )
 
 urlpatterns = [
@@ -982,6 +1027,8 @@ urlpatterns = [
     path('quotes/', FarmerQuoteListCreateView.as_view(), name='farmer-quote-list'),
     path('quotes/<int:pk>/', FarmerQuoteDetailView.as_view(), name='farmer-quote-detail'),
     path('bids/fpo/<int:bid_pk>/accept/', accept_fpo_bid, name='farmer-accept-fpo-bid'),
+    path('quotes/<int:quote_id>/update-contract/', update_contract_address, name='update-contract-address'),# he don aahet ha ani hecha khalcha
+    path('contract/<str:contract_address>/', get_contract_details, name='contract-details'),  # Public contract view
 ]
 
 
@@ -994,10 +1041,12 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
 from .models import Farmer, FarmerQuote
+from django.utils import timezone
 from .serializers import FarmerSerializer, FarmerRegistrationSerializer, FarmerQuoteSerializer
 from common.permissions import IsFarmer
 from fpo.models import FPOBid
 from fpo.serializers import FPOBidSerializer
+
 
 class FarmerRegistrationView(generics.CreateAPIView):
     queryset = Farmer.objects.all()
@@ -1104,25 +1153,87 @@ def accept_fpo_bid(request, bid_pk):
     bid.status = 'accepted'
     bid.save()
 
-    # Remove other bids from database (delete them)
-    quote.bids.exclude(pk=bid.pk).delete()
-    
-    # Update quote status to 'accepted' and set accepted bid
-    quote.status = 'accepted'  # or 'awarded' if you prefer that terminology
+    # Reject other bids
+    quote.bids.exclude(pk=bid.pk).update(status='rejected')
+
+    # Update quote status to 'accepted' (contract will be created in frontend)
+    quote.status = 'accepted'
     quote.accepted_bid = bid
     quote.save()
     
     return Response({
-        "message": "Bid accepted successfully. Other bids have been removed and quote is now closed.",
+        "message": "Bid accepted successfully. You can now create the smart contract.",
         "bid_id": bid.pk,
-        "quote_status": quote.status
+        "quote_id": quote.id,
+        "quote_status": quote.status,
+        "next_step": "create_smart_contract"  # Indicate next step
     })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsFarmer])
+def update_contract_address(request, quote_id):
+    """Update the contract address after smart contract creation"""
+    quote = get_object_or_404(FarmerQuote, id=quote_id)
+    
+    # Check if the farmer owns this quote
+    if quote.farmer != request.user.user_obj:
+        return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+    
+    contract_address = request.data.get('contract_address')
+    if not contract_address:
+        return Response({"error": "Contract address is required"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Validate Ethereum address format
+    if not contract_address.startswith('0x') or len(contract_address) != 42:
+        return Response({"error": "Invalid contract address format"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    quote.contract_address = contract_address
+    quote.status = 'contract_created'
+    quote.contract_created_at = timezone.now()
+    quote.save()
+    
+    return Response({
+        "message": "Contract address updated successfully",
+        "contract_address": contract_address,
+        "quote_id": quote.id
+    })
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])  # Public access
+def get_contract_details(request, contract_address):
+    """Get contract details for public viewing"""
+    quote = get_object_or_404(FarmerQuote, contract_address=contract_address)
+    
+    serializer = FarmerQuoteSerializer(quote)
+    
+    # Include additional contract information
+    response_data = {
+        'quote': serializer.data,
+        'contract_address': contract_address,
+        'farmer_info': {
+            'name': quote.farmer.name,
+            'location': f"{quote.farmer.city}, {quote.farmer.state}"
+        },
+        'fpo_info': None,
+        'retailer_info': None
+    }
+    
+    # If there's an accepted bid, include FPO info
+    if quote.accepted_bid:
+        response_data['fpo_info'] = {
+            'name': quote.accepted_bid.fpo.name,
+            'email': quote.accepted_bid.fpo.email
+        }
+    
+    return Response(response_data)
 
 
 ================================================
 FILE: backend/FarmerChain/__init__.py
 ================================================
-
+[Empty file]
 
 
 ================================================
@@ -1337,15 +1448,31 @@ application = get_wsgi_application()
 ================================================
 FILE: backend/fpo/__init__.py
 ================================================
-
+[Empty file]
 
 
 ================================================
 FILE: backend/fpo/admin.py
 ================================================
 from django.contrib import admin
+from .models import FPO, FPOBid, FPOQuote
 
-# Register your models here.
+@admin.register(FPO)
+class FPOAdmin(admin.ModelAdmin):
+    list_display = ('name', 'email', 'approval_status', 'city', 'state', 'created_at')
+    list_filter = ('approval_status', 'state', 'city')
+    search_fields = ('name', 'email', 'corporate_identification_number', 'wallet_address')
+
+@admin.register(FPOBid)
+class FPOBidAdmin(admin.ModelAdmin):
+    list_display = ('fpo', 'quote', 'bid_amount', 'status', 'payment_status', 'submitted_at')
+    list_filter = ('status', 'payment_status')
+
+@admin.register(FPOQuote)
+class FPOQuoteAdmin(admin.ModelAdmin):
+    list_display = ('product_name', 'fpo', 'quantity', 'unit', 'status', 'deadline')
+    list_filter = ('status', 'category')
+    search_fields = ('product_name', 'fpo__name')
 
 
 
@@ -1715,15 +1842,24 @@ def accept_retailer_bid(request, bid_pk):
 ================================================
 FILE: backend/negotiation/__init__.py
 ================================================
-
+[Empty file]
 
 
 ================================================
 FILE: backend/negotiation/admin.py
 ================================================
 from django.contrib import admin
+from .models import Negotiation, NegotiationMessage
 
-# Register your models here.
+@admin.register(Negotiation)
+class NegotiationAdmin(admin.ModelAdmin):
+    list_display = ('id', 'status', 'content_type', 'object_id', 'created_at')
+    list_filter = ('status', 'content_type')
+
+@admin.register(NegotiationMessage)
+class NegotiationMessageAdmin(admin.ModelAdmin):
+    list_display = ('negotiation', 'sender_role', 'sender_name', 'created_at')
+    list_filter = ('sender_role',)
 
 
 
@@ -1941,15 +2077,25 @@ class NegotiationDetailView(APIView):
 ================================================
 FILE: backend/retailer/__init__.py
 ================================================
-
+[Empty file]
 
 
 ================================================
 FILE: backend/retailer/admin.py
 ================================================
 from django.contrib import admin
+from .models import Retailer, RetailerBid
 
-# Register your models here.
+@admin.register(Retailer)
+class RetailerAdmin(admin.ModelAdmin):
+    list_display = ('name', 'email', 'approval_status', 'city', 'state', 'created_at')
+    list_filter = ('approval_status', 'state', 'city')
+    search_fields = ('name', 'email', 'gstin', 'wallet_address')
+
+@admin.register(RetailerBid)
+class RetailerBidAdmin(admin.ModelAdmin):
+    list_display = ('retailer', 'quote', 'bid_amount', 'status', 'payment_status', 'submitted_at')
+    list_filter = ('status', 'payment_status')
 
 
 
@@ -2215,7 +2361,12 @@ class RetailerBidCreateView(generics.CreateAPIView):
         quote = get_object_or_404(FPOQuote, pk=self.kwargs['quote_pk'])
         if quote.status != 'open':
             raise serializers.ValidationError("This quote is no longer open for bidding.")
-        serializer.save(retailer=self.request.user.user_obj, quote=quote)
+            
+        retailer = self.request.user.user_obj
+        if quote.bids.filter(retailer=retailer).exists():
+            raise serializers.ValidationError("You have already placed a bid on this quote.")
+            
+        serializer.save(retailer=retailer, quote=quote)
 
 class MyBidsListView(generics.ListAPIView):
     serializer_class = MyBidSerializer
@@ -2257,8 +2408,10 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         if role == "farmer":
             try:
                 user = Farmer.objects.get(email=user_identifier)
-                if user.approval_status != 'approved':
+                if user.approval_status == 'pending':
                     raise serializers.ValidationError("Account pending admin approval.")
+                elif user.approval_status == 'rejected':
+                    raise serializers.ValidationError("Account rejected by admin.")
                 user_data = {
                     'id': user.id,
                     'username': user.email,
@@ -2270,8 +2423,10 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         elif role == "fpo":
             try:
                 user = FPO.objects.get(email=user_identifier)
-                if user.approval_status != 'approved':
+                if user.approval_status == 'pending':
                     raise serializers.ValidationError("Account pending admin approval.")
+                elif user.approval_status == 'rejected':
+                    raise serializers.ValidationError("Account rejected by admin.")
                 user_data = {
                     'id': user.id,
                     'username': user.email,
@@ -2283,8 +2438,10 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         elif role == "retailer":
             try:
                 user = Retailer.objects.get(email=user_identifier)
-                if user.approval_status != 'approved':
+                if user.approval_status == 'pending':
                     raise serializers.ValidationError("Account pending admin approval.")
+                elif user.approval_status == 'rejected':
+                    raise serializers.ValidationError("Account rejected by admin.")
                 user_data = {
                     'id': user.id,
                     'username': user.email,
@@ -2416,9 +2573,15 @@ class CustomJWTAuthentication(JWTAuthentication):
         
         if not access_token:
             # Fall back to header for backward compatibility
-            return super().authenticate(request)
+            header = self.get_header(request)
+            if header is None:
+                return None
+            raw_token = self.get_raw_token(header)
+            if raw_token is None:
+                return None
+            access_token = raw_token
         
-        # Validate the token from cookie
+        # Validate the token
         try:
             validated_token = self.get_validated_token(access_token)
             user = self.get_user(validated_token)
@@ -2617,11 +2780,13 @@ FILE: frontend/package.json
     "axios": "^1.12.2",
     "ethers": "^5.8.0",
     "js-cookie": "^3.0.5",
+    "lucide-react": "^0.544.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.9.1",
-    "tailwindcss": "^4.1.13"
+    "tailwindcss": "^4.1.13",
+    "web3": "^4.16.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",
@@ -2639,6 +2804,17 @@ FILE: frontend/package.json
 
 
 ================================================
+FILE: frontend/vercel.json
+================================================
+{
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/" }
+  ]
+}
+
+
+
+================================================
 FILE: frontend/vite.config.js
 ================================================
 import { defineConfig } from 'vite'
@@ -2651,10 +2827,20 @@ export default defineConfig({
 
   server: {
     proxy: {
-      '/api': 'http://localhost:8000',
+        "/api": {
+            target: "http://127.0.0.1:8000",
+            changeOrigin: true,
+        },
     },
   },
 })
+
+
+
+================================================
+FILE: frontend/public/_redirects
+================================================
+/*    /index.html   200
 
 
 
@@ -2675,10 +2861,12 @@ import RetailerDashboard from "./pages/retailer/RetailerDashboard";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import ProtectedRoute from "./utils/ProtectedRoute";
 import AdminLogin from "./pages/admin/AdminLogin";
+import Contract from "./contract/Contract";
 
 function App() {
   return (
     <Routes>
+      <Route path="/contract/:address" element={<Contract/>} />
       <Route path="/auth" element={<AuthForm />} />
       <Route path="/admin" element={<AdminLogin/>} />
 
@@ -3142,6 +3330,8 @@ export default function FarmerQuotes() {
     try {
       await axios.post(`/api/fpo/quotes/farmer/${quoteId}/bids/`, {
         bid_amount: bidAmount[quoteId],
+        delivery_time_days:2
+        
       });
       alert("✅ Bid placed successfully!");
     } catch (err) {
@@ -3197,223 +3387,342 @@ export default function FarmerQuotes() {
 ================================================
 FILE: frontend/src/components/fpo/RetailerQuotes.jsx
 ================================================
-import React, { useState, useEffect } from "react";
-import axios from "axios";
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 1170: character maps to <undefined>
 
-export default function RetailerQuotes() {
-  const [quotes, setQuotes] = useState([]);
-  const [form, setForm] = useState({
-    product_name: "",
-    category: "",
-    quantity: "",
-    unit: "",
-    price_per_unit: "",
-    deadline: "",
-    description: "",
-  });
-  const [expandedQuote, setExpandedQuote] = useState(null); // to toggle bids view
 
-  const fetchRetailerQuotes = async () => {
-    try {
-      const res = await axios.get("/api/fpo/quotes/", {
-        withCredentials: true,
-      });
-      console.log("Fetched retailer quotes:", res.data);
-      setQuotes(res.data);
-    } catch (err) {
-      console.error("Error fetching retailer quotes:", err);
-    }
-  };
+================================================
+FILE: frontend/src/contract/Contract.jsx
+================================================
+import React, { useEffect, useState } from "react";
+import Web3 from "web3";
+import { useParams } from "react-router-dom";
+import { Package, MapPin, DollarSign, CheckCircle, XCircle, User, Building2, Store } from "lucide-react";
 
-  const acceptBid = async (bidId) => {
-    try {
-      await axios.post(
-        `/api/fpo/bids/retailer/${bidId}/accept/`,
-        {},
-        { withCredentials: true }
-      );
-      alert("✅ Bid accepted!");
-      fetchRetailerQuotes(); // refresh quotes so accepted_bid + bids update
-    } catch (err) {
-      console.error("Error accepting bid:", err);
-      alert("❌ Failed to accept bid");
-    }
-  };
+const farmerContractABI = [
+  {
+    inputs: [],
+    name: "farmerDetails",
+    outputs: [
+      { name: "farmerName", type: "string" },
+      { name: "location", type: "string" },
+      { name: "cropType", type: "string" },
+      { name: "quantity", type: "uint256" },
+      { name: "totalPrice", type: "uint256" },
+      { name: "farmerWallet", type: "address" },
+      { name: "isSold", type: "bool" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "fpoDetails",
+    outputs: [
+      { name: "fpoName", type: "string" },
+      { name: "fpoLocation", type: "string" },
+      { name: "agmarkNumber", type: "string" },
+      { name: "fssaiLicenseNumber", type: "string" },
+      { name: "agreedPrice", type: "uint256" },
+      { name: "fpoWallet", type: "address" },
+      { name: "hasPaid", type: "bool" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "retailerDetails",
+    outputs: [
+      { name: "retailerName", type: "string" },
+      { name: "retailerLocation", type: "string" },
+      { name: "agreedPrice", type: "uint256" },
+      { name: "retailerWallet", type: "address" },
+      { name: "hasPaid", type: "bool" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+];
+
+export default function Contract() {
+  const { address } = useParams();
+  const CONTRACT_ADDRESS = address;
+  const [web3, setWeb3] = useState(null);
+  const [contract, setContract] = useState(null);
+  const [farmer, setFarmer] = useState(null);
+  const [fpo, setFpo] = useState(null);
+  const [retailer, setRetailer] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchRetailerQuotes();
+    const init = async () => {
+      if (window.ethereum) {
+        try {
+          const web3Instance = new Web3(window.ethereum);
+          setWeb3(web3Instance);
+
+          const c = new web3Instance.eth.Contract(farmerContractABI, CONTRACT_ADDRESS);
+          setContract(c);
+
+          const farmerData = await c.methods.farmerDetails().call();
+          const fpoData = await c.methods.fpoDetails().call();
+          const retailerData = await c.methods.retailerDetails().call();
+
+          setFarmer(farmerData);
+          setFpo(fpoData);
+          setRetailer(retailerData);
+        } catch (error) {
+          console.error("Error loading contract data:", error);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        alert("Please install MetaMask!");
+        setLoading(false);
+      }
+    };
+    init();
   }, []);
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const submitQuote = async (e) => {
-    e.preventDefault();
-    try {
-      await axios.post("/api/fpo/quotes/", form, { withCredentials: true });
-      alert("✅ Quote submitted to retailers!");
-      fetchRetailerQuotes();
-      setForm({
-        product_name: "",
-        category: "",
-        quantity: "",
-        unit: "",
-        price_per_unit: "",
-        deadline: "",
-        description: "",
-      });
-    } catch (err) {
-      console.error("Error submitting retailer quote:", err);
-      alert("❌ Failed to submit quote");
-    }
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-green-500 border-t-transparent"></div>
+          <p className="mt-4 text-gray-600 font-medium">Loading contract data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow">
-      <h2 className="text-xl font-bold mb-4">🛒 Retailer Quotes</h2>
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 py-8 px-4">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-10">
+          <h1 className="text-4xl font-bold text-gray-800 mb-2">Supply Chain Dashboard</h1>
+          <p className="text-gray-600">Blockchain-powered transparency for agricultural supply chain</p>
+          <div className="mt-4 inline-block bg-white px-4 py-2 rounded-full shadow-sm">
+            <code className="text-xs text-gray-500 font-mono">{CONTRACT_ADDRESS}</code>
+          </div>
+        </div>
 
-      {/* Form */}
-      <form onSubmit={submitQuote} className="space-y-3 mb-6">
-        <input
-          name="product_name"
-          placeholder="Product Name"
-          value={form.product_name}
-          onChange={handleChange}
-          className="border p-2 w-full rounded"
-          required
-        />
-        <input
-          name="category"
-          placeholder="Category"
-          value={form.category}
-          onChange={handleChange}
-          className="border p-2 w-full rounded"
-          required
-        />
-        <input
-          name="quantity"
-          type="number"
-          placeholder="Quantity"
-          value={form.quantity}
-          onChange={handleChange}
-          className="border p-2 w-full rounded"
-          required
-        />
-        <input
-          name="unit"
-          placeholder="Unit (kg, ton, etc.)"
-          value={form.unit}
-          onChange={handleChange}
-          className="border p-2 w-full rounded"
-          required
-        />
-        <input
-          name="price_per_unit"
-          type="number"
-          placeholder="Price per Unit"
-          value={form.price_per_unit}
-          onChange={handleChange}
-          className="border p-2 w-full rounded"
-          required
-        />
-        <input
-          name="deadline"
-          type="date"
-          value={form.deadline}
-          onChange={handleChange}
-          className="border p-2 w-full rounded"
-          required
-        />
-        <textarea
-          name="description"
-          placeholder="Description"
-          value={form.description}
-          onChange={handleChange}
-          className="border p-2 w-full rounded"
-        />
-        <button
-          type="submit"
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-        >
-          Submit Quote
-        </button>
-      </form>
-
-      {/* Quotes */}
-      {quotes.length > 0 ? (
-        <ul className="space-y-3">
-          {quotes.map((q) => (
-            <li key={q.id} className="border p-3 rounded-lg">
-              <p>
-                <strong>{q.product_name}</strong> ({q.category})
+        {/* Status Timeline */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+          <div className="flex items-center justify-between relative">
+            <div className="absolute top-6 left-0 right-0 h-1 bg-gray-200 -z-10"></div>
+            <div className="flex-1 text-center relative">
+              <div className="w-12 h-12 rounded-full bg-green-500 text-white flex items-center justify-center mx-auto mb-2 shadow-lg">
+                <User className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-semibold text-gray-800">Farmer</p>
+              <p className="text-xs text-green-600 mt-1">Active</p>
+            </div>
+            <div className="flex-1 text-center relative">
+              <div className={`w-12 h-12 rounded-full ${fpo && fpo.fpoWallet !== "0x0000000000000000000000000000000000000000" ? 'bg-blue-500' : 'bg-gray-300'} text-white flex items-center justify-center mx-auto mb-2 shadow-lg`}>
+                <Building2 className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-semibold text-gray-800">FPO</p>
+              <p className={`text-xs mt-1 ${fpo && fpo.fpoWallet !== "0x0000000000000000000000000000000000000000" ? 'text-blue-600' : 'text-gray-400'}`}>
+                {fpo && fpo.fpoWallet !== "0x0000000000000000000000000000000000000000" ? 'Registered' : 'Pending'}
               </p>
-              <p>
-                Qty: {q.quantity} {q.unit}
+            </div>
+            <div className="flex-1 text-center relative">
+              <div className={`w-12 h-12 rounded-full ${retailer && retailer.retailerWallet !== "0x0000000000000000000000000000000000000000" ? 'bg-purple-500' : 'bg-gray-300'} text-white flex items-center justify-center mx-auto mb-2 shadow-lg`}>
+                <Store className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-semibold text-gray-800">Retailer</p>
+              <p className={`text-xs mt-1 ${retailer && retailer.retailerWallet !== "0x0000000000000000000000000000000000000000" ? 'text-purple-600' : 'text-gray-400'}`}>
+                {retailer && retailer.retailerWallet !== "0x0000000000000000000000000000000000000000" ? 'Registered' : 'Pending'}
               </p>
-              <p>
-                Price: {q.price_per_unit} per {q.unit}
-              </p>
-              <p>Deadline: {q.deadline}</p>
-              <p className="text-sm text-gray-500">{q.description}</p>
+            </div>
+          </div>
+        </div>
 
-              {/* Toggle bids */}
-              <button
-                onClick={() =>
-                  setExpandedQuote(expandedQuote === q.id ? null : q.id)
-                }
-                className="mt-2 text-sm bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
-              >
-                {expandedQuote === q.id ? "Hide Bids" : "Show Bids"}
-              </button>
-
-              {/* Bids list */}
-              {expandedQuote === q.id && (
-                <div className="mt-3 border-t pt-3">
-                  {q.bids.length > 0 ? (
-                    <ul className="space-y-2">
-                      {q.bids.map((b) => (
-                        <li
-                          key={b.id}
-                          className="border p-2 rounded flex justify-between items-center"
-                        >
-                          <div>
-                            <p>
-                              <strong>{b.retailer_name}</strong> ({b.retailer_email})
-                            </p>
-                            <p>
-                              Offered: {b.price} per {b.unit} | Qty: {b.quantity}
-                            </p>
-                            <p className="text-sm text-gray-500">{b.note}</p>
-                          </div>
-                          {q.accepted_bid === b.id ? (
-                            <p className="text-green-600 font-medium">✅ Accepted</p>
-                          ) : (
-                            <button
-                              onClick={() => acceptBid(b.id)}
-                              className="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
-                            >
-                              Accept Bid
-                            </button>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-gray-500">No bids yet for this quote.</p>
-                  )}
+        {/* Cards Grid */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Farmer Card */}
+          {farmer && (
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
+              <div className="bg-gradient-to-r from-green-500 to-green-600 p-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-white">Farmer Details</h2>
+                  <User className="w-6 h-6 text-white" />
                 </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-gray-500">No retailer quotes submitted yet.</p>
-      )}
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="flex items-start">
+                  <User className="w-5 h-5 text-gray-400 mt-0.5 mr-3 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Name</p>
+                    <p className="text-gray-800 font-semibold">{farmer.farmerName}</p>
+                  </div>
+                </div>
+                <div className="flex items-start">
+                  <MapPin className="w-5 h-5 text-gray-400 mt-0.5 mr-3 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Location</p>
+                    <p className="text-gray-800 font-semibold">{farmer.location}</p>
+                  </div>
+                </div>
+                <div className="flex items-start">
+                  <Package className="w-5 h-5 text-gray-400 mt-0.5 mr-3 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Crop Type</p>
+                    <p className="text-gray-800 font-semibold">{farmer.cropType}</p>
+                  </div>
+                </div>
+                <div className="flex items-start">
+                  <Package className="w-5 h-5 text-gray-400 mt-0.5 mr-3 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Quantity</p>
+                    <p className="text-gray-800 font-semibold">{farmer.quantity.toString()} units</p>
+                  </div>
+                </div>
+                <div className="flex items-start">
+                  <DollarSign className="w-5 h-5 text-gray-400 mt-0.5 mr-3 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Total Price</p>
+                    <p className="text-2xl text-green-600 font-bold">{web3.utils.fromWei(farmer.totalPrice, "ether")} ETH</p>
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-gray-200">
+                  <div className="flex items-center">
+                    {farmer.isSold ? (
+                      <>
+                        <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                        <span className="text-sm text-green-600 font-semibold">Sold</span>
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="w-5 h-5 text-amber-500 mr-2" />
+                        <span className="text-sm text-amber-600 font-semibold">Available</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* FPO Card */}
+          {fpo && fpo.fpoWallet !== "0x0000000000000000000000000000000000000000" && (
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
+              <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-white">FPO Details</h2>
+                  <Building2 className="w-6 h-6 text-white" />
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="flex items-start">
+                  <Building2 className="w-5 h-5 text-gray-400 mt-0.5 mr-3 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Organization</p>
+                    <p className="text-gray-800 font-semibold">{fpo.fpoName}</p>
+                  </div>
+                </div>
+                <div className="flex items-start">
+                  <MapPin className="w-5 h-5 text-gray-400 mt-0.5 mr-3 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Location</p>
+                    <p className="text-gray-800 font-semibold">{fpo.fpoLocation}</p>
+                  </div>
+                </div>
+                <div className="flex items-start">
+                  <Package className="w-5 h-5 text-gray-400 mt-0.5 mr-3 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Agmark Number</p>
+                    <p className="text-gray-800 font-semibold">{fpo.agmarkNumber}</p>
+                  </div>
+                </div>
+                <div className="flex items-start">
+                  <Package className="w-5 h-5 text-gray-400 mt-0.5 mr-3 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">FSSAI License</p>
+                    <p className="text-gray-800 font-semibold">{fpo.fssaiLicenseNumber}</p>
+                  </div>
+                </div>
+                <div className="flex items-start">
+                  <DollarSign className="w-5 h-5 text-gray-400 mt-0.5 mr-3 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Agreed Price</p>
+                    <p className="text-2xl text-blue-600 font-bold">{web3.utils.fromWei(fpo.agreedPrice, "ether")} ETH</p>
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-gray-200">
+                  <div className="flex items-center">
+                    {fpo.hasPaid ? (
+                      <>
+                        <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                        <span className="text-sm text-green-600 font-semibold">Payment Completed</span>
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="w-5 h-5 text-amber-500 mr-2" />
+                        <span className="text-sm text-amber-600 font-semibold">Payment Pending</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Retailer Card */}
+          {retailer && retailer.retailerWallet !== "0x0000000000000000000000000000000000000000" && (
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
+              <div className="bg-gradient-to-r from-purple-500 to-purple-600 p-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-white">Retailer Details</h2>
+                  <Store className="w-6 h-6 text-white" />
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="flex items-start">
+                  <Store className="w-5 h-5 text-gray-400 mt-0.5 mr-3 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Retailer Name</p>
+                    <p className="text-gray-800 font-semibold">{retailer.retailerName}</p>
+                  </div>
+                </div>
+                <div className="flex items-start">
+                  <MapPin className="w-5 h-5 text-gray-400 mt-0.5 mr-3 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Location</p>
+                    <p className="text-gray-800 font-semibold">{retailer.retailerLocation}</p>
+                  </div>
+                </div>
+                <div className="flex items-start">
+                  <DollarSign className="w-5 h-5 text-gray-400 mt-0.5 mr-3 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Agreed Price</p>
+                    <p className="text-2xl text-purple-600 font-bold">{web3.utils.fromWei(retailer.agreedPrice, "ether")} ETH</p>
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-gray-200">
+                  <div className="flex items-center">
+                    {retailer.hasPaid ? (
+                      <>
+                        <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                        <span className="text-sm text-green-600 font-semibold">Payment Completed</span>
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="w-5 h-5 text-amber-500 mr-2" />
+                        <span className="text-sm text-amber-600 font-semibold">Payment Pending</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
-
 
 
 ================================================
@@ -3515,7 +3824,9 @@ export default function AuthForm() {
       console.error("Error:", err.response?.data || err.message);
       const errorMsg = err.response?.data?.error || err.message;
       if (errorMsg.includes("Account pending admin approval")) {
-        setPendingApproval(true);
+        setPendingApproval("pending");
+      } else if (errorMsg.includes("Account rejected")) {
+        setPendingApproval("rejected");
       } else {
         alert("Error! Check console.");
       }
@@ -3525,11 +3836,15 @@ export default function AuthForm() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       {pendingApproval && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg w-80 text-center">
-            <h3 className="text-lg font-bold mb-2">Pending Approval</h3>
+            <h3 className="text-lg font-bold mb-2">
+              {pendingApproval === "pending" ? "Pending Approval" : "Account Rejected"}
+            </h3>
             <p className="mb-4">
-              Your account is pending admin approval. Please try again later.
+              {pendingApproval === "pending"
+                ? "Your account is pending admin approval. Please try again later."
+                : "Your account has been rejected by the admin. Please contact support."}
             </p>
             <button
               onClick={() => setPendingApproval(false)}
@@ -3674,689 +3989,38 @@ export default function AuthForm() {
 ================================================
 FILE: frontend/src/pages/admin/AdminDashboard.jsx
 ================================================
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { ethers } from "ethers";
-import axios from "axios";
-import Cookies from "js-cookie";
-
-export default function AdminDashboard() {
-  const navigate = useNavigate();
-  const [wallet, setWallet] = useState("");
-  const [status, setStatus] = useState("");
-  const [loadingTx, setLoadingTx] = useState(false);
-  const [pending, setPending] = useState({
-    farmers: [],
-    fpos: [],
-    retailers: [],
-  });
-
-  // Contract + Admin
-  const contractAddress = "0x7022b2D5462cBE3785FF5359E19f18eD396D8397";
-  const ADMIN_ADDRESS = "0xAd91CE97681d52fE448a71E6556DdECc16f12B2E";
-
-  // ABI from whitelist.html
-  const factoryABI = [
-    /* paste ABI here */
-
-    {
-      inputs: [
-        { internalType: "string", name: "_farmerName", type: "string" },
-        { internalType: "string", name: "_location", type: "string" },
-        { internalType: "string", name: "_cropType", type: "string" },
-        { internalType: "uint256", name: "_quantity", type: "uint256" },
-        { internalType: "uint256", name: "_totalPrice", type: "uint256" },
-      ],
-      name: "createFarmerContract",
-      outputs: [{ internalType: "address", name: "", type: "address" }],
-      stateMutability: "nonpayable",
-      type: "function",
-    },
-
-    // Events
-    {
-      anonymous: false,
-      inputs: [
-        {
-          indexed: true,
-          internalType: "address",
-          name: "contractAddress",
-          type: "address",
-        },
-        {
-          indexed: true,
-          internalType: "address",
-          name: "farmer",
-          type: "address",
-        },
-      ],
-      name: "NewFarmerContract",
-      type: "event",
-    },
-
-    // Whitelisting
-    {
-      inputs: [{ internalType: "address", name: "_farmer", type: "address" }],
-      name: "whitelistFarmer",
-      outputs: [],
-      stateMutability: "nonpayable",
-      type: "function",
-    },
-    {
-      inputs: [{ internalType: "address", name: "_fpo", type: "address" }],
-      name: "whitelistFPO",
-      outputs: [],
-      stateMutability: "nonpayable",
-      type: "function",
-    },
-    {
-      inputs: [{ internalType: "address", name: "_retailer", type: "address" }],
-      name: "whitelistRetailer",
-      outputs: [],
-      stateMutability: "nonpayable",
-      type: "function",
-    },
-    {
-      inputs: [
-        { internalType: "address", name: "_account", type: "address" },
-        { internalType: "string", name: "_role", type: "string" },
-      ],
-      name: "removeFromWhitelist",
-      outputs: [],
-      stateMutability: "nonpayable",
-      type: "function",
-    },
-    {
-      inputs: [{ internalType: "address", name: "_farmer", type: "address" }],
-      name: "isFarmerWhitelisted",
-      outputs: [{ internalType: "bool", name: "", type: "bool" }],
-      stateMutability: "view",
-      type: "function",
-    },
-    {
-      inputs: [{ internalType: "address", name: "_fpo", type: "address" }],
-      name: "isFPOWhitelisted",
-      outputs: [{ internalType: "bool", name: "", type: "bool" }],
-      stateMutability: "view",
-      type: "function",
-    },
-    {
-      inputs: [{ internalType: "address", name: "_retailer", type: "address" }],
-      name: "isRetailerWhitelisted",
-      outputs: [{ internalType: "bool", name: "", type: "bool" }],
-      stateMutability: "view",
-      type: "function",
-    },
-
-    // Deployed contracts
-    {
-      inputs: [],
-      name: "getDeployedContracts",
-      outputs: [{ internalType: "address[]", name: "", type: "address[]" }],
-      stateMutability: "view",
-      type: "function",
-    },
-    {
-      inputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-      name: "deployedContracts",
-      outputs: [{ internalType: "address", name: "", type: "address" }],
-      stateMutability: "view",
-      type: "function",
-    },
-
-    // Child contract details
-    {
-      inputs: [{ internalType: "address", name: "_contract", type: "address" }],
-      name: "getFarmerDetails",
-      outputs: [
-        { internalType: "string", name: "name", type: "string" },
-        { internalType: "string", name: "location", type: "string" },
-        { internalType: "string", name: "cropType", type: "string" },
-        { internalType: "uint256", name: "quantity", type: "uint256" },
-        { internalType: "uint256", name: "totalPrice", type: "uint256" },
-        { internalType: "address", name: "wallet", type: "address" },
-        { internalType: "bool", name: "isSold", type: "bool" },
-      ],
-      stateMutability: "view",
-      type: "function",
-    },
-    {
-      inputs: [{ internalType: "address", name: "_contract", type: "address" }],
-      name: "getFpoDetails",
-      outputs: [
-        { internalType: "string", name: "name", type: "string" },
-        { internalType: "string", name: "location", type: "string" },
-        { internalType: "string", name: "agmark", type: "string" },
-        { internalType: "string", name: "fssai", type: "string" },
-        { internalType: "uint256", name: "agreedPrice", type: "uint256" },
-        { internalType: "address", name: "wallet", type: "address" },
-        { internalType: "bool", name: "hasPaid", type: "bool" },
-      ],
-      stateMutability: "view",
-      type: "function",
-    },
-    {
-      inputs: [{ internalType: "address", name: "_contract", type: "address" }],
-      name: "getRetailerDetails",
-      outputs: [
-        { internalType: "string", name: "name", type: "string" },
-        { internalType: "string", name: "location", type: "string" },
-        { internalType: "uint256", name: "agreedPrice", type: "uint256" },
-        { internalType: "address", name: "wallet", type: "address" },
-        { internalType: "bool", name: "hasPaid", type: "bool" },
-      ],
-      stateMutability: "view",
-      type: "function",
-    },
-    {
-      inputs: [{ internalType: "address", name: "_contract", type: "address" }],
-      name: "getContractStatus",
-      outputs: [
-        { internalType: "bool", name: "funded", type: "bool" },
-        { internalType: "bool", name: "released", type: "bool" },
-        { internalType: "bool", name: "sold", type: "bool" },
-        { internalType: "bool", name: "retailerRegistered", type: "bool" },
-        { internalType: "bool", name: "retailerFunded", type: "bool" },
-        { internalType: "bool", name: "retailerReleased", type: "bool" },
-      ],
-      stateMutability: "view",
-      type: "function",
-    },
-
-    // Restored helper functions
-    {
-      inputs: [],
-      name: "getAllFarmers",
-      outputs: [
-        { internalType: "string[]", name: "names", type: "string[]" },
-        { internalType: "address[]", name: "contracts", type: "address[]" },
-      ],
-      stateMutability: "view",
-      type: "function",
-    },
-    {
-      inputs: [],
-      name: "getAllFPOs",
-      outputs: [
-        { internalType: "string[]", name: "names", type: "string[]" },
-        { internalType: "address[]", name: "wallets", type: "address[]" },
-      ],
-      stateMutability: "view",
-      type: "function",
-    },
-    {
-      inputs: [],
-      name: "getAllRetailers",
-      outputs: [
-        { internalType: "string[]", name: "names", type: "string[]" },
-        { internalType: "address[]", name: "wallets", type: "address[]" },
-      ],
-      stateMutability: "view",
-      type: "function",
-    },
-    {
-      inputs: [{ internalType: "address", name: "_contract", type: "address" }],
-      name: "getPriceFlow",
-      outputs: [
-        { internalType: "uint256", name: "farmerPrice", type: "uint256" },
-        { internalType: "uint256", name: "fpoPrice", type: "uint256" },
-        { internalType: "uint256", name: "retailerPrice", type: "uint256" },
-      ],
-      stateMutability: "view",
-      type: "function",
-    },
-  ];
-
-  // Always use Sepolia RPC for reads
-  // const sepoliaProvider = new ethers.providers.JsonRpcProvider("https://rpc.sepolia.org");
-
-  // Get contract with read-only provider
-
-  useEffect(() => {
-    axios.defaults.withCredentials = true;
-  }, []);
-
-  // Get contract with read-only provider
-  const contractRead = new ethers.Contract(contractAddress, factoryABI);
-
-  // For writes we still use signer from MetaMask (but force Sepolia first)
-  const getWriteContract = async () => {
-    await switchToSepolia();
-    const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
-    const signer = web3Provider.getSigner();
-    return new ethers.Contract(contractAddress, factoryABI, signer);
-  };
-
-  const getContract = (signerOrProvider) =>
-    new ethers.Contract(contractAddress, factoryABI, signerOrProvider);
-
-  // Helper: force MetaMask to Sepolia
-  const switchToSepolia = async () => {
-    if (!window.ethereum) {
-      setStatus("MetaMask not found!");
-      return;
-    }
-    try {
-      await window.ethereum.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: "0xaa36a7" }], // Sepolia chainId
-      });
-      setStatus("✅ Connected to Sepolia");
-    } catch (switchError) {
-      if (switchError.code === 4902) {
-        try {
-          await window.ethereum.request({
-            method: "wallet_addEthereumChain",
-            params: [
-              {
-                chainId: "0xaa36a7", // Sepolia
-                chainName: "Sepolia Test Network",
-                nativeCurrency: {
-                  name: "SepoliaETH",
-                  symbol: "ETH",
-                  decimals: 18,
-                },
-                rpcUrls: ["https://rpc.sepolia.org"],
-                blockExplorerUrls: ["https://sepolia.etherscan.io"],
-              },
-            ],
-          });
-          setStatus("✅ Sepolia added and connected");
-        } catch (addError) {
-          setStatus("❌ Failed to add Sepolia");
-        }
-      }
-    }
-  };
-
-  // Connect MetaMask (always Sepolia)
-  const connectWallet = async () => {
-    if (!window.ethereum) return setStatus("Install MetaMask!");
-    try {
-      await switchToSepolia(); // ⬅️ force Sepolia first
-
-      const accounts = await window.ethereum.request({
-        method: "eth_requestAccounts",
-      });
-      const account = accounts[0];
-      setWallet(account);
-
-      if (account.toLowerCase() === ADMIN_ADDRESS.toLowerCase()) {
-        setStatus("✅ Connected as Admin (Sepolia)");
-      } else {
-        setStatus("❌ Not admin address");
-      }
-    } catch (e) {
-      setStatus("❌ Wallet connection failed");
-    }
-  };
-
-  // Fetch pending registrations from backend
-  const fetchPending = async () => {
-    try {
-      // No need to manually get token from localStorage - cookies are sent automatically
-      const res = await axios.get("/api/admin/pending-registrations/", {
-        withCredentials: true,
-      });
-      console.log(res.data);
-
-      setPending(res.data);
-    } catch (err) {
-      setStatus("Error fetching pending registrations");
-    }
-  };
-
-  useEffect(() => {
-    fetchPending();
-  }, []);
-
-  // Handle transaction lifecycle
-  const handleTx = async (tx, successMsg) => {
-    try {
-      setLoadingTx(true);
-      setStatus(`⏳ Transaction sent: ${tx.hash}`);
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const receipt = await provider.waitForTransaction(tx.hash);
-      if (receipt.status === 1) {
-        setStatus(`✅ ${successMsg} (Block: ${receipt.blockNumber})`);
-        fetchPending(); // refresh list
-      } else {
-        setStatus("❌ Transaction failed");
-      }
-    } catch (err) {
-      setStatus("Error: " + err.message);
-    } finally {
-      setLoadingTx(false);
-    }
-  };
-
-  // Approve + Whitelist
- const approve = async (role, id, addr) => {
-    try {
-      // No need to manually get token - cookies are sent automatically
-      const contract = await getWriteContract();
-      let tx;
-      if (role === "Farmer") tx = await contract.whitelistFarmer(addr);
-      if (role === "FPO") tx = await contract.whitelistFPO(addr);
-      if (role === "Retailer") tx = await contract.whitelistRetailer(addr);
-
-      await handleTx(tx, `${role} approved & whitelisted`);
-
-      // Backend approve - cookies are sent automatically
-      await axios.post(
-        `/api/admin/approve-${role.toLowerCase()}/${id}/`,
-        {},
-        { withCredentials: true }
-      );
-    } catch (err) {
-      setStatus("Error approving " + role + ": " + err.message);
-    }
-  };
-
-  const reject = async (role, id) => {
-    try {
-      await axios.post(
-        `/api/admin/reject-${role.toLowerCase()}/${id}/`,
-        {},
-        { withCredentials: true }
-      );
-      setStatus(`❌ Rejected ${role}`);
-      fetchPending();
-    } catch (err) {
-      setStatus("Error rejecting " + role + ": " + err.message);
-    }
-  };
-
-  // Logout
-    const logout = async () => {
-    try {
-      // Call backend logout endpoint to clear cookies
-      await axios.post("/api/logout/", {}, { withCredentials: true });
-    } catch (err) {
-      console.error("Logout error:", err);
-    } finally {
-      // Clear any remaining cookies on frontend
-      Cookies.remove('access');
-      Cookies.remove('refresh');
-      navigate("/");
-    }
-  };
-
-  return (
-    <div className="p-6 max-w-5xl mx-auto bg-white shadow-lg rounded-xl min-h-screen">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">🌾 Admin Dashboard</h2>
-        <button
-          onClick={logout}
-          className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-        >
-          Logout
-        </button>
-      </div>
-
-      {/* Wallet + Contract Info */}
-      <div className="bg-blue-100 p-3 rounded mb-4 text-center">
-        <p>
-          <strong>Admin Address:</strong> {ADMIN_ADDRESS}
-        </p>
-        <p>
-          <strong>Contract:</strong> {contractAddress}
-        </p>
-        <p>
-          <strong>Connected Wallet:</strong> {wallet || "Not connected yet"}
-        </p>
-      </div>
-      <button
-        onClick={connectWallet}
-        className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded mb-6"
-      >
-        Connect MetaMask
-      </button>
-
-      {/* Pending Farmers */}
-      <div className="mb-6">
-        <h3 className="text-xl font-semibold mb-2">👨‍🌾 Pending Farmers</h3>
-        {pending.farmers.length === 0 ? (
-          <p className="text-gray-500">No pending farmers</p>
-        ) : (
-          pending.farmers.map((f) => (
-            <div
-              key={f.id}
-              className="flex justify-between items-center border p-3 rounded mb-2"
-            >
-              <div>
-                <p>
-                  <strong>{f.name}</strong> ({f.email})
-                </p>
-                <p className="text-sm text-gray-500">{f.wallet_address}</p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  disabled={loadingTx}
-                  onClick={() => approve("Farmer", f.id, f.wallet_address)}
-                  className="bg-green-600 text-white px-3 py-1 rounded"
-                >
-                  Approve
-                </button>
-                <button
-                  onClick={() => reject("Farmer", f.id)}
-                  className="bg-red-600 text-white px-3 py-1 rounded"
-                >
-                  Reject
-                </button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Pending FPOs */}
-      <div className="mb-6">
-        <h3 className="text-xl font-semibold mb-2">🏢 Pending FPOs</h3>
-        {pending.fpos.length === 0 ? (
-          <p className="text-gray-500">No pending FPOs</p>
-        ) : (
-          pending.fpos.map((f) => (
-            <div
-              key={f.id}
-              className="flex justify-between items-center border p-3 rounded mb-2"
-            >
-              <div>
-                <p>
-                  <strong>{f.name}</strong> ({f.email})
-                </p>
-                <p className="text-sm text-gray-500">{f.wallet_address}</p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  disabled={loadingTx}
-                  onClick={() => approve("FPO", f.id, f.wallet_address)}
-                  className="bg-green-600 text-white px-3 py-1 rounded"
-                >
-                  Approve
-                </button>
-                <button
-                  onClick={() => reject("FPO", f.id)}
-                  className="bg-red-600 text-white px-3 py-1 rounded"
-                >
-                  Reject
-                </button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Pending Retailers */}
-      <div className="mb-6">
-        <h3 className="text-xl font-semibold mb-2">🛒 Pending Retailers</h3>
-        {pending.retailers.length === 0 ? (
-          <p className="text-gray-500">No pending retailers</p>
-        ) : (
-          pending.retailers.map((r) => (
-            <div
-              key={r.id}
-              className="flex justify-between items-center border p-3 rounded mb-2"
-            >
-              <div>
-                <p>
-                  <strong>{r.name}</strong> ({r.email})
-                </p>
-                <p className="text-sm text-gray-500">{r.wallet_address}</p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  disabled={loadingTx}
-                  onClick={() => approve("Retailer", r.id, r.wallet_address)}
-                  className="bg-green-600 text-white px-3 py-1 rounded"
-                >
-                  Approve
-                </button>
-                <button
-                  onClick={() => reject("Retailer", r.id)}
-                  className="bg-red-600 text-white px-3 py-1 rounded"
-                >
-                  Reject
-                </button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Status */}
-      {status && (
-        <div className="p-3 mt-4 rounded text-center bg-gray-100">{status}</div>
-      )}
-    </div>
-  );
-}
-
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 10018: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/pages/admin/AdminLogin.jsx
 ================================================
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import axios from "axios";
-
-export default function AdminLogin() {
-  const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    username: "",
-    email: "",
-    password: "",
-    role: "admin",
-  });
-  const [status, setStatus] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleChange = (e) =>
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setStatus("");
-    setLoading(true);
-    
-    try {
-      // Configure axios to use cookies
-      axios.defaults.withCredentials = true;
-      
-      const res = await axios.post("/api/token/", formData, {
-        withCredentials: true
-      });
-
-      // Tokens are automatically stored in cookies by the browser
-      // No need to manually store them
-      
-      navigate("/admin-dashboard");
-    } catch (err) {
-      setStatus("❌ Invalid credentials or server error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white shadow-lg rounded-xl p-6 w-full max-w-sm"
-      >
-        <h2 className="text-2xl font-bold text-center mb-4">Admin Login</h2>
-        {status && (
-          <div className="p-2 mb-3 rounded text-sm text-center bg-gray-100">
-            {status}
-          </div>
-        )}
-
-        <input
-          type="text"
-          name="username"
-          placeholder="Username"
-          value={formData.username}
-          onChange={handleChange}
-          required
-          className="w-full p-2 mb-3 border rounded"
-        />
-
-        <input
-          type="email"
-          name="email"
-          placeholder="Email"
-          value={formData.email}
-          onChange={handleChange}
-          required
-          className="w-full p-2 mb-3 border rounded"
-        />
-
-        <input
-          type="password"
-          name="password"
-          placeholder="Password"
-          value={formData.password}
-          onChange={handleChange}
-          required
-          className="w-full p-2 mb-3 border rounded"
-        />
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded"
-        >
-          {loading ? "Logging in..." : "Login"}
-        </button>
-      </form>
-    </div>
-  );
-}
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 1040: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/pages/farmer/FarmerDashboard.jsx
 ================================================
-import React, { useState, useEffect } from "react";
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 2020: character maps to <undefined>
+
+
+================================================
+FILE: frontend/src/pages/fpo/FpoDashboard.jsx
+================================================
+import React, { useState } from "react";
 import axios from "axios";
 import Cookies from "js-cookie";
 import { useNavigate } from "react-router-dom";
-import QuoteForm from "../../components/farmer/QuoteForm";
-import QuoteHistory from "../../components/farmer/QuoteHistory";
-import QuoteBids from "../../components/farmer/QuoteBids";
+import FarmerQuotes from "../../components/fpo/FarmerQuotes";
+import RetailerQuotes from "../../components/fpo/RetailerQuotes";
 
-export default function FarmerDashboard() {
+export default function FpoDashboard() {
+  const [activeTab, setActiveTab] = useState("farmer");
   const navigate = useNavigate();
-  const [history, setHistory] = useState([]);
-  const [activePage, setActivePage] = useState("history"); // "history" | "newQuote" | "bids"
-  const [selectedQuote, setSelectedQuote] = useState(null);
 
-  // 🔹 Logout function
   const logout = async () => {
     try {
-      await axios.post("/api/logout/", {}, { withCredentials: true });
+      await axios.post("/api/token/logout/", {}, { withCredentials: true });
     } catch (err) {
       console.error("Logout error:", err);
     } finally {
@@ -4365,104 +4029,17 @@ export default function FarmerDashboard() {
     }
   };
 
-  // Fetch history
-  const fetchHistory = async () => {
-    try {
-      const res = await axios.get("/api/farmer/quotes/", {
-        withCredentials: true,
-      });
-      console.log("Fetched history:", res.data);
-      
-      setHistory(res.data);
-    } catch (err) {
-      console.error("Error fetching history:", err);
-    }
-  };
-
-  useEffect(() => {
-    fetchHistory();
-  }, []);
-
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      {/* Top Bar with Logout */}
+    <div className="p-6 max-w-5xl mx-auto">
+      {/* Top Bar */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-green-700">🌾 Farmer Dashboard</h1>
+        <h1 className="text-2xl font-bold text-blue-700">🏢 FPO Dashboard</h1>
         <button
           onClick={logout}
           className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
         >
           Logout
         </button>
-      </div>
-
-      {/* Farmer Quote Section */}
-      <div className="bg-green-100 p-6 rounded-2xl shadow mb-6 text-center">
-        <h2 className="text-2xl font-bold text-green-800">
-          🌱 “The farmer is the backbone of our nation.”
-        </h2>
-        <p className="text-gray-700 mt-2">
-          Nurturing the land, feeding the world. 🙌
-        </p>
-      </div>
-
-      {/* Navigation Buttons */}
-      {activePage === "history" && (
-        <button
-          onClick={() => setActivePage("newQuote")}
-          className="mb-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-        >
-          ➕ New Quote
-        </button>
-      )}
-
-      {/* Pages */}
-      {activePage === "history" && (
-        <QuoteHistory
-          history={history}
-          onViewBids={(quote) => {
-            setSelectedQuote(quote);
-            setActivePage("bids");
-          }}
-        />
-      )}
-
-      {activePage === "newQuote" && (
-        <QuoteForm
-          onSuccess={() => {
-            fetchHistory();
-            setActivePage("history");
-          }}
-        />
-      )}
-
-      {activePage === "bids" && selectedQuote && (
-        <QuoteBids
-          quote={selectedQuote}
-          onBack={() => setActivePage("history")}
-        />
-      )}
-    </div>
-  );
-}
-
-
-
-================================================
-FILE: frontend/src/pages/fpo/FpoDashboard.jsx
-================================================
-import React, { useState } from "react";
-import FarmerQuotes from "../../components/fpo/FarmerQuotes";
-import RetailerQuotes from "../../components/fpo/RetailerQuotes";
-
-export default function FpoDashboard() {
-  const [activeTab, setActiveTab] = useState("farmer");
-
-  return (
-    <div className="p-6 max-w-5xl mx-auto">
-      {/* Top Bar */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-blue-700">🏢 FPO Dashboard</h1>
       </div>
 
       {/* Tabs */}
@@ -4496,237 +4073,7 @@ export default function FpoDashboard() {
 ================================================
 FILE: frontend/src/pages/retailer/RetailerDashboard.jsx
 ================================================
-import React, { useState, useEffect } from "react";
-import axios from "axios";
-import Cookies from "js-cookie";
-import { useNavigate } from "react-router-dom";
-
-export default function RetailerDashboard() {
-  const navigate = useNavigate();
-
-  const [fpoQuotes, setFpoQuotes] = useState([]);
-  const [myBids, setMyBids] = useState([]);
-  const [bids, setBids] = useState({});
-  const [deliveryTimes, setDeliveryTimes] = useState({});
-  const [loading, setLoading] = useState(false);
-  
-
-  const retailerId = Cookies.get("retailer_id");
-
-  // 🔹 Logout
-  const logout = async () => {
-    try {
-      await axios.post("/api/logout/", {}, { withCredentials: true });
-    } catch (err) {
-      console.error("Logout error:", err);
-    } finally {
-      Cookies.remove("role", { path: "/" });
-      navigate("/");
-    }
-  };
-
-  // 🔹 Fetch dashboard data
-  useEffect(() => {
-    const fetchFpoQuotes = async () => {
-      try {
-        const res = await axios.get("/api/retailer/quotes/fpo/open/", {
-          withCredentials: true,
-        });
-        setFpoQuotes(res.data);
-      } catch (err) {
-        console.error("Error fetching FPO quotes:", err);
-      }
-    };
-
-    
-    const fetchMyBids = async () => {
-      try {
-        const res = await axios.get("/api/retailer/bids/my/", {
-          withCredentials: true,
-        });
-        setMyBids(res.data);
-      } catch (err) {
-        console.error("Error fetching my bids:", err);
-      }
-    };
-
-    fetchFpoQuotes();
-    
-    fetchMyBids();
-  }, []);
-
-  // 🔹 Bid input handlers
-  const handleBidChange = (quoteId, value) => {
-    setBids({ ...bids, [quoteId]: value });
-  };
-  const handleDeliveryChange = (quoteId, value) => {
-    setDeliveryTimes({ ...deliveryTimes, [quoteId]: value });
-  };
-
-  // 🔹 Submit bid
-  const submitBid = async (quoteId) => {
-    if (!bids[quoteId]) {
-      alert("⚠️ Please enter a bid amount.");
-      return;
-    }
-    if (!deliveryTimes[quoteId]) {
-      alert("⚠️ Please enter delivery time in days.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await axios.post(
-        `/api/retailer/quotes/fpo/${quoteId}/bids/`,
-        {
-          bid_amount: bids[quoteId],
-          delivery_time_days: deliveryTimes[quoteId],
-          quote: quoteId,
-          retailer: retailerId,
-        },
-        { withCredentials: true }
-      );
-      alert("✅ Bid placed successfully!");
-      setBids({ ...bids, [quoteId]: "" });
-      setDeliveryTimes({ ...deliveryTimes, [quoteId]: "" });
-      // Refresh bids after placing
-      const res = await axios.get("/api/retailer/bids/my/", {
-        withCredentials: true,
-      });
-      setMyBids(res.data);
-    } catch (err) {
-      console.error("Error placing bid:", err.response?.data || err);
-      alert("❌ Failed to place bid. Try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="p-6 max-w-6xl mx-auto space-y-8">
-      {/* Top Bar */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-blue-700">
-          🏪 Retailer Dashboard
-        </h1>
-        <button
-          onClick={logout}
-          className="bg-red-500 text-white px-4 py-2 rounded-lg shadow hover:bg-red-600"
-        >
-          Logout
-        </button>
-      </div>
-
-      
-
-      {/* Open FPO Quotes */}
-      <div className="bg-white p-6 rounded-2xl shadow">
-        <h3 className="text-xl font-semibold mb-4">🏢 Open FPO Quotes</h3>
-        {fpoQuotes.length > 0 ? (
-          <ul className="space-y-4">
-            {fpoQuotes.map((quote) => (
-              <li
-                key={quote.id}
-                className="border p-4 rounded-lg hover:shadow-lg transition"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-lg font-semibold">
-                      {quote.product_name}{" "}
-                      <span className="text-gray-500">({quote.category})</span>
-                    </p>
-                    <p className="text-gray-600">{quote.description}</p>
-                    <p className="text-sm">
-                      Qty: {quote.quantity} {quote.unit}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Deadline: {quote.deadline}
-                    </p>
-                    <p className="text-sm text-blue-600">FPO ID: {quote.fpo}</p>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-3 mt-3 sm:mt-0">
-                    <input
-                      type="number"
-                      placeholder="Bid amount"
-                      value={bids[quote.id] || ""}
-                      onChange={(e) =>
-                        handleBidChange(quote.id, e.target.value)
-                      }
-                      className="border p-2 rounded-lg flex-1 focus:ring-2 focus:ring-blue-400 outline-none"
-                    />
-                    <input
-                      type="number"
-                      placeholder="Delivery (days)"
-                      value={deliveryTimes[quote.id] || ""}
-                      onChange={(e) =>
-                        handleDeliveryChange(quote.id, e.target.value)
-                      }
-                      className="border p-2 rounded-lg w-32 focus:ring-2 focus:ring-green-400 outline-none"
-                    />
-                    <button
-                      onClick={() => submitBid(quote.id)}
-                      disabled={loading}
-                      className={`px-4 py-2 rounded-lg text-white shadow ${
-                        loading
-                          ? "bg-gray-400 cursor-not-allowed"
-                          : "bg-blue-600 hover:bg-blue-700"
-                      }`}
-                    >
-                      {loading ? "Submitting..." : "💰 Place Bid"}
-                    </button>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-gray-500">No open FPO quotes available.</p>
-        )}
-      </div>
-
-      {/* My Bids Section */}
-      <div className="bg-white p-6 rounded-2xl shadow">
-        <h3 className="text-xl font-semibold mb-4">📑 My Placed Bids</h3>
-        {myBids.length > 0 ? (
-          <ul className="space-y-4">
-            {myBids.map((bid) => (
-              <li
-                key={bid.id}
-                className="border p-4 rounded-lg hover:shadow-lg transition"
-              >
-                <p className="text-lg font-semibold">
-                  {bid.quote.product_name}{" "}
-                  <span className="text-gray-500">({bid.quote.category})</span>
-                </p>
-                <p className="text-gray-600">{bid.quote.description}</p>
-                <p className="text-sm">
-                  Qty: {bid.quote.quantity} {bid.quote.unit}
-                </p>
-                <p className="text-sm">Bid Amount: ₹{bid.bid_amount}</p>
-                <p className="text-sm">Delivery: {bid.delivery_time_days} days</p>
-                <p
-                  className={`text-sm font-semibold ${
-                    bid.status === "accepted"
-                      ? "text-green-600"
-                      : bid.status === "rejected"
-                      ? "text-red-600"
-                      : "text-yellow-600"
-                  }`}
-                >
-                  Status: {bid.status}
-                </p>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-gray-500">You haven't placed any bids yet.</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 1944: character maps to <undefined>
 
 
 ================================================

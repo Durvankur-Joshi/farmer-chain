@@ -99,7 +99,12 @@ class RetailerBidCreateView(generics.CreateAPIView):
         quote = get_object_or_404(FPOQuote, pk=self.kwargs['quote_pk'])
         if quote.status != 'open':
             raise serializers.ValidationError("This quote is no longer open for bidding.")
-        serializer.save(retailer=self.request.user.user_obj, quote=quote)
+            
+        retailer = self.request.user.user_obj
+        if quote.bids.filter(retailer=retailer).exists():
+            raise serializers.ValidationError("You have already placed a bid on this quote.")
+            
+        serializer.save(retailer=retailer, quote=quote)
 
 class MyBidsListView(generics.ListAPIView):
     serializer_class = MyBidSerializer

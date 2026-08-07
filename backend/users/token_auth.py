@@ -17,9 +17,15 @@ class CustomJWTAuthentication(JWTAuthentication):
         
         if not access_token:
             # Fall back to header for backward compatibility
-            return super().authenticate(request)
+            header = self.get_header(request)
+            if header is None:
+                return None
+            raw_token = self.get_raw_token(header)
+            if raw_token is None:
+                return None
+            access_token = raw_token
         
-        # Validate the token from cookie
+        # Validate the token
         try:
             validated_token = self.get_validated_token(access_token)
             user = self.get_user(validated_token)

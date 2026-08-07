@@ -1,15 +1,36 @@
 import React, { useState } from "react";
+import axios from "axios";
+import Cookies from "js-cookie";
+import { useNavigate } from "react-router-dom";
 import FarmerQuotes from "../../components/fpo/FarmerQuotes";
 import RetailerQuotes from "../../components/fpo/RetailerQuotes";
 
 export default function FpoDashboard() {
   const [activeTab, setActiveTab] = useState("farmer");
+  const navigate = useNavigate();
+
+  const logout = async () => {
+    try {
+      await axios.post("/api/token/logout/", {}, { withCredentials: true });
+    } catch (err) {
+      console.error("Logout error:", err);
+    } finally {
+      Cookies.remove("role", { path: "/" });
+      navigate("/");
+    }
+  };
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
       {/* Top Bar */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-blue-700">🏢 FPO Dashboard</h1>
+        <button
+          onClick={logout}
+          className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+        >
+          Logout
+        </button>
       </div>
 
       {/* Tabs */}

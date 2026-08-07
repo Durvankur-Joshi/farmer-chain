@@ -116,6 +116,9 @@ def accept_fpo_bid(request, bid_pk):
     bid.status = 'accepted'
     bid.save()
 
+    # Reject other bids
+    quote.bids.exclude(pk=bid.pk).update(status='rejected')
+
     # Update quote status to 'accepted' (contract will be created in frontend)
     quote.status = 'accepted'
     quote.accepted_bid = bid

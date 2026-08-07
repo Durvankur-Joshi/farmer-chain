@@ -1,3 +1,19 @@
 from django.contrib import admin
+from .models import FPO, FPOBid, FPOQuote
 
-# Register your models here.
+@admin.register(FPO)
+class FPOAdmin(admin.ModelAdmin):
+    list_display = ('name', 'email', 'approval_status', 'city', 'state', 'created_at')
+    list_filter = ('approval_status', 'state', 'city')
+    search_fields = ('name', 'email', 'corporate_identification_number', 'wallet_address')
+
+@admin.register(FPOBid)
+class FPOBidAdmin(admin.ModelAdmin):
+    list_display = ('fpo', 'quote', 'bid_amount', 'status', 'payment_status', 'submitted_at')
+    list_filter = ('status', 'payment_status')
+
+@admin.register(FPOQuote)
+class FPOQuoteAdmin(admin.ModelAdmin):
+    list_display = ('product_name', 'fpo', 'quantity', 'unit', 'status', 'deadline')
+    list_filter = ('status', 'category')
+    search_fields = ('product_name', 'fpo__name')

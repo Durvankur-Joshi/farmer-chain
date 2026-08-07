@@ -94,7 +94,9 @@ export default function AuthForm() {
       console.error("Error:", err.response?.data || err.message);
       const errorMsg = err.response?.data?.error || err.message;
       if (errorMsg.includes("Account pending admin approval")) {
-        setPendingApproval(true);
+        setPendingApproval("pending");
+      } else if (errorMsg.includes("Account rejected")) {
+        setPendingApproval("rejected");
       } else {
         alert("Error! Check console.");
       }
@@ -104,11 +106,15 @@ export default function AuthForm() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       {pendingApproval && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg w-80 text-center">
-            <h3 className="text-lg font-bold mb-2">Pending Approval</h3>
+            <h3 className="text-lg font-bold mb-2">
+              {pendingApproval === "pending" ? "Pending Approval" : "Account Rejected"}
+            </h3>
             <p className="mb-4">
-              Your account is pending admin approval. Please try again later.
+              {pendingApproval === "pending"
+                ? "Your account is pending admin approval. Please try again later."
+                : "Your account has been rejected by the admin. Please contact support."}
             </p>
             <button
               onClick={() => setPendingApproval(false)}

@@ -395,7 +395,7 @@ export default function AdminDashboard() {
     const logout = async () => {
     try {
       // Call backend logout endpoint to clear cookies
-      await axios.post("/api/logout/", {}, { withCredentials: true });
+      await axios.post("/api/token/logout/", {}, { withCredentials: true });
     } catch (err) {
       console.error("Logout error:", err);
     } finally {

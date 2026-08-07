@@ -18,7 +18,7 @@ export default function RetailerDashboard() {
   // 🔹 Logout
   const logout = async () => {
     try {
-      await axios.post("/api/logout/", {}, { withCredentials: true });
+      await axios.post("/api/token/logout/", {}, { withCredentials: true });
     } catch (err) {
       console.error("Logout error:", err);
     } finally {

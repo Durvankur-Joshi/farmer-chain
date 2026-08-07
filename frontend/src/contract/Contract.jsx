@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Web3 from "web3";
+import { useParams } from "react-router-dom";
 import { Package, MapPin, DollarSign, CheckCircle, XCircle, User, Building2, Store } from "lucide-react";
-
-const CONTRACT_ADDRESS = "0x6be52B0DFf8CfC6F389430fF958881d7842d4466";
 
 const farmerContractABI = [
   {
@@ -51,6 +50,8 @@ const farmerContractABI = [
 ];
 
 export default function Contract() {
+  const { address } = useParams();
+  const CONTRACT_ADDRESS = address;
   const [web3, setWeb3] = useState(null);
   const [contract, setContract] = useState(null);
   const [farmer, setFarmer] = useState(null);

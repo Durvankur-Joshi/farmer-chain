@@ -11,7 +11,7 @@ import Contract from "./contract/Contract";
 function App() {
   return (
     <Routes>
-      <Route path="/contract/0x6be52B0DFf8CfC6F389430fF958881d7842d4466" element={<Contract/>} />
+      <Route path="/contract/:address" element={<Contract/>} />
       <Route path="/auth" element={<AuthForm />} />
       <Route path="/admin" element={<AdminLogin/>} />
 
