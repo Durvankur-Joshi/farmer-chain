@@ -16,6 +16,11 @@ Directory structure:
     │   │   └── views.py
     │   ├── common/
     │   │   └── permissions.py
+    │   ├── did_app/
+    │   │   ├── __init__.py
+    │   │   ├── apps.py
+    │   │   ├── urls.py
+    │   │   └── views.py
     │   ├── farmer/
     │   │   ├── __init__.py
     │   │   ├── admin.py
@@ -533,8 +538,9 @@ from .models import Admin
 
 @admin.register(Admin)
 class AdminModelAdmin(admin.ModelAdmin):
-    list_display = ('username', 'wallet_address', 'created_at')
-    search_fields = ('username', 'wallet_address')
+    list_display = ('username', 'wallet_address', 'did', 'did_created_at', 'created_at')
+    search_fields = ('username', 'wallet_address', 'did')
+    readonly_fields = ('did', 'did_created_at', 'created_at')
 
 
 
@@ -553,14 +559,18 @@ class AdminAppConfig(AppConfig):
 ================================================
 FILE: backend/admin_app/models.py
 ================================================
+import uuid
 from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
+from django.utils import timezone
 
 class Admin(models.Model):
     username = models.CharField(max_length=100, unique=True)
     password = models.CharField(max_length=128)
     wallet_address = models.CharField(max_length=100, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    did = models.CharField(max_length=100, unique=True, null=True, blank=True)
+    did_created_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return self.username
@@ -570,6 +580,12 @@ class Admin(models.Model):
     
     def check_password(self, raw_password):
         return check_password(raw_password, self.password)
+
+    def save(self, *args, **kwargs):
+        if not self.did:
+            self.did = f"did:farmerchain:admin:{uuid.uuid4()}"
+            self.did_created_at = timezone.now()
+        super().save(*args, **kwargs)
 
 
 ================================================
@@ -582,7 +598,11 @@ class AdminSerializer(serializers.ModelSerializer):
     class Meta:
         model = Admin
         fields = '__all__'
-        extra_kwargs = {'password': {'write_only': True}}
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'did': {'read_only': True},
+            'did_created_at': {'read_only': True},
+        }
 
 class AdminRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -825,6 +845,205 @@ class IsAdminApp(BasePermission):
 
 
 ================================================
+FILE: backend/did_app/__init__.py
+================================================
+default_app_config = 'did_app.apps.DidAppConfig'
+
+
+
+================================================
+FILE: backend/did_app/apps.py
+================================================
+from django.apps import AppConfig
+
+
+class DidAppConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'did_app'
+    verbose_name = 'Decentralized Identity'
+
+
+
+================================================
+FILE: backend/did_app/urls.py
+================================================
+from django.urls import path
+from .views import did_me, did_resolve
+
+urlpatterns = [
+    # GET /api/did/me/  â€” authenticated, returns own DID
+    path('me/', did_me, name='did-me'),
+
+    # GET /api/did/<did>/  â€” public DID resolution
+    # The DID contains colons (did:farmerchain:role:uuid), so we use
+    # a custom path converter pattern that matches everything except '/'.
+    path('<path:did>/', did_resolve, name='did-resolve'),
+]
+
+
+
+================================================
+FILE: backend/did_app/views.py
+================================================
+"""
+DID App Views
+=============
+Provides two endpoints:
+
+1.  GET /api/did/me/
+    Authenticated (JWT cookie). Returns the logged-in user's DID,
+    wallet address, role, and DID creation timestamp.
+    Works for Farmer, FPO, Retailer, and Admin via the project's
+    existing CustomJWTAuthentication that sets request.user.user_obj.
+
+2.  GET /api/did/<did>/
+    Public (no auth). Resolves any valid DID to its public
+    identity document. Returns 404 if the DID is unknown.
+    NEVER exposes: password, email, aadhaar, GSTIN, CIN.
+"""
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.response import Response
+from rest_framework import status
+
+from farmer.models import Farmer
+from fpo.models import FPO
+from retailer.models import Retailer
+from admin_app.models import Admin
+
+
+# ---------------------------------------------------------------------------
+# Helper: extract did + wallet from the attached user_obj
+# ---------------------------------------------------------------------------
+def _did_info_from_user(request):
+    """
+    Return (did, wallet_address) from the custom user object injected
+    by CustomJWTAuthentication.  Returns None, None if not available.
+    """
+    user_obj = getattr(request.user, 'user_obj', None)
+    if user_obj is None:
+        return None, None
+    did = getattr(user_obj, 'did', None)
+    wallet = getattr(user_obj, 'wallet_address', None)
+    created_at = getattr(user_obj, 'did_created_at', None)
+    return did, wallet, created_at
+
+
+# ---------------------------------------------------------------------------
+# GET /api/did/me/
+# ---------------------------------------------------------------------------
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def did_me(request):
+    """
+    Returns the current authenticated user's DID identity document.
+    Works for all four roles: farmer, fpo, retailer, admin.
+    """
+    user = request.user
+    user_obj = getattr(user, 'user_obj', None)
+
+    if user_obj is None:
+        return Response(
+            {'error': 'User identity could not be resolved.'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    did = getattr(user_obj, 'did', None)
+    if not did:
+        return Response(
+            {'error': 'DID not found for this account. Contact support.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    return Response({
+        'did': did,
+        'wallet_address': getattr(user_obj, 'wallet_address', None),
+        'role': getattr(user, 'role', None),
+        'created_at': getattr(user_obj, 'did_created_at', None),
+    })
+
+
+# ---------------------------------------------------------------------------
+# GET /api/did/<did>/   (public â€” no auth required)
+# ---------------------------------------------------------------------------
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def did_resolve(request, did):
+    """
+    Public DID resolution endpoint.
+    Searches all four user tables for the given DID.
+    Returns only non-sensitive public identity fields.
+    """
+    # Normalise: trim whitespace
+    did = did.strip()
+
+    # Try Farmer
+    try:
+        farmer = Farmer.objects.get(did=did)
+        return Response({
+            'did': farmer.did,
+            'role': 'farmer',
+            'name': farmer.name,
+            'wallet_address': farmer.wallet_address,
+            'city': farmer.city,
+            'state': farmer.state,
+            'created_at': farmer.did_created_at,
+        })
+    except Farmer.DoesNotExist:
+        pass
+
+    # Try FPO
+    try:
+        fpo = FPO.objects.get(did=did)
+        return Response({
+            'did': fpo.did,
+            'role': 'fpo',
+            'name': fpo.name,
+            'wallet_address': fpo.wallet_address,
+            'city': fpo.city,
+            'state': fpo.state,
+            'created_at': fpo.did_created_at,
+        })
+    except FPO.DoesNotExist:
+        pass
+
+    # Try Retailer
+    try:
+        retailer = Retailer.objects.get(did=did)
+        return Response({
+            'did': retailer.did,
+            'role': 'retailer',
+            'name': retailer.name,
+            'wallet_address': retailer.wallet_address,
+            'city': retailer.city,
+            'state': retailer.state,
+            'created_at': retailer.did_created_at,
+        })
+    except Retailer.DoesNotExist:
+        pass
+
+    # Try Admin
+    try:
+        admin = Admin.objects.get(did=did)
+        return Response({
+            'did': admin.did,
+            'role': 'admin',
+            'name': admin.username,
+            'wallet_address': admin.wallet_address,
+            'created_at': admin.did_created_at,
+        })
+    except Admin.DoesNotExist:
+        pass
+
+    # Nothing found
+    return Response(
+        {'error': f'DID not found: {did}'},
+        status=status.HTTP_404_NOT_FOUND
+    )
+
+
+
+================================================
 FILE: backend/farmer/__init__.py
 ================================================
 [Empty file]
@@ -838,9 +1057,10 @@ from .models import Farmer, FarmerQuote
 
 @admin.register(Farmer)
 class FarmerAdmin(admin.ModelAdmin):
-    list_display = ('name', 'email', 'approval_status', 'city', 'state', 'created_at')
+    list_display = ('name', 'email', 'approval_status', 'city', 'state', 'did', 'did_created_at', 'created_at')
     list_filter = ('approval_status', 'state', 'city')
-    search_fields = ('name', 'email', 'aadhaar_number', 'wallet_address')
+    search_fields = ('name', 'email', 'aadhaar_number', 'wallet_address', 'did')
+    readonly_fields = ('did', 'did_created_at', 'created_at')
 
 @admin.register(FarmerQuote)
 class FarmerQuoteAdmin(admin.ModelAdmin):
@@ -865,8 +1085,10 @@ class FarmerConfig(AppConfig):
 ================================================
 FILE: backend/farmer/models.py
 ================================================
+import uuid
 from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
+from django.utils import timezone
 
 class Farmer(models.Model):
     APPROVAL_STATUS = [
@@ -884,6 +1106,8 @@ class Farmer(models.Model):
     state = models.CharField(max_length=50)
     approval_status = models.CharField(max_length=10, choices=APPROVAL_STATUS, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
+    did = models.CharField(max_length=100, unique=True, null=True, blank=True)
+    did_created_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return self.name
@@ -893,6 +1117,12 @@ class Farmer(models.Model):
     
     def check_password(self, raw_password):
         return check_password(raw_password, self.password)
+
+    def save(self, *args, **kwargs):
+        if not self.did:
+            self.did = f"did:farmerchain:farmer:{uuid.uuid4()}"
+            self.did_created_at = timezone.now()
+        super().save(*args, **kwargs)
 
 class FarmerQuote(models.Model):
     STATUS_CHOICES = [
@@ -940,7 +1170,11 @@ class FarmerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Farmer
         fields = '__all__'
-        extra_kwargs = {'password': {'write_only': True}}
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'did': {'read_only': True},
+            'did_created_at': {'read_only': True},
+        }
 
 class FarmerRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -1299,6 +1533,7 @@ INSTALLED_APPS = [
     'retailer',
     'admin_app',
     'negotiation',
+    'did_app',
 ]
 
 
@@ -1415,6 +1650,7 @@ urlpatterns = [
     path('api/retailer/', include('retailer.urls')),
     path('api/admin/', include('admin_app.urls')),
     path('api/negotiation/', include('negotiation.urls')),
+    path('api/did/', include('did_app.urls')),
 
     # JWT Auth with cookie support
     path('api/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
@@ -1459,9 +1695,10 @@ from .models import FPO, FPOBid, FPOQuote
 
 @admin.register(FPO)
 class FPOAdmin(admin.ModelAdmin):
-    list_display = ('name', 'email', 'approval_status', 'city', 'state', 'created_at')
+    list_display = ('name', 'email', 'approval_status', 'city', 'state', 'did', 'did_created_at', 'created_at')
     list_filter = ('approval_status', 'state', 'city')
-    search_fields = ('name', 'email', 'corporate_identification_number', 'wallet_address')
+    search_fields = ('name', 'email', 'corporate_identification_number', 'wallet_address', 'did')
+    readonly_fields = ('did', 'did_created_at', 'created_at')
 
 @admin.register(FPOBid)
 class FPOBidAdmin(admin.ModelAdmin):
@@ -1491,8 +1728,10 @@ class FpoConfig(AppConfig):
 ================================================
 FILE: backend/fpo/models.py
 ================================================
+import uuid
 from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
+from django.utils import timezone
 
 class FPO(models.Model):
     APPROVAL_STATUS = [('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected')]
@@ -1506,6 +1745,8 @@ class FPO(models.Model):
     state = models.CharField(max_length=50)
     approval_status = models.CharField(max_length=10, choices=APPROVAL_STATUS, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
+    did = models.CharField(max_length=100, unique=True, null=True, blank=True)
+    did_created_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return self.name
@@ -1515,6 +1756,12 @@ class FPO(models.Model):
     
     def check_password(self, raw_password):
         return check_password(raw_password, self.password)
+
+    def save(self, *args, **kwargs):
+        if not self.did:
+            self.did = f"did:farmerchain:fpo:{uuid.uuid4()}"
+            self.did_created_at = timezone.now()
+        super().save(*args, **kwargs)
 
 class FPOBid(models.Model):
     STATUS_CHOICES = [('submitted', 'Submitted'), ('accepted', 'Accepted'), ('rejected', 'Rejected')]
@@ -1569,7 +1816,11 @@ class FPOSerializer(serializers.ModelSerializer):
     class Meta:
         model = FPO
         fields = '__all__'
-        extra_kwargs = {'password': {'write_only': True}}
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'did': {'read_only': True},
+            'did_created_at': {'read_only': True},
+        }
 
 class FPORegistrationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -2088,9 +2339,10 @@ from .models import Retailer, RetailerBid
 
 @admin.register(Retailer)
 class RetailerAdmin(admin.ModelAdmin):
-    list_display = ('name', 'email', 'approval_status', 'city', 'state', 'created_at')
+    list_display = ('name', 'email', 'approval_status', 'city', 'state', 'did', 'did_created_at', 'created_at')
     list_filter = ('approval_status', 'state', 'city')
-    search_fields = ('name', 'email', 'gstin', 'wallet_address')
+    search_fields = ('name', 'email', 'gstin', 'wallet_address', 'did')
+    readonly_fields = ('did', 'did_created_at', 'created_at')
 
 @admin.register(RetailerBid)
 class RetailerBidAdmin(admin.ModelAdmin):
@@ -2114,8 +2366,10 @@ class RetailerConfig(AppConfig):
 ================================================
 FILE: backend/retailer/models.py
 ================================================
+import uuid
 from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
+from django.utils import timezone
 
 class Retailer(models.Model):
     APPROVAL_STATUS = [
@@ -2133,6 +2387,8 @@ class Retailer(models.Model):
     state = models.CharField(max_length=50)
     approval_status = models.CharField(max_length=10, choices=APPROVAL_STATUS, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
+    did = models.CharField(max_length=100, unique=True, null=True, blank=True)
+    did_created_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return self.name
@@ -2142,6 +2398,12 @@ class Retailer(models.Model):
     
     def check_password(self, raw_password):
         return check_password(raw_password, self.password)
+
+    def save(self, *args, **kwargs):
+        if not self.did:
+            self.did = f"did:farmerchain:retailer:{uuid.uuid4()}"
+            self.did_created_at = timezone.now()
+        super().save(*args, **kwargs)
 
 class RetailerBid(models.Model):
     STATUS_CHOICES = [('submitted', 'Submitted'), ('accepted', 'Accepted'), ('rejected', 'Rejected')]
@@ -2172,7 +2434,11 @@ class RetailerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Retailer
         fields = '__all__'
-        extra_kwargs = {'password': {'write_only': True}}
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'did': {'read_only': True},
+            'did_created_at': {'read_only': True},
+        }
 
 class RetailerRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -3989,7 +4255,7 @@ export default function AuthForm() {
 ================================================
 FILE: frontend/src/pages/admin/AdminDashboard.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 10018: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 10304: character maps to <undefined>
 
 
 ================================================
@@ -4001,79 +4267,19 @@ Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in posi
 ================================================
 FILE: frontend/src/pages/farmer/FarmerDashboard.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 2020: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 2627: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/pages/fpo/FpoDashboard.jsx
 ================================================
-import React, { useState } from "react";
-import axios from "axios";
-import Cookies from "js-cookie";
-import { useNavigate } from "react-router-dom";
-import FarmerQuotes from "../../components/fpo/FarmerQuotes";
-import RetailerQuotes from "../../components/fpo/RetailerQuotes";
-
-export default function FpoDashboard() {
-  const [activeTab, setActiveTab] = useState("farmer");
-  const navigate = useNavigate();
-
-  const logout = async () => {
-    try {
-      await axios.post("/api/token/logout/", {}, { withCredentials: true });
-    } catch (err) {
-      console.error("Logout error:", err);
-    } finally {
-      Cookies.remove("role", { path: "/" });
-      navigate("/");
-    }
-  };
-
-  return (
-    <div className="p-6 max-w-5xl mx-auto">
-      {/* Top Bar */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-blue-700">🏢 FPO Dashboard</h1>
-        <button
-          onClick={logout}
-          className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-        >
-          Logout
-        </button>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex space-x-4 mb-6">
-        <button
-          className={`px-4 py-2 rounded ${
-            activeTab === "farmer" ? "bg-blue-600 text-white" : "bg-gray-200"
-          }`}
-          onClick={() => setActiveTab("farmer")}
-        >
-          Farmer Quotes
-        </button>
-        <button
-          className={`px-4 py-2 rounded ${
-            activeTab === "retailer" ? "bg-blue-600 text-white" : "bg-gray-200"
-          }`}
-          onClick={() => setActiveTab("retailer")}
-        >
-          Retailer Quotes
-        </button>
-      </div>
-
-      {/* Content */}
-      {activeTab === "farmer" ? <FarmerQuotes /> : <RetailerQuotes />}
-    </div>
-  );
-}
-
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 1528: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/pages/retailer/RetailerDashboard.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 1944: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 2564: character maps to <undefined>
 
 
 ================================================

@@ -14,6 +14,8 @@ export default function AdminDashboard() {
     fpos: [],
     retailers: [],
   });
+  const [didInfo, setDidInfo] = useState(null);
+  const [copyMsg, setCopyMsg] = useState("");
 
   // Contract + Admin
   const contractAddress = "0x7022b2D5462cBE3785FF5359E19f18eD396D8397";
@@ -238,6 +240,10 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     axios.defaults.withCredentials = true;
+    // Fetch admin DID
+    axios.get("/api/did/me/", { withCredentials: true })
+      .then(res => setDidInfo(res.data))
+      .catch(err => console.error("Could not fetch DID:", err));
   }, []);
 
   // Get contract with read-only provider
@@ -433,10 +439,39 @@ export default function AdminDashboard() {
       </div>
       <button
         onClick={connectWallet}
-        className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded mb-6"
+        className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded mb-4"
       >
         Connect MetaMask
       </button>
+
+      {/* Admin DID Identity Card */}
+      {didInfo && (
+        <div className="bg-white border border-gray-300 rounded-xl shadow p-4 mb-6">
+          <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-widest mb-2">
+            🔐 Admin Decentralized Identity
+          </h3>
+          <div className="space-y-1 text-sm text-gray-700">
+            <p><span className="font-medium text-gray-500">Role:</span> {didInfo.role}</p>
+            <p className="break-all"><span className="font-medium text-gray-500">DID:</span> {didInfo.did}</p>
+            <p className="break-all"><span className="font-medium text-gray-500">Wallet:</span> {didInfo.wallet_address}</p>
+          </div>
+          <div className="mt-2 flex items-center gap-3">
+            <button
+              onClick={() => {
+                if (!didInfo?.did) return;
+                navigator.clipboard.writeText(didInfo.did).then(() => {
+                  setCopyMsg("✅ Copied!");
+                  setTimeout(() => setCopyMsg(""), 2000);
+                });
+              }}
+              className="text-xs bg-gray-700 text-white px-3 py-1.5 rounded hover:bg-gray-800"
+            >
+              📋 Copy DID
+            </button>
+            {copyMsg && <span className="text-xs text-gray-600 font-semibold">{copyMsg}</span>}
+          </div>
+        </div>
+      )}
 
       {/* Pending Farmers */}
       <div className="mb-6">

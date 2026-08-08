@@ -3,9 +3,10 @@ from .models import Retailer, RetailerBid
 
 @admin.register(Retailer)
 class RetailerAdmin(admin.ModelAdmin):
-    list_display = ('name', 'email', 'approval_status', 'city', 'state', 'created_at')
+    list_display = ('name', 'email', 'approval_status', 'city', 'state', 'did', 'did_created_at', 'created_at')
     list_filter = ('approval_status', 'state', 'city')
-    search_fields = ('name', 'email', 'gstin', 'wallet_address')
+    search_fields = ('name', 'email', 'gstin', 'wallet_address', 'did')
+    readonly_fields = ('did', 'did_created_at', 'created_at')
 
 @admin.register(RetailerBid)
 class RetailerBidAdmin(admin.ModelAdmin):

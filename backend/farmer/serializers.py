@@ -5,7 +5,11 @@ class FarmerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Farmer
         fields = '__all__'
-        extra_kwargs = {'password': {'write_only': True}}
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'did': {'read_only': True},
+            'did_created_at': {'read_only': True},
+        }
 
 class FarmerRegistrationSerializer(serializers.ModelSerializer):
     class Meta:

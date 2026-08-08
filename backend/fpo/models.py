@@ -1,5 +1,7 @@
+import uuid
 from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
+from django.utils import timezone
 
 class FPO(models.Model):
     APPROVAL_STATUS = [('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected')]
@@ -13,6 +15,8 @@ class FPO(models.Model):
     state = models.CharField(max_length=50)
     approval_status = models.CharField(max_length=10, choices=APPROVAL_STATUS, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
+    did = models.CharField(max_length=100, unique=True, null=True, blank=True)
+    did_created_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return self.name
@@ -22,6 +26,12 @@ class FPO(models.Model):
     
     def check_password(self, raw_password):
         return check_password(raw_password, self.password)
+
+    def save(self, *args, **kwargs):
+        if not self.did:
+            self.did = f"did:farmerchain:fpo:{uuid.uuid4()}"
+            self.did_created_at = timezone.now()
+        super().save(*args, **kwargs)
 
 class FPOBid(models.Model):
     STATUS_CHOICES = [('submitted', 'Submitted'), ('accepted', 'Accepted'), ('rejected', 'Rejected')]

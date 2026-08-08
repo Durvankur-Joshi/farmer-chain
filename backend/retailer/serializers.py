@@ -6,7 +6,11 @@ class RetailerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Retailer
         fields = '__all__'
-        extra_kwargs = {'password': {'write_only': True}}
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'did': {'read_only': True},
+            'did_created_at': {'read_only': True},
+        }
 
 class RetailerRegistrationSerializer(serializers.ModelSerializer):
     class Meta:

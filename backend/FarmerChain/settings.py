@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'retailer',
     'admin_app',
     'negotiation',
+    'did_app',
 ]
 
 

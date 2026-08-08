@@ -11,7 +11,8 @@ export default function RetailerDashboard() {
   const [bids, setBids] = useState({});
   const [deliveryTimes, setDeliveryTimes] = useState({});
   const [loading, setLoading] = useState(false);
-  
+  const [didInfo, setDidInfo] = useState(null);
+  const [copyMsg, setCopyMsg] = useState("");
 
   const retailerId = Cookies.get("retailer_id");
 
@@ -25,6 +26,25 @@ export default function RetailerDashboard() {
       Cookies.remove("role", { path: "/" });
       navigate("/");
     }
+  };
+
+  // Fetch DID identity
+  const fetchDid = async () => {
+    try {
+      const res = await axios.get("/api/did/me/", { withCredentials: true });
+      setDidInfo(res.data);
+    } catch (err) {
+      console.error("Could not fetch DID:", err);
+    }
+  };
+
+  // Copy DID to clipboard
+  const copyDid = () => {
+    if (!didInfo?.did) return;
+    navigator.clipboard.writeText(didInfo.did).then(() => {
+      setCopyMsg("✅ Copied!");
+      setTimeout(() => setCopyMsg(""), 2000);
+    });
   };
 
   // 🔹 Fetch dashboard data
@@ -55,6 +75,7 @@ export default function RetailerDashboard() {
     fetchFpoQuotes();
     
     fetchMyBids();
+    fetchDid();
   }, []);
 
   // 🔹 Bid input handlers
@@ -119,7 +140,28 @@ export default function RetailerDashboard() {
         </button>
       </div>
 
-      
+      {/* DID Identity Card */}
+      {didInfo && (
+        <div className="bg-white border border-purple-200 rounded-2xl shadow p-5 mb-2">
+          <h3 className="text-sm font-semibold text-purple-700 uppercase tracking-widest mb-3">
+            🔐 Decentralized Identity
+          </h3>
+          <div className="space-y-1 text-sm text-gray-700">
+            <p><span className="font-medium text-gray-500">Role:</span> {didInfo.role}</p>
+            <p className="break-all"><span className="font-medium text-gray-500">DID:</span> {didInfo.did}</p>
+            <p className="break-all"><span className="font-medium text-gray-500">Wallet:</span> {didInfo.wallet_address}</p>
+          </div>
+          <div className="mt-3 flex items-center gap-3">
+            <button
+              onClick={copyDid}
+              className="text-xs bg-purple-600 text-white px-3 py-1.5 rounded hover:bg-purple-700"
+            >
+              📋 Copy DID
+            </button>
+            {copyMsg && <span className="text-xs text-purple-600 font-semibold">{copyMsg}</span>}
+          </div>
+        </div>
+      )}
 
       {/* Open FPO Quotes */}
       <div className="bg-white p-6 rounded-2xl shadow">

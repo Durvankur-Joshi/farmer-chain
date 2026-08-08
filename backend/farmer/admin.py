@@ -3,9 +3,10 @@ from .models import Farmer, FarmerQuote
 
 @admin.register(Farmer)
 class FarmerAdmin(admin.ModelAdmin):
-    list_display = ('name', 'email', 'approval_status', 'city', 'state', 'created_at')
+    list_display = ('name', 'email', 'approval_status', 'city', 'state', 'did', 'did_created_at', 'created_at')
     list_filter = ('approval_status', 'state', 'city')
-    search_fields = ('name', 'email', 'aadhaar_number', 'wallet_address')
+    search_fields = ('name', 'email', 'aadhaar_number', 'wallet_address', 'did')
+    readonly_fields = ('did', 'did_created_at', 'created_at')
 
 @admin.register(FarmerQuote)
 class FarmerQuoteAdmin(admin.ModelAdmin):
