@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Farmer, FarmerQuote, CropPassport
+from .models import Farmer, FarmerQuote, CropPassport, CropPassportDocument
 
 
 @admin.register(Farmer)
@@ -29,8 +29,6 @@ class CropPassportAdmin(admin.ModelAdmin):
         'farmer__name', 'farmer__wallet_address',
         'nft_token_id', 'nft_contract_address', 'nft_transaction_hash',
     )
-    # NFT blockchain fields must NOT be manually editable in admin
-    # to prevent admins from forging blockchain records.
     readonly_fields = (
         'nft_token_id', 'nft_contract_address',
         'nft_token_uri', 'nft_transaction_hash', 'nft_minted_at',
@@ -56,3 +54,24 @@ class CropPassportAdmin(admin.ModelAdmin):
             'classes': ('collapse',),
         }),
     )
+
+
+@admin.register(CropPassportDocument)
+class CropPassportDocumentAdmin(admin.ModelAdmin):
+    list_display = (
+        'file_name', 'document_type', 'crop_passport', 'uploaded_by',
+        'file_size_kb', 'ipfs_cid', 'uploaded_at',
+    )
+    list_filter = ('document_type',)
+    search_fields = (
+        'file_name', 'ipfs_cid',
+        'crop_passport__crop_name',
+        'uploaded_by__name',
+    )
+    # CID and timestamps must be read-only in admin —
+    # admins should never manually forge IPFS references.
+    readonly_fields = ('ipfs_cid', 'ipfs_uri', 'uploaded_at')
+
+    def file_size_kb(self, obj):
+        return f"{obj.file_size / 1024:.1f} KB"
+    file_size_kb.short_description = 'Size'

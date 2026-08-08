@@ -1,12 +1,14 @@
 /**
- * CropPassportCard.jsx — Phase 2.2
+ * CropPassportCard.jsx — Phase 2.2 + 2.3
  *
  * Displays one CropPassport record.
- * Shows full NFT details when minted; shows MintButton when not.
- * QR Verification placeholder included per spec (Phase 2.x future).
+ * Phase 2.2: NFT details + MintButton
+ * Phase 2.3: Decentralized Documents section (upload + list)
  */
-import React from "react";
+import React, { useState } from "react";
 import MintButton from "./MintButton";
+import DocumentUploader from "./DocumentUploader";
+import DocumentList from "./DocumentList";
 
 const SEPOLIA_EXPLORER = "https://sepolia.etherscan.io";
 
@@ -27,13 +29,22 @@ function ipfsGateway(uri) {
 export default function CropPassportCard({ crop, onMintSuccess }) {
   const isMinted = crop.status === "minted";
 
+  // Controls visibility of the upload form and triggers doc list refresh
+  const [showUploader, setShowUploader] = useState(false);
+  const [docRefresh, setDocRefresh]     = useState(0);
+
+  const handleUploadSuccess = () => {
+    setShowUploader(false);
+    setDocRefresh((n) => n + 1); // triggers DocumentList to re-fetch
+  };
+
   return (
     <div
       className={`rounded-2xl border shadow p-5 mb-4 ${
         isMinted ? "border-purple-200 bg-purple-50" : "border-gray-200 bg-white"
       }`}
     >
-      {/* Header */}
+      {/* ── Header ───────────────────────────────────────────────── */}
       <div className="flex justify-between items-start mb-3">
         <div>
           <h3 className="text-base font-bold text-gray-800">🌾 {crop.crop_name}</h3>
@@ -50,7 +61,7 @@ export default function CropPassportCard({ crop, onMintSuccess }) {
         </span>
       </div>
 
-      {/* Crop Details */}
+      {/* ── Crop Details ──────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm text-gray-700 mb-3">
         <p><span className="font-medium text-gray-500">Quantity:</span> {crop.quantity} {crop.unit}</p>
         <p><span className="font-medium text-gray-500">Location:</span> {crop.location || "—"}</p>
@@ -64,7 +75,7 @@ export default function CropPassportCard({ crop, onMintSuccess }) {
         )}
       </div>
 
-      {/* NFT Details (visible only after minting) */}
+      {/* ── NFT Details ───────────────────────────────────────────── */}
       {isMinted && (
         <div className="border-t border-purple-200 pt-3 mt-3 space-y-1 text-xs text-gray-700">
           <p>
@@ -113,7 +124,6 @@ export default function CropPassportCard({ crop, onMintSuccess }) {
             </p>
           )}
 
-          {/* Public verification link */}
           <div className="mt-2 flex gap-2">
             <a
               href={`/crop-passport/${crop.id}`}
@@ -123,16 +133,37 @@ export default function CropPassportCard({ crop, onMintSuccess }) {
             >
               🔍 View Passport
             </a>
-            {/* QR placeholder — Phase 2.x */}
-            <span className="text-xs text-gray-400 italic self-center">
-              QR Verification — Coming in Phase 2.x
-            </span>
           </div>
         </div>
       )}
 
-      {/* Mint button (only before minting) */}
+      {/* ── Mint button ───────────────────────────────────────────── */}
       {!isMinted && <MintButton crop={crop} onMintSuccess={onMintSuccess} />}
+
+      {/* ── Phase 2.3: Decentralized Documents ───────────────────── */}
+      <div className="border-t border-gray-200 mt-4 pt-4">
+        <div className="flex justify-between items-center mb-2">
+          <h4 className="text-sm font-bold text-gray-700">📦 Decentralized Documents</h4>
+          <button
+            onClick={() => setShowUploader((v) => !v)}
+            className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+          >
+            {showUploader ? "✕ Cancel" : "📤 Upload Evidence"}
+          </button>
+        </div>
+
+        {showUploader && (
+          <DocumentUploader
+            cropId={crop.id}
+            onUploadSuccess={handleUploadSuccess}
+          />
+        )}
+
+        <DocumentList
+          cropId={crop.id}
+          refreshTrigger={docRefresh}
+        />
+      </div>
     </div>
   );
 }

@@ -1,16 +1,25 @@
 /**
- * CropPassportPage.jsx — Phase 2.2
+ * CropPassportPage.jsx — Phase 2.2 + 2.3
  * Public verification page. No authentication required.
  * Route: /crop-passport/:id
  *
- * Shows only non-sensitive fields. Designed so this URL can later
- * be encoded into a QR code (Phase 2.x).
+ * Phase 2.3: Shows public IPFS documents section.
+ * Never exposes: email, aadhaar, password, Pinata credentials.
  */
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
 
 const SEPOLIA_EXPLORER = "https://sepolia.etherscan.io";
+
+const DOC_TYPE_LABELS = {
+  crop_image:       "🌾 Crop Image",
+  soil_report:      "🧪 Soil Report",
+  quality_report:   "📊 Quality Report",
+  certification:    "🏆 Certification",
+  harvest_document: "📋 Harvest Document",
+  other:            "📁 Other",
+};
 
 function ipfsGateway(uri) {
   if (!uri) return null;
@@ -42,9 +51,10 @@ function Row({ label, value, link }) {
 
 export default function CropPassportPage() {
   const { id } = useParams();
-  const [crop, setCrop] = useState(null);
+  const [crop, setCrop]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [copied, setCopied]   = useState("");
 
   useEffect(() => {
     axios
@@ -55,6 +65,13 @@ export default function CropPassportPage() {
         if (err.response?.status === 404) setNotFound(true);
       });
   }, [id]);
+
+  const handleCopyCid = (cid) => {
+    navigator.clipboard.writeText(cid).then(() => {
+      setCopied(cid);
+      setTimeout(() => setCopied(""), 2000);
+    });
+  };
 
   if (loading) {
     return (
@@ -73,12 +90,14 @@ export default function CropPassportPage() {
     );
   }
 
-  const isMinted = crop.status === "minted";
+  const isMinted  = crop.status === "minted";
+  const documents = crop.documents || [];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-purple-50 py-10 px-4">
       <div className="max-w-2xl mx-auto">
-        {/* Header */}
+
+        {/* ── Header ───────────────────────────────────────────────── */}
         <div className="bg-white rounded-3xl shadow-lg border border-green-100 p-8 mb-6">
           <div className="flex items-center gap-3 mb-2">
             <span className="text-4xl">🌾</span>
@@ -89,8 +108,6 @@ export default function CropPassportPage() {
               <p className="text-sm text-gray-500">#{id} · {crop.crop_category}</p>
             </div>
           </div>
-
-          {/* Verification badge */}
           <div
             className={`mt-4 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold w-fit ${
               isMinted
@@ -102,7 +119,7 @@ export default function CropPassportPage() {
           </div>
         </div>
 
-        {/* Crop Details */}
+        {/* ── Crop Info ─────────────────────────────────────────────── */}
         <div className="bg-white rounded-3xl shadow-lg border border-gray-100 p-6 mb-6">
           <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">
             🌱 Crop Information
@@ -113,32 +130,26 @@ export default function CropPassportPage() {
           <Row label="Cultivation Date" value={crop.cultivation_date} />
           <Row label="Harvest Date"     value={crop.harvest_date} />
           <Row label="Location"         value={crop.location} />
-          {crop.description && (
-            <Row label="Description"    value={crop.description} />
-          )}
+          {crop.description && <Row label="Description" value={crop.description} />}
         </div>
 
-        {/* Farmer Identity */}
+        {/* ── Farmer Identity ───────────────────────────────────────── */}
         <div className="bg-white rounded-3xl shadow-lg border border-gray-100 p-6 mb-6">
           <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">
             🔐 Farmer Identity
           </h2>
-          <Row label="Farmer DID"    value={crop.farmer_did} />
-          <Row label="Wallet"        value={crop.farmer_wallet} />
-          <Row label="Location"      value={crop.farmer_location} />
-          {/* Sensitive fields (email, aadhaar, etc.) deliberately excluded */}
+          <Row label="Farmer DID" value={crop.farmer_did} />
+          <Row label="Wallet"     value={crop.farmer_wallet} />
+          <Row label="Location"   value={crop.farmer_location} />
         </div>
 
-        {/* NFT Block — only when minted */}
+        {/* ── NFT Record ───────────────────────────────────────────── */}
         {isMinted && (
           <div className="bg-white rounded-3xl shadow-lg border border-purple-100 p-6 mb-6">
             <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">
               🪙 NFT Blockchain Record
             </h2>
-            <Row
-              label="Token ID"
-              value={`#${crop.nft_token_id}`}
-            />
+            <Row label="Token ID"    value={`#${crop.nft_token_id}`} />
             <Row
               label="Contract"
               value={crop.nft_contract_address}
@@ -155,16 +166,61 @@ export default function CropPassportPage() {
               link={ipfsGateway(crop.nft_token_uri)}
             />
             {crop.nft_minted_at && (
-              <Row
-                label="Minted At"
-                value={new Date(crop.nft_minted_at).toLocaleString()}
-              />
+              <Row label="Minted At" value={new Date(crop.nft_minted_at).toLocaleString()} />
             )}
-            <div className="mt-4 text-xs text-gray-400 italic">
-              QR Consumer Verification — Coming in Phase 2.x
-            </div>
           </div>
         )}
+
+        {/* ── Phase 2.3: Verified Evidence (public documents) ────────── */}
+        <div className="bg-white rounded-3xl shadow-lg border border-blue-100 p-6 mb-6">
+          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">
+            📦 Verified Evidence
+          </h2>
+
+          {documents.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">No documents have been uploaded for this crop yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {documents.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="bg-blue-50 border border-blue-100 rounded-xl p-4"
+                >
+                  <div className="flex justify-between items-start flex-wrap gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">
+                        {DOC_TYPE_LABELS[doc.document_type] || doc.document_type}
+                      </p>
+                      <p className="text-xs text-gray-500">{doc.file_name}</p>
+                      <p className="text-xs font-mono text-gray-500 mt-1 break-all">
+                        CID: {doc.ipfs_cid}
+                      </p>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      <a
+                        href={doc.gateway_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700"
+                      >
+                        🔗 View on IPFS
+                      </a>
+                      <button
+                        onClick={() => handleCopyCid(doc.ipfs_cid)}
+                        className="text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-200"
+                      >
+                        {copied === doc.ipfs_cid ? "✅ Copied!" : "📋 Copy CID"}
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Uploaded: {new Date(doc.uploaded_at).toLocaleDateString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         <p className="text-center text-xs text-gray-400 mt-6">
           FarmerChain · Decentralized Agricultural Supply Chain ·{" "}

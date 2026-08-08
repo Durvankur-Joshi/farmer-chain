@@ -3,11 +3,12 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
-from .models import Farmer, FarmerQuote, CropPassport
+from .models import Farmer, FarmerQuote, CropPassport, CropPassportDocument
 from django.utils import timezone
 from .serializers import (
     FarmerSerializer, FarmerRegistrationSerializer, FarmerQuoteSerializer,
     CropPassportSerializer, PublicCropPassportSerializer,
+    CropPassportDocumentSerializer, PublicDocumentSerializer,
 )
 from common.permissions import IsFarmer
 from fpo.models import FPOBid
@@ -417,7 +418,183 @@ def public_crop_passport_view(request, crop_id):
 
     Public, unauthenticated. Returns only non-sensitive fields.
     No email, aadhaar, password, GSTIN, CIN.
+    Phase 2.3: includes public documents list.
     """
     crop = get_object_or_404(CropPassport, pk=crop_id)
     serializer = PublicCropPassportSerializer(crop)
+    documents  = crop.documents.all()
+    doc_serializer = PublicDocumentSerializer(documents, many=True)
+    data = serializer.data
+    data['documents'] = doc_serializer.data
+    return Response(data)
+
+
+# ─────────────────────────────────────────────────────────────────
+# Phase 2.3 — IPFS Document views
+# ─────────────────────────────────────────────────────────────────
+
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024   # 10 MB
+ALLOWED_CONTENT_TYPES = {
+    'image/jpeg', 'image/jpg', 'image/png',
+    'image/webp', 'application/pdf',
+}
+ALLOWED_DOC_TYPES = {
+    'crop_image', 'soil_report', 'quality_report',
+    'certification', 'harvest_document', 'other',
+}
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsFarmer])
+def upload_document(request, crop_id):
+    """
+    POST /api/farmer/crops/<crop_id>/documents/
+
+    Uploads a file to Pinata IPFS and stores the CID in Django.
+    Farmer is always derived from the JWT cookie (never from request body).
+    """
+    farmer = request.user.user_obj
+    crop   = get_object_or_404(CropPassport, pk=crop_id)
+
+    # ── Ownership check ──────────────────────────────────────────
+    if crop.farmer_id != farmer.pk:
+        return Response(
+            {'error': 'You do not own this Crop Passport.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    # ── File presence check ─────────────────────────────────────
+    uploaded_file = request.FILES.get('file')
+    if not uploaded_file:
+        return Response(
+            {'error': 'No file provided. Send the file as multipart/form-data with key "file".'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # ── Size validation ───────────────────────────────────────
+    if uploaded_file.size > MAX_UPLOAD_BYTES:
+        return Response(
+            {'error': f'File too large. Maximum allowed size is 10 MB.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # ── MIME type validation ─────────────────────────────────
+    content_type = uploaded_file.content_type.lower().split(';')[0].strip()
+    if content_type not in ALLOWED_CONTENT_TYPES:
+        return Response(
+            {'error': f'File type "{content_type}" is not allowed. '
+                      f'Allowed types: JPG, PNG, WEBP, PDF.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # ── Document type validation ────────────────────────────
+    document_type = request.data.get('document_type', 'other').strip()
+    if document_type not in ALLOWED_DOC_TYPES:
+        return Response(
+            {'error': f'Invalid document_type "{document_type}". '
+                      f'Allowed: {sorted(ALLOWED_DOC_TYPES)}'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # ── Upload to IPFS via server-side Pinata ───────────────────
+    try:
+        from services.ipfs_service import upload_file_to_ipfs, IPFSUploadError
+        cid, ipfs_uri = upload_file_to_ipfs(
+            file_obj=uploaded_file,
+            file_name=uploaded_file.name,
+            pin_name=f'crop-{crop_id}-{uploaded_file.name}',
+        )
+    except IPFSUploadError as exc:
+        logger.warning('IPFS file upload failed for crop %s: %s', crop_id, exc)
+        return Response(
+            {'error': f'Unable to upload file to IPFS: {str(exc)}'},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    # ── Persist CID reference in DB ──────────────────────────
+    doc = CropPassportDocument.objects.create(
+        crop_passport=crop,
+        uploaded_by=farmer,
+        file_name=uploaded_file.name,
+        file_type=content_type,
+        file_size=uploaded_file.size,
+        document_type=document_type,
+        ipfs_cid=cid,
+        ipfs_uri=ipfs_uri,
+    )
+
+    serializer = CropPassportDocumentSerializer(doc)
+    return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsFarmer])
+def list_documents(request, crop_id):
+    """
+    GET /api/farmer/crops/<crop_id>/documents/
+
+    Lists documents belonging to the authenticated farmer's crop.
+    """
+    farmer = request.user.user_obj
+    crop   = get_object_or_404(CropPassport, pk=crop_id)
+
+    if crop.farmer_id != farmer.pk:
+        return Response(
+            {'error': 'You do not own this Crop Passport.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    docs = CropPassportDocument.objects.filter(crop_passport=crop)
+    serializer = CropPassportDocumentSerializer(docs, many=True)
     return Response(serializer.data)
+
+
+@api_view(['GET', 'DELETE'])
+@permission_classes([IsAuthenticated, IsFarmer])
+def document_detail(request, crop_id, document_id):
+    """
+    GET    /api/farmer/crops/<crop_id>/documents/<document_id>/
+    DELETE /api/farmer/crops/<crop_id>/documents/<document_id>/
+
+    GET:    Return document metadata (farmer-scoped).
+    DELETE: Remove DB record and attempt to unpin from Pinata.
+            IPFS content may still be accessible via other gateways/nodes.
+    """
+    farmer = request.user.user_obj
+    crop   = get_object_or_404(CropPassport, pk=crop_id)
+
+    if crop.farmer_id != farmer.pk:
+        return Response(
+            {'error': 'You do not own this Crop Passport.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    doc = get_object_or_404(CropPassportDocument, pk=document_id, crop_passport=crop)
+
+    if request.method == 'GET':
+        serializer = CropPassportDocumentSerializer(doc)
+        return Response(serializer.data)
+
+    # DELETE
+    cid = doc.ipfs_cid
+    doc.delete()
+
+    # Attempt Pinata unpin (best-effort; does not guarantee IPFS removal)
+    unpin_result = 'not_attempted'
+    try:
+        from services.ipfs_service import unpin_from_ipfs, IPFSUploadError
+        unpinned = unpin_from_ipfs(cid)
+        unpin_result = 'unpinned' if unpinned else 'not_found_in_pinata'
+    except Exception as exc:
+        logger.warning('Unpin attempt failed for CID %s: %s', cid, exc)
+        unpin_result = 'unpin_failed'
+
+    return Response({
+        'message': 'Document record deleted.',
+        'ipfs_cid': cid,
+        'pinata_unpin': unpin_result,
+        'note': (
+            'The IPFS content may still be accessible via public gateways '
+            'if other nodes have cached or pinned it.'
+        ),
+    })

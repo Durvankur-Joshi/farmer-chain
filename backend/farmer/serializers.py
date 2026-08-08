@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Farmer, FarmerQuote, CropPassport
+from .models import Farmer, FarmerQuote, CropPassport, CropPassportDocument
 
 
 class FarmerSerializer(serializers.ModelSerializer):
@@ -143,4 +143,57 @@ class PublicCropPassportSerializer(serializers.ModelSerializer):
         ]
 
     def get_farmer_location(self, obj):
-        return f"{obj.farmer.city}, {obj.farmer.state}"
+        return f"{obj.farmer.city}, {obj.farmer.state}"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Phase 2.3 — IPFS Document serializers
+# ──────────────────────────────────────────────────────────────────────────────
+
+class CropPassportDocumentSerializer(serializers.ModelSerializer):
+    """
+    Full serializer for authenticated farmer document management.
+    - uploaded_by and ipfs fields are always set server-side.
+    - gateway_url is a computed convenience field.
+    - Frontend CANNOT submit: farmer_id, uploaded_by, ipfs_cid, ipfs_uri.
+    """
+    gateway_url = serializers.SerializerMethodField()
+    uploaded_by_name = serializers.CharField(source='uploaded_by.name', read_only=True)
+
+    class Meta:
+        model = CropPassportDocument
+        fields = [
+            'id', 'crop_passport',
+            'uploaded_by', 'uploaded_by_name',
+            'file_name', 'file_type', 'file_size',
+            'document_type',
+            'ipfs_cid', 'ipfs_uri', 'gateway_url',
+            'uploaded_at',
+        ]
+        read_only_fields = (
+            'id', 'crop_passport', 'uploaded_by',
+            'ipfs_cid', 'ipfs_uri', 'uploaded_at',
+        )
+
+    def get_gateway_url(self, obj):
+        return obj.gateway_url
+
+
+class PublicDocumentSerializer(serializers.ModelSerializer):
+    """
+    Read-only serializer for the public Crop Passport page.
+    Exposes only non-sensitive information.
+    """
+    gateway_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CropPassportDocument
+        fields = [
+            'id', 'file_name', 'file_type', 'file_size',
+            'document_type', 'ipfs_cid', 'ipfs_uri', 'gateway_url',
+            'uploaded_at',
+        ]
+
+    def get_gateway_url(self, obj):
+        return obj.gateway_url
+

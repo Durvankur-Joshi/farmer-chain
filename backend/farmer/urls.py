@@ -1,12 +1,14 @@
 from django.urls import path
 from .views import (
-    # ── Existing ────────────────────────────────────────────────────
+    # ── Existing (unchanged) ─────────────────────────────────────────
     FarmerRegistrationView, FarmerListView, FarmerDetailView, farmer_login_check,
     farmer_dashboard, FarmerQuoteListCreateView, FarmerQuoteDetailView,
     accept_fpo_bid, update_contract_address, get_contract_details,
-    # ── Phase 2.2 Crop Passport ─────────────────────────────────────
+    # ── Phase 2.2: Crop Passport ─────────────────────────────────────
     CropPassportListCreateView, CropPassportDetailView,
     prepare_mint_view, confirm_mint_view, public_crop_passport_view,
+    # ── Phase 2.3: IPFS Documents ────────────────────────────────────
+    upload_document, list_documents, document_detail,
 )
 
 urlpatterns = [
@@ -22,11 +24,19 @@ urlpatterns = [
     path('quotes/<int:quote_id>/update-contract/', update_contract_address, name='update-contract-address'),
     path('contract/<str:contract_address>/', get_contract_details, name='contract-details'),
 
-    # ── Phase 2.2: Crop Passport routes ─────────────────────────────
-    # Note: 'public/' is declared before '<int:pk>/' to avoid URL collision
+    # ── Phase 2.2: Crop Passport ─────────────────────────────────────
+    # 'public/' declared before <int:pk>/ to avoid URL collision
     path('crops/public/<int:crop_id>/', public_crop_passport_view, name='crop-passport-public'),
     path('crops/', CropPassportListCreateView.as_view(), name='crop-passport-list'),
     path('crops/<int:pk>/', CropPassportDetailView.as_view(), name='crop-passport-detail'),
     path('crops/<int:crop_id>/mint/', prepare_mint_view, name='crop-passport-mint'),
     path('crops/<int:crop_id>/confirm-mint/', confirm_mint_view, name='crop-passport-confirm-mint'),
+
+    # ── Phase 2.3: IPFS Document endpoints ──────────────────────────
+    # POST   → upload_document
+    # GET    → list_documents
+    # Both handled at the same URL by routing via HTTP method in the views
+    path('crops/<int:crop_id>/documents/', upload_document,  name='crop-document-upload'),
+    path('crops/<int:crop_id>/documents/list/', list_documents, name='crop-document-list'),
+    path('crops/<int:crop_id>/documents/<int:document_id>/', document_detail, name='crop-document-detail'),
 ]
