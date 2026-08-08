@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Farmer, FarmerQuote, CropPassport, CropPassportDocument
+from .models import Farmer, FarmerQuote, CropPassport, CropPassportDocument, AIQualityVerification
 
 
 class FarmerSerializer(serializers.ModelSerializer):
@@ -196,4 +196,71 @@ class PublicDocumentSerializer(serializers.ModelSerializer):
 
     def get_gateway_url(self, obj):
         return obj.gateway_url
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Phase 2.4 — AI Quality Verification serializers
+# ──────────────────────────────────────────────────────────────────────────────
+
+class AIQualityVerificationSerializer(serializers.ModelSerializer):
+    """
+    Full serializer for authenticated farmer view.
+    All AI result fields and IPFS reference are read-only (set server-side).
+    No API key, no Pinata secret, no Aadhaar, no password exposed.
+    """
+    image_gateway_url = serializers.SerializerMethodField()
+    verified_by_name  = serializers.CharField(source='verified_by.name', read_only=True)
+    crop_name         = serializers.CharField(source='crop_passport.crop_name', read_only=True)
+
+    class Meta:
+        model = AIQualityVerification
+        fields = [
+            'id', 'crop_passport', 'crop_name',
+            'verified_by', 'verified_by_name',
+            'image_cid', 'image_uri', 'image_gateway_url',
+            'crop_detected',
+            'quality_grade', 'quality_score', 'confidence_score',
+            'disease_detected', 'disease_name', 'visible_defects',
+            'ai_summary',
+            'verification_status', 'failure_reason',
+            'ai_provider',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'crop_passport', 'verified_by',
+            'image_cid', 'image_uri',
+            'crop_detected', 'quality_grade', 'quality_score', 'confidence_score',
+            'disease_detected', 'disease_name', 'visible_defects', 'ai_summary',
+            'verification_status', 'failure_reason', 'ai_provider',
+            'created_at', 'updated_at',
+        ]
+
+    def get_image_gateway_url(self, obj):
+        return obj.image_gateway_url
+
+
+class PublicVerificationSerializer(serializers.ModelSerializer):
+    """
+    Read-only serializer for public consumer-facing verification endpoint.
+    Excludes farmer identity (name/email/aadhaar) and internal fields.
+    """
+    image_gateway_url = serializers.SerializerMethodField()
+    crop_name         = serializers.CharField(source='crop_passport.crop_name', read_only=True)
+
+    class Meta:
+        model = AIQualityVerification
+        fields = [
+            'id', 'crop_name',
+            'image_cid', 'image_uri', 'image_gateway_url',
+            'crop_detected',
+            'quality_grade', 'quality_score', 'confidence_score',
+            'disease_detected', 'disease_name', 'visible_defects',
+            'ai_summary',
+            'verification_status',
+            'ai_provider',
+            'created_at',
+        ]
+
+    def get_image_gateway_url(self, obj):
+        return obj.image_gateway_url
 

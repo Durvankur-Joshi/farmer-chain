@@ -9,6 +9,8 @@ from .views import (
     prepare_mint_view, confirm_mint_view, public_crop_passport_view,
     # ── Phase 2.3: IPFS Documents ────────────────────────────────────
     upload_document, list_documents, document_detail,
+    # ── Phase 2.4: AI Quality Verification ───────────────────────────
+    verify_crop_view, get_verification_view, public_verification_view,
 )
 
 urlpatterns = [
@@ -33,10 +35,15 @@ urlpatterns = [
     path('crops/<int:crop_id>/confirm-mint/', confirm_mint_view, name='crop-passport-confirm-mint'),
 
     # ── Phase 2.3: IPFS Document endpoints ──────────────────────────
-    # POST   → upload_document
-    # GET    → list_documents
-    # Both handled at the same URL by routing via HTTP method in the views
     path('crops/<int:crop_id>/documents/', upload_document,  name='crop-document-upload'),
     path('crops/<int:crop_id>/documents/list/', list_documents, name='crop-document-list'),
     path('crops/<int:crop_id>/documents/<int:document_id>/', document_detail, name='crop-document-detail'),
+
+    # ── Phase 2.4: AI Quality Verification ──────────────────────────
+    # POST → start AI verification
+    path('crops/<int:crop_id>/verify/', verify_crop_view, name='crop-ai-verify'),
+    # GET  → latest verification (farmer-scoped)
+    path('crops/<int:crop_id>/verification/', get_verification_view, name='crop-ai-verification'),
+    # GET  → public verification result (AllowAny)
+    path('crops/public/<int:crop_id>/verification/', public_verification_view, name='crop-ai-verification-public'),
 ]

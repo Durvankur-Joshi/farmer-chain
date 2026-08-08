@@ -3,12 +3,13 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
-from .models import Farmer, FarmerQuote, CropPassport, CropPassportDocument
+from .models import Farmer, FarmerQuote, CropPassport, CropPassportDocument, AIQualityVerification
 from django.utils import timezone
 from .serializers import (
     FarmerSerializer, FarmerRegistrationSerializer, FarmerQuoteSerializer,
     CropPassportSerializer, PublicCropPassportSerializer,
     CropPassportDocumentSerializer, PublicDocumentSerializer,
+    AIQualityVerificationSerializer, PublicVerificationSerializer,
 )
 from common.permissions import IsFarmer
 from fpo.models import FPOBid
@@ -597,4 +598,258 @@ def document_detail(request, crop_id, document_id):
             'The IPFS content may still be accessible via public gateways '
             'if other nodes have cached or pinned it.'
         ),
+    })
+
+
+# ────────────────────────────────────────────────────────────────
+# Phase 2.4 — AI Crop Quality Verification views
+# ────────────────────────────────────────────────────────────────
+
+AI_ALLOWED_MIME_TYPES = {'image/jpeg', 'image/jpg', 'image/png', 'image/webp'}
+AI_MAX_UPLOAD_BYTES   = 10 * 1024 * 1024   # 10 MB
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsFarmer])
+def verify_crop_view(request, crop_id):
+    """
+    POST /api/farmer/crops/<crop_id>/verify/
+
+    Complete AI verification flow:
+      1. Validate file (image type, size)
+      2. Upload image to IPFS via existing Pinata service
+      3. Read image bytes and send to Gemini Vision
+      4. Validate AI JSON response
+      5. Crop mismatch check (detected vs registered)
+      6. Persist AIQualityVerification record
+      7. Return structured result (no API keys, no PII)
+
+    Security:
+      - Farmer derived from JWT cookie (never from request body)
+      - crop.farmer_id == farmer.pk checked before any processing
+      - Gemini API key never returned
+    """
+    farmer = request.user.user_obj
+    crop   = get_object_or_404(CropPassport, pk=crop_id)
+
+    # ── Ownership check ─────────────────────────────────────────
+    if crop.farmer_id != farmer.pk:
+        return Response(
+            {'error': 'You do not own this Crop Passport.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    # ── File presence ────────────────────────────────────────
+    uploaded_file = request.FILES.get('file')
+    if not uploaded_file:
+        return Response(
+            {'error': 'No image provided. Send the image as multipart/form-data with key "file".'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # ── Size validation ─────────────────────────────────────
+    if uploaded_file.size > AI_MAX_UPLOAD_BYTES:
+        return Response(
+            {'error': 'Image too large. Maximum is 10 MB.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # ── MIME type validation (images only, no PDFs) ──────────────
+    content_type = uploaded_file.content_type.lower().split(';')[0].strip()
+    if content_type not in AI_ALLOWED_MIME_TYPES:
+        return Response(
+            {'error': f'File type "{content_type}" is not accepted for AI verification. '
+                      f'Upload a JPEG, PNG, or WEBP image.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # ── Step 1: Upload image to IPFS ──────────────────────────
+    try:
+        from services.ipfs_service import upload_file_to_ipfs, IPFSUploadError
+        cid, image_uri = upload_file_to_ipfs(
+            file_obj=uploaded_file,
+            file_name=uploaded_file.name,
+            pin_name=f'ai-verify-crop-{crop_id}-{uploaded_file.name}',
+        )
+    except IPFSUploadError as exc:
+        logger.warning('IPFS upload failed during AI verify for crop %s: %s', crop_id, exc)
+        return Response(
+            {'error': f'Image upload to IPFS failed: {str(exc)}'},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    # ── Step 2: Read image bytes for Gemini (rewind after IPFS upload) ─
+    uploaded_file.seek(0)
+    image_bytes = uploaded_file.read()
+
+    # ── Step 3: AI analysis ───────────────────────────────
+    try:
+        from services.ai_service import analyze_crop_image, AIAnalysisError
+        ai_result = analyze_crop_image(
+            image_bytes=image_bytes,
+            mime_type=content_type,
+            crop_name=crop.crop_name,
+        )
+    except AIAnalysisError as exc:
+        error_msg = str(exc)
+        logger.warning('Gemini analysis failed for crop %s: %s', crop_id, error_msg)
+
+        # If output was truncated (MAX_TOKENS), do NOT save a record —
+        # there is no valid result to store.  Return a clean 502 with
+        # retry guidance so the farmer can try again.
+        is_truncation = 'incomplete' in error_msg.lower() or 'truncated' in error_msg.lower()
+        if is_truncation:
+            return Response(
+                {
+                    'error': error_msg,
+                    'can_retry': True,
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        # For other AI failures, save a failed record so farmer can
+        # see the error history and the IPFS image is not lost.
+        failed_record = AIQualityVerification.objects.create(
+            crop_passport=crop,
+            verified_by=farmer,
+            image_cid=cid,
+            image_uri=image_uri,
+            verification_status=AIQualityVerification.STATUS_FAILED,
+            failure_reason=error_msg,
+        )
+        serializer = AIQualityVerificationSerializer(failed_record)
+        return Response(
+            {
+                'error': f'AI analysis failed: {error_msg}',
+                'verification': serializer.data,
+            },
+            status=status.HTTP_502_BAD_GATEWAY,
+
+        )
+
+    # ── Step 4: Crop mismatch check ───────────────────────────
+    detected  = ai_result.get('crop_detected', '').lower().strip()
+    expected  = crop.crop_name.lower().strip()
+    # Accept if detected name contains the expected crop or vice versa
+    crop_match = (
+        detected == expected
+        or detected in expected
+        or expected in detected
+        or detected == 'unknown'
+    )
+
+    if not crop_match:
+        mismatch_reason = (
+            f"Image appears to show '{ai_result['crop_detected']}' "
+            f"but the registered crop is '{crop.crop_name}'."
+        )
+        failed_record = AIQualityVerification.objects.create(
+            crop_passport=crop,
+            verified_by=farmer,
+            image_cid=cid,
+            image_uri=image_uri,
+            crop_detected=ai_result.get('crop_detected', ''),
+            confidence_score=ai_result.get('confidence_score'),
+            ai_summary=ai_result.get('summary', ''),
+            verification_status=AIQualityVerification.STATUS_FAILED,
+            failure_reason=mismatch_reason,
+            ai_provider='gemini-1.5-flash',
+        )
+        serializer = AIQualityVerificationSerializer(failed_record)
+        return Response(
+            {
+                'error': mismatch_reason,
+                'verification': serializer.data,
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # ── Step 5: Save verified record ──────────────────────────
+    verification = AIQualityVerification.objects.create(
+        crop_passport=crop,
+        verified_by=farmer,
+        image_cid=cid,
+        image_uri=image_uri,
+        crop_detected=ai_result.get('crop_detected', ''),
+        quality_grade=ai_result.get('quality_grade', ''),
+        quality_score=ai_result.get('quality_score'),
+        confidence_score=ai_result.get('confidence_score'),
+        disease_detected=ai_result.get('disease_detected', False),
+        disease_name=ai_result.get('disease_name'),
+        visible_defects=ai_result.get('visible_defects', ''),
+        ai_summary=ai_result.get('summary', ''),
+        verification_status=AIQualityVerification.STATUS_VERIFIED,
+        ai_provider='gemini-1.5-flash',
+    )
+
+    serializer = AIQualityVerificationSerializer(verification)
+    return Response(
+        {
+            'message': 'AI quality verification complete.',
+            'disclaimer': (
+                'This is an AI-assisted visual assessment. '
+                'It is NOT an agricultural laboratory certification.'
+            ),
+            'verification': serializer.data,
+        },
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsFarmer])
+def get_verification_view(request, crop_id):
+    """
+    GET /api/farmer/crops/<crop_id>/verification/
+
+    Returns the latest AI verification for the authenticated farmer's crop.
+    """
+    farmer = request.user.user_obj
+    crop   = get_object_or_404(CropPassport, pk=crop_id)
+
+    if crop.farmer_id != farmer.pk:
+        return Response(
+            {'error': 'You do not own this Crop Passport.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    verifications = AIQualityVerification.objects.filter(crop_passport=crop)
+    if not verifications.exists():
+        return Response(
+            {'message': 'No AI verification has been run for this crop yet.'},
+            status=status.HTTP_200_OK,
+        )
+
+    serializer = AIQualityVerificationSerializer(verifications, many=True)
+    return Response({'verifications': serializer.data})
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def public_verification_view(request, crop_id):
+    """
+    GET /api/farmer/crops/public/<crop_id>/verification/
+
+    Public endpoint. Returns the latest verified AI result for consumer trust.
+    Does NOT expose farmer PII (name, email, aadhaar, wallet, password).
+    """
+    crop = get_object_or_404(CropPassport, pk=crop_id)
+    latest = (
+        AIQualityVerification.objects
+        .filter(crop_passport=crop, verification_status=AIQualityVerification.STATUS_VERIFIED)
+        .first()
+    )
+    if not latest:
+        return Response(
+            {'message': 'No verified AI assessment available for this crop.'},
+            status=status.HTTP_200_OK,
+        )
+
+    serializer = PublicVerificationSerializer(latest)
+    return Response({
+        'disclaimer': (
+            'AI-assisted visual assessment only. '
+            'Not an agricultural laboratory certification.'
+        ),
+        'verification': serializer.data,
     })

@@ -9,6 +9,7 @@ import React, { useState } from "react";
 import MintButton from "./MintButton";
 import DocumentUploader from "./DocumentUploader";
 import DocumentList from "./DocumentList";
+import AIVerification from "./AIVerification";
 
 const SEPOLIA_EXPLORER = "https://sepolia.etherscan.io";
 
@@ -164,6 +165,9 @@ export default function CropPassportCard({ crop, onMintSuccess }) {
           refreshTrigger={docRefresh}
         />
       </div>
+
+      {/* ── Phase 2.4: AI Quality Verification ────────────────── */}
+      <AIVerification cropId={crop.id} cropName={crop.crop_name} />
     </div>
   );
 }

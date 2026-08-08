@@ -202,4 +202,84 @@ class CropPassportDocument(models.Model):
     @property
     def gateway_url(self):
         """Convenience HTTPS gateway URL for browser access."""
-        return f"https://gateway.pinata.cloud/ipfs/{self.ipfs_cid}"
+        return f"https://gateway.pinata.cloud/ipfs/{self.ipfs_cid}"
+
+
+class AIQualityVerification(models.Model):
+    """
+    Phase 2.4 — AI Crop Quality Verification.
+    Stores the result of a Gemini Vision analysis for a crop image.
+    The image binary is NEVER stored in Django — only the IPFS CID.
+    One CropPassport may have multiple verification records (re-runs allowed).
+    """
+
+    STATUS_PENDING  = 'pending'
+    STATUS_VERIFIED = 'verified'
+    STATUS_FAILED   = 'failed'
+    STATUS_CHOICES  = [
+        (STATUS_PENDING,  'Pending'),
+        (STATUS_VERIFIED, 'Verified'),
+        (STATUS_FAILED,   'Failed'),
+    ]
+
+    GRADE_CHOICES = [
+        ('A', 'A — Excellent'),
+        ('B', 'B — Good'),
+        ('C', 'C — Acceptable'),
+        ('D', 'D — Poor'),
+        ('F', 'F — Unacceptable'),
+    ]
+
+    # ── Relationships ──────────────────────────────────────────────────
+    crop_passport = models.ForeignKey(
+        CropPassport,
+        on_delete=models.CASCADE,
+        related_name='ai_verifications',
+    )
+    verified_by = models.ForeignKey(
+        Farmer,
+        on_delete=models.CASCADE,
+        related_name='ai_verifications',
+    )
+
+    # ── Image reference (stored on IPFS, not in DB) ────────────────────
+    image_cid     = models.CharField(max_length=255)
+    image_uri     = models.CharField(max_length=300)
+
+    # ── AI assessment fields ───────────────────────────────────────────
+    crop_detected     = models.CharField(max_length=200, blank=True)
+    quality_grade     = models.CharField(max_length=2, choices=GRADE_CHOICES, blank=True)
+    quality_score     = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    confidence_score  = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
+    disease_detected  = models.BooleanField(default=False)
+    disease_name      = models.CharField(max_length=200, null=True, blank=True)
+    visible_defects   = models.TextField(blank=True)
+    ai_summary        = models.TextField(blank=True)
+
+    # ── Status + metadata ──────────────────────────────────────────────
+    verification_status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+    )
+    failure_reason = models.TextField(blank=True)
+    ai_provider    = models.CharField(max_length=50, default='gemini-1.5-flash')
+    created_at     = models.DateTimeField(auto_now_add=True)
+    updated_at     = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'AI Quality Verification'
+        verbose_name_plural = 'AI Quality Verifications'
+
+    def __str__(self):
+        return (
+            f"[{self.verification_status.upper()}] "
+            f"{self.crop_passport.crop_name} — Grade {self.quality_grade or '?'} "
+            f"({self.crop_passport.farmer.name})"
+        )
+
+    @property
+    def image_gateway_url(self):
+        return f"https://gateway.pinata.cloud/ipfs/{self.image_cid}"
+

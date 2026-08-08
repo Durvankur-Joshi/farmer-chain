@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Farmer, FarmerQuote, CropPassport, CropPassportDocument
+from .models import Farmer, FarmerQuote, CropPassport, CropPassportDocument, AIQualityVerification
 
 
 @admin.register(Farmer)
@@ -75,3 +75,53 @@ class CropPassportDocumentAdmin(admin.ModelAdmin):
     def file_size_kb(self, obj):
         return f"{obj.file_size / 1024:.1f} KB"
     file_size_kb.short_description = 'Size'
+
+
+@admin.register(AIQualityVerification)
+class AIQualityVerificationAdmin(admin.ModelAdmin):
+    list_display = (
+        'crop_passport', 'get_farmer', 'crop_detected',
+        'quality_grade', 'quality_score', 'confidence_score',
+        'disease_detected', 'verification_status', 'ai_provider', 'created_at',
+    )
+    list_filter = ('verification_status', 'quality_grade', 'disease_detected', 'ai_provider')
+    search_fields = (
+        'crop_passport__crop_name',
+        'crop_passport__farmer__name',
+        'crop_detected', 'image_cid',
+    )
+    # All AI result + IPFS fields are read-only — admins should NOT forge results
+    readonly_fields = (
+        'image_cid', 'image_uri',
+        'crop_detected', 'quality_grade', 'quality_score', 'confidence_score',
+        'disease_detected', 'disease_name', 'visible_defects', 'ai_summary',
+        'verification_status', 'failure_reason', 'ai_provider',
+        'created_at', 'updated_at',
+    )
+    fieldsets = (
+        ('Crop Passport', {
+            'fields': ('crop_passport', 'verified_by'),
+        }),
+        ('Image Reference (IPFS)', {
+            'fields': ('image_cid', 'image_uri'),
+        }),
+        ('AI Assessment Result (read-only)', {
+            'fields': (
+                'crop_detected',
+                'quality_grade', 'quality_score', 'confidence_score',
+                'disease_detected', 'disease_name', 'visible_defects',
+                'ai_summary',
+            ),
+        }),
+        ('Verification Status', {
+            'fields': ('verification_status', 'failure_reason', 'ai_provider'),
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def get_farmer(self, obj):
+        return obj.crop_passport.farmer.name
+    get_farmer.short_description = 'Farmer'
