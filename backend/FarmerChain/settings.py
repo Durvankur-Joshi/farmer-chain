@@ -5,8 +5,13 @@ Django settings for FarmerChain project.
 from pathlib import Path
 import os
 from datetime import timedelta
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load .env file so os.environ.get() picks up all variables
+load_dotenv(BASE_DIR / ".env")
+
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-dpnys$4w$)hz7(e*v+21#4itdn)@p0qjn$3=#akf%kj4)$dp89'

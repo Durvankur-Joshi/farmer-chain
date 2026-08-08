@@ -7,11 +7,14 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import ProtectedRoute from "./utils/ProtectedRoute";
 import AdminLogin from "./pages/admin/AdminLogin";
 import Contract from "./contract/Contract";
+import CropPassportPage from "./pages/CropPassportPage";
 
 function App() {
   return (
     <Routes>
       <Route path="/contract/:address" element={<Contract/>} />
+      {/* Phase 2.2 — Public Crop Passport verification (no auth required) */}
+      <Route path="/crop-passport/:id" element={<CropPassportPage />} />
       <Route path="/auth" element={<AuthForm />} />
       <Route path="/admin" element={<AdminLogin/>} />
 

@@ -3,13 +3,23 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
-from .models import Farmer, FarmerQuote
+from .models import Farmer, FarmerQuote, CropPassport
 from django.utils import timezone
-from .serializers import FarmerSerializer, FarmerRegistrationSerializer, FarmerQuoteSerializer
+from .serializers import (
+    FarmerSerializer, FarmerRegistrationSerializer, FarmerQuoteSerializer,
+    CropPassportSerializer, PublicCropPassportSerializer,
+)
 from common.permissions import IsFarmer
 from fpo.models import FPOBid
 from fpo.serializers import FPOBidSerializer
+import re
+import logging
 
+logger = logging.getLogger(__name__)
+
+# ─────────────────────────────────────────────────────────────────
+# Existing views (unchanged)
+# ─────────────────────────────────────────────────────────────────
 
 class FarmerRegistrationView(generics.CreateAPIView):
     queryset = Farmer.objects.all()
@@ -129,7 +139,7 @@ def accept_fpo_bid(request, bid_pk):
         "bid_id": bid.pk,
         "quote_id": quote.id,
         "quote_status": quote.status,
-        "next_step": "create_smart_contract"  # Indicate next step
+        "next_step": "create_smart_contract"
     })
 
 
@@ -139,7 +149,6 @@ def update_contract_address(request, quote_id):
     """Update the contract address after smart contract creation"""
     quote = get_object_or_404(FarmerQuote, id=quote_id)
     
-    # Check if the farmer owns this quote
     if quote.farmer != request.user.user_obj:
         return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
     
@@ -147,7 +156,6 @@ def update_contract_address(request, quote_id):
     if not contract_address:
         return Response({"error": "Contract address is required"}, status=status.HTTP_400_BAD_REQUEST)
     
-    # Validate Ethereum address format
     if not contract_address.startswith('0x') or len(contract_address) != 42:
         return Response({"error": "Invalid contract address format"}, status=status.HTTP_400_BAD_REQUEST)
     
@@ -164,14 +172,13 @@ def update_contract_address(request, quote_id):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])  # Public access
+@permission_classes([AllowAny])
 def get_contract_details(request, contract_address):
     """Get contract details for public viewing"""
     quote = get_object_or_404(FarmerQuote, contract_address=contract_address)
     
     serializer = FarmerQuoteSerializer(quote)
     
-    # Include additional contract information
     response_data = {
         'quote': serializer.data,
         'contract_address': contract_address,
@@ -183,7 +190,6 @@ def get_contract_details(request, contract_address):
         'retailer_info': None
     }
     
-    # If there's an accepted bid, include FPO info
     if quote.accepted_bid:
         response_data['fpo_info'] = {
             'name': quote.accepted_bid.fpo.name,
@@ -191,3 +197,227 @@ def get_contract_details(request, contract_address):
         }
     
     return Response(response_data)
+
+
+# ─────────────────────────────────────────────────────────────────
+# Phase 2.2 — Crop Passport views
+# ─────────────────────────────────────────────────────────────────
+
+def _is_valid_eth_address(addr: str) -> bool:
+    """Basic Ethereum address format check: 0x + 40 hex chars."""
+    return bool(addr and re.fullmatch(r'0x[0-9a-fA-F]{40}', addr))
+
+
+def _is_valid_tx_hash(txhash: str) -> bool:
+    """Basic tx hash format check: 0x + 64 hex chars."""
+    return bool(txhash and re.fullmatch(r'0x[0-9a-fA-F]{64}', txhash))
+
+
+def _is_valid_ipfs_uri(uri: str) -> bool:
+    """Accept ipfs://<CID> or https://gateway.pinata.cloud/ipfs/<CID>."""
+    return bool(uri and (uri.startswith('ipfs://') or '/ipfs/' in uri))
+
+
+class CropPassportListCreateView(generics.ListCreateAPIView):
+    """
+    GET  /api/farmer/crops/  — list farmer's own crops
+    POST /api/farmer/crops/  — create a new crop passport
+    """
+    serializer_class = CropPassportSerializer
+    permission_classes = [IsAuthenticated, IsFarmer]
+
+    def get_queryset(self):
+        return CropPassport.objects.filter(farmer=self.request.user.user_obj)
+
+    def perform_create(self, serializer):
+        # farmer is always derived from the authenticated request, never request.data
+        serializer.save(farmer=self.request.user.user_obj)
+
+
+class CropPassportDetailView(generics.RetrieveUpdateAPIView):
+    """
+    GET   /api/farmer/crops/<id>/  — retrieve one crop (owner only)
+    PATCH /api/farmer/crops/<id>/  — update crop (only before minting)
+    """
+    serializer_class = CropPassportSerializer
+    permission_classes = [IsAuthenticated, IsFarmer]
+
+    def get_queryset(self):
+        # Scoped to logged-in farmer only
+        return CropPassport.objects.filter(farmer=self.request.user.user_obj)
+
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.is_minted:
+            return Response(
+                {"error": "A minted Crop Passport cannot be modified."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().partial_update(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.is_minted:
+            return Response(
+                {"error": "A minted Crop Passport cannot be modified."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().update(request, *args, **kwargs)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsFarmer])
+def prepare_mint_view(request, crop_id):
+    """
+    POST /api/farmer/crops/<id>/mint/
+
+    Validates the crop, builds NFT metadata, uploads it to IPFS via
+    server-side Pinata credentials, and returns the token_uri + wallet
+    for the frontend to use when calling MetaMask.
+
+    The frontend NEVER sees the Pinata secret.
+    No private key is involved — the farmer signs via MetaMask.
+    """
+    farmer = request.user.user_obj
+    crop = get_object_or_404(CropPassport, pk=crop_id)
+
+    # Ownership check — never trust the URL parameter alone
+    if crop.farmer_id != farmer.pk:
+        return Response(
+            {"error": "You do not own this Crop Passport."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    # Double-mint guard
+    if crop.is_minted:
+        return Response(
+            {"error": "This Crop Passport has already been minted as an NFT."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Build W3C-style NFT metadata (no sensitive fields)
+    metadata = {
+        "name": f"FarmerChain Crop Passport — {crop.crop_name}",
+        "description": (
+            f"Blockchain-backed digital crop passport issued by FarmerChain. "
+            f"Crop: {crop.crop_name} | Category: {crop.crop_category} | "
+            f"Farmer DID: {farmer.did or 'N/A'}"
+        ),
+        "image": "",   # placeholder — no image for MVP
+        "attributes": [
+            {"trait_type": "Crop", "value": crop.crop_name},
+            {"trait_type": "Category", "value": crop.crop_category},
+            {"trait_type": "Quantity", "value": str(crop.quantity)},
+            {"trait_type": "Unit", "value": crop.unit},
+            {"trait_type": "Cultivation Date", "value": str(crop.cultivation_date)},
+            {"trait_type": "Harvest Date", "value": str(crop.harvest_date)},
+            {"trait_type": "Location", "value": crop.location or f"{farmer.city}, {farmer.state}"},
+            {"trait_type": "Farmer DID", "value": farmer.did or ""},
+            {"trait_type": "Farmer Wallet", "value": farmer.wallet_address or ""},
+            {"trait_type": "FarmerChain Crop ID", "value": str(crop.pk)},
+            # Explicitly excluded: aadhaar, email, password, GSTIN, CIN
+        ],
+    }
+
+    # Upload to IPFS via server-side Pinata credentials
+    try:
+        from services.ipfs_service import upload_json_to_ipfs, IPFSUploadError
+        token_uri = upload_json_to_ipfs(
+            metadata,
+            name=f"crop-passport-{crop.pk}.json",
+        )
+    except IPFSUploadError as exc:
+        logger.warning("IPFS upload failed for crop %s: %s", crop.pk, exc)
+        return Response(
+            {"error": f"IPFS upload failed: {str(exc)}"},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    return Response({
+        "crop_id": crop.pk,
+        "crop_name": crop.crop_name,
+        "token_uri": token_uri,
+        "farmer_wallet": farmer.wallet_address,
+        "farmer_did": farmer.did,
+        "metadata": metadata,        # returned for transparency / debugging
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsFarmer])
+def confirm_mint_view(request, crop_id):
+    """
+    POST /api/farmer/crops/<id>/confirm-mint/
+
+    Called by the frontend AFTER the blockchain tx is confirmed.
+    Validates format of all inputs before persisting.
+
+    Body: { token_id, contract_address, tx_hash, token_uri }
+
+    Limitations (documented):
+    - We validate format (ETH address, tx hash, IPFS URI) but do NOT
+      perform a live RPC call to Sepolia here because the ETH_RPC_URL
+      in .env contains a placeholder Infura key. Once a real Infura key
+      is configured, on-chain verification can be added here.
+    """
+    farmer = request.user.user_obj
+    crop = get_object_or_404(CropPassport, pk=crop_id)
+
+    if crop.farmer_id != farmer.pk:
+        return Response(
+            {"error": "You do not own this Crop Passport."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    if crop.is_minted:
+        return Response(
+            {"error": "This Crop Passport is already minted."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    token_id = str(request.data.get("token_id", "")).strip()
+    contract_address = str(request.data.get("contract_address", "")).strip()
+    tx_hash = str(request.data.get("tx_hash", "")).strip()
+    token_uri = str(request.data.get("token_uri", "")).strip()
+
+    # ── Format validation ──────────────────────────────────────────
+    errors = {}
+    if not token_id:
+        errors["token_id"] = "token_id is required."
+    if not _is_valid_eth_address(contract_address):
+        errors["contract_address"] = "Must be a valid Ethereum address (0x + 40 hex chars)."
+    if not _is_valid_tx_hash(tx_hash):
+        errors["tx_hash"] = "Must be a valid transaction hash (0x + 64 hex chars)."
+    if not _is_valid_ipfs_uri(token_uri):
+        errors["token_uri"] = "Must be a valid IPFS URI (ipfs://...)."
+    if errors:
+        return Response({"errors": errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    # ── Persist ────────────────────────────────────────────────────
+    crop.nft_token_id = token_id
+    crop.nft_contract_address = contract_address.lower()   # normalise
+    crop.nft_transaction_hash = tx_hash.lower()
+    crop.nft_token_uri = token_uri
+    crop.status = CropPassport.STATUS_MINTED
+    crop.nft_minted_at = timezone.now()
+    crop.save()
+
+    serializer = CropPassportSerializer(crop)
+    return Response({
+        "message": "Crop Passport NFT successfully recorded.",
+        "crop": serializer.data,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def public_crop_passport_view(request, crop_id):
+    """
+    GET /api/farmer/crops/public/<id>/
+
+    Public, unauthenticated. Returns only non-sensitive fields.
+    No email, aadhaar, password, GSTIN, CIN.
+    """
+    crop = get_object_or_404(CropPassport, pk=crop_id)
+    serializer = PublicCropPassportSerializer(crop)
+    return Response(serializer.data)
