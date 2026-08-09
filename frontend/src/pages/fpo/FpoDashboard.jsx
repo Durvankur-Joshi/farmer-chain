@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import FarmerQuotes from "../../components/fpo/FarmerQuotes";
 import RetailerQuotes from "../../components/fpo/RetailerQuotes";
 import FpoEscrowPanel from "../../components/fpo/FpoEscrowPanel";
+import TrustReputationCard from "../../components/common/TrustReputationCard";
 
 export default function FpoDashboard() {
   const [activeTab, setActiveTab] = useState("farmer");
@@ -81,6 +82,9 @@ export default function FpoDashboard() {
           </div>
         </div>
       )}
+
+      {/* ── Phase 2.8: Trust & Reputation Score ──────────────────── */}
+      <TrustReputationCard accentColor="blue" />
 
       {/* Tabs */}
       <div className="flex space-x-4 mb-6">

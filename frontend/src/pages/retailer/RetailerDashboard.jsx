@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import Cookies from "js-cookie";
 import { useNavigate } from "react-router-dom";
+import TrustReputationCard from "../../components/common/TrustReputationCard";
 
 export default function RetailerDashboard() {
   const navigate = useNavigate();
@@ -162,6 +163,9 @@ export default function RetailerDashboard() {
           </div>
         </div>
       )}
+
+      {/* ── Phase 2.8: Trust & Reputation Score ──────────────────── */}
+      <TrustReputationCard accentColor="purple" />
 
       {/* Open FPO Quotes */}
       <div className="bg-white p-6 rounded-2xl shadow">

@@ -8,6 +8,7 @@ import QuoteBids from "../../components/farmer/QuoteBids";
 import CropPassportForm from "../../components/farmer/CropPassportForm";
 import CropPassportCard from "../../components/farmer/CropPassportCard";
 import EscrowPanel from "../../components/farmer/EscrowPanel";
+import TrustReputationCard from "../../components/common/TrustReputationCard";
 
 // activePage values: "history" | "newQuote" | "bids" | "crops" | "newCrop" | "escrow"
 
@@ -115,6 +116,9 @@ export default function FarmerDashboard() {
           </div>
         </div>
       )}
+
+      {/* ── Phase 2.8: Trust & Reputation Score ──────────────────── */}
+      <TrustReputationCard accentColor="green" />
 
       {/* ── Banner ──────────────────────────────────────────────── */}
       <div className="bg-green-100 p-6 rounded-2xl shadow mb-6 text-center">

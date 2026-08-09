@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'negotiation',
     'did_app',
     'escrow',
+    'reputation',
 ]
 
 
