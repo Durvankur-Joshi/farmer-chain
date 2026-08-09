@@ -853,3 +853,192 @@ def public_verification_view(request, crop_id):
         ),
         'verification': serializer.data,
     })
+
+
+# ─────────────────────────────────────────────────────────────────
+# Phase 2.7 — Supply-Chain Traceability Timeline (public)
+# ─────────────────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def crop_timeline_view(request, crop_id):
+    """
+    GET /api/farmer/crops/public/<crop_id>/timeline/
+
+    Returns a chronological list of supply-chain events for a Crop Passport.
+    Public endpoint — no authentication required.
+    No sensitive data (email, aadhaar, password, API keys) is exposed.
+    """
+    crop = get_object_or_404(CropPassport, pk=crop_id)
+    events = []
+    SEPOLIA = "https://sepolia.etherscan.io"
+
+    # 1. Crop Registered
+    events.append({
+        'type': 'crop_registered',
+        'title': 'Crop Registered',
+        'timestamp': crop.created_at.isoformat(),
+        'status': 'completed',
+        'details': {
+            'crop_name': crop.crop_name,
+            'category': crop.crop_category,
+            'quantity': f"{crop.quantity} {crop.unit}",
+        },
+    })
+
+    # 2. IPFS Documents
+    docs = crop.documents.order_by('uploaded_at')
+    for doc in docs:
+        events.append({
+            'type': 'document_uploaded',
+            'title': f'Document Stored on IPFS — {doc.get_document_type_display()}',
+            'timestamp': doc.uploaded_at.isoformat(),
+            'status': 'completed',
+            'details': {
+                'file_name': doc.file_name,
+                'ipfs_cid': doc.ipfs_cid,
+                'gateway_url': doc.gateway_url,
+            },
+        })
+
+    # 3. AI Quality Verification (latest verified)
+    ai = (
+        crop.ai_verifications
+        .filter(verification_status=AIQualityVerification.STATUS_VERIFIED)
+        .order_by('-created_at')
+        .first()
+    )
+    if ai:
+        events.append({
+            'type': 'ai_verified',
+            'title': 'AI Quality Verification',
+            'timestamp': ai.created_at.isoformat(),
+            'status': 'completed',
+            'details': {
+                'quality_grade': ai.quality_grade,
+                'quality_score': str(ai.quality_score),
+                'confidence_score': str(ai.confidence_score),
+                'crop_detected': ai.crop_detected,
+                'disease_detected': ai.disease_detected,
+            },
+        })
+
+    # 4. NFT Minted
+    if crop.is_minted and crop.nft_minted_at:
+        events.append({
+            'type': 'nft_minted',
+            'title': 'NFT Crop Passport Minted',
+            'timestamp': crop.nft_minted_at.isoformat(),
+            'status': 'completed',
+            'details': {
+                'token_id': crop.nft_token_id,
+                'contract_address': crop.nft_contract_address,
+                'tx_hash': crop.nft_transaction_hash,
+                'etherscan_url': f"{SEPOLIA}/tx/{crop.nft_transaction_hash}" if crop.nft_transaction_hash else None,
+            },
+        })
+
+    # 5–10. Quote → Bid → Escrow chain
+    # Link CropPassport to FarmerQuote via same farmer + matching product name
+    from escrow.models import EscrowTransaction
+    quote = (
+        FarmerQuote.objects
+        .filter(farmer=crop.farmer, product_name__iexact=crop.crop_name)
+        .exclude(status='open')
+        .order_by('-created_at')
+        .first()
+    )
+
+    if quote:
+        # 5. Quote Created
+        events.append({
+            'type': 'quote_created',
+            'title': 'Supply Quote Created',
+            'timestamp': quote.created_at.isoformat(),
+            'status': 'completed',
+            'details': {
+                'product': quote.product_name,
+                'quantity': f"{quote.quantity} {quote.unit}",
+            },
+        })
+
+        # 6. Bid Accepted
+        if quote.accepted_bid:
+            bid = quote.accepted_bid
+            events.append({
+                'type': 'bid_accepted',
+                'title': 'FPO Bid Accepted',
+                'timestamp': bid.submitted_at.isoformat() if bid.submitted_at else quote.created_at.isoformat(),
+                'status': 'completed',
+                'details': {
+                    'fpo_name': bid.fpo.name,
+                    'bid_amount': str(bid.bid_amount),
+                },
+            })
+
+            # 7–10. Escrow stages
+            try:
+                escrow = quote.escrow
+            except EscrowTransaction.DoesNotExist:
+                escrow = None
+
+            if escrow:
+                # 7. Escrow Created
+                events.append({
+                    'type': 'escrow_created',
+                    'title': 'Escrow Created',
+                    'timestamp': escrow.created_at.isoformat(),
+                    'status': 'completed',
+                    'details': {
+                        'amount_eth': str(escrow.amount_eth),
+                        'contract_address': escrow.contract_address,
+                        'etherscan_url': escrow.etherscan_contract_url,
+                    },
+                })
+
+                # 8. Escrow Funded
+                if escrow.funded_at:
+                    events.append({
+                        'type': 'escrow_funded',
+                        'title': 'Escrow Funded',
+                        'timestamp': escrow.funded_at.isoformat(),
+                        'status': 'completed',
+                        'details': {
+                            'tx_hash': escrow.deposit_tx_hash,
+                            'etherscan_url': escrow.etherscan_deposit_url,
+                        },
+                    })
+
+                # 9. Delivery Confirmed
+                if escrow.delivery_confirmed_at:
+                    events.append({
+                        'type': 'delivery_confirmed',
+                        'title': 'Delivery Confirmed',
+                        'timestamp': escrow.delivery_confirmed_at.isoformat(),
+                        'status': 'completed',
+                        'details': {
+                            'tx_hash': escrow.delivery_tx_hash,
+                        },
+                    })
+
+                # 10. Payment Released
+                if escrow.released_at:
+                    events.append({
+                        'type': 'payment_released',
+                        'title': 'Payment Released',
+                        'timestamp': escrow.released_at.isoformat(),
+                        'status': 'completed',
+                        'details': {
+                            'tx_hash': escrow.release_tx_hash,
+                            'etherscan_url': escrow.etherscan_release_url,
+                        },
+                    })
+
+    # Sort by timestamp
+    events.sort(key=lambda e: e['timestamp'])
+
+    return Response({
+        'crop_id': crop.id,
+        'crop_name': crop.crop_name,
+        'events': events,
+    })

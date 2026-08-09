@@ -58,6 +58,7 @@ export default function CropPassportPage() {
   const [notFound, setNotFound] = useState(false);
   const [copied, setCopied]     = useState("");
   const [aiVerif, setAiVerif]   = useState(null);   // public AI verification result
+  const [timeline, setTimeline] = useState([]);       // Phase 2.7 timeline events
 
   useEffect(() => {
     axios
@@ -73,6 +74,12 @@ export default function CropPassportPage() {
       .get(`/api/farmer/crops/public/${id}/verification/`)
       .then((res) => { if (res.data.verification) setAiVerif(res.data); })
       .catch(() => {/* no verified result yet — silently ignore */});
+
+    // Phase 2.7 — Fetch supply-chain timeline (best-effort)
+    axios
+      .get(`/api/farmer/crops/public/${id}/timeline/`)
+      .then((res) => { if (res.data.events) setTimeline(res.data.events); })
+      .catch(() => {/* timeline not available */});
   }, [id]);
 
   const handleCopyCid = (cid) => {
@@ -299,6 +306,94 @@ export default function CropPassportPage() {
               </div>
             );
           })()}
+        </div>
+
+        {/* ── Phase 2.7: Supply-Chain Traceability Timeline ───────────── */}
+        <div className="bg-white rounded-3xl shadow-lg border border-gray-100 p-6 mb-6">
+          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-6">
+            📦 Supply-Chain Traceability
+          </h2>
+          {timeline.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">No supply-chain events recorded yet.</p>
+          ) : (
+            <div className="relative">
+              {/* Vertical line */}
+              <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-green-200" />
+              <div className="space-y-6">
+                {timeline.map((evt, idx) => {
+                  const ICONS = {
+                    crop_registered: "🌱",
+                    document_uploaded: "📄",
+                    ai_verified: "🤖",
+                    nft_minted: "🏷️",
+                    quote_created: "📝",
+                    bid_accepted: "🤝",
+                    escrow_created: "🔐",
+                    escrow_funded: "💰",
+                    delivery_confirmed: "🚚",
+                    payment_released: "💸",
+                  };
+                  const icon = ICONS[evt.type] || "✅";
+                  const d = evt.details || {};
+                  const ts = new Date(evt.timestamp).toLocaleString();
+                  return (
+                    <div key={idx} className="relative flex items-start gap-4 pl-1">
+                      {/* Dot */}
+                      <div className="z-10 flex items-center justify-center w-8 h-8 rounded-full bg-green-100 border-2 border-green-400 text-lg shrink-0">
+                        {icon}
+                      </div>
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800">{evt.title}</p>
+                        <p className="text-xs text-gray-400">{ts}</p>
+                        {/* Event-specific details */}
+                        {evt.type === "ai_verified" && d.quality_grade && (
+                          <p className="text-xs text-gray-600 mt-0.5">
+                            Grade {d.quality_grade} · Score {d.quality_score}
+                          </p>
+                        )}
+                        {evt.type === "nft_minted" && d.token_id && (
+                          <p className="text-xs text-gray-600 mt-0.5">
+                            Token #{d.token_id}
+                            {d.etherscan_url && (
+                              <> · <a href={d.etherscan_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Etherscan</a></>
+                            )}
+                          </p>
+                        )}
+                        {evt.type === "document_uploaded" && d.gateway_url && (
+                          <a href={d.gateway_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline">
+                            View on IPFS
+                          </a>
+                        )}
+                        {evt.type === "bid_accepted" && d.fpo_name && (
+                          <p className="text-xs text-gray-600 mt-0.5">
+                            FPO: {d.fpo_name} · {d.bid_amount} ETH/unit
+                          </p>
+                        )}
+                        {evt.type === "escrow_created" && d.amount_eth && (
+                          <p className="text-xs text-gray-600 mt-0.5">
+                            {d.amount_eth} ETH
+                            {d.etherscan_url && (
+                              <> · <a href={d.etherscan_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Contract</a></>
+                            )}
+                          </p>
+                        )}
+                        {(evt.type === "escrow_funded" || evt.type === "payment_released") && d.etherscan_url && (
+                          <a href={d.etherscan_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline">
+                            View Transaction
+                          </a>
+                        )}
+                      </div>
+                      {/* Status badge */}
+                      <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full shrink-0">
+                        ✓
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-6">

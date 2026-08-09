@@ -11,6 +11,8 @@ from .views import (
     upload_document, list_documents, document_detail,
     # ── Phase 2.4: AI Quality Verification ───────────────────────────
     verify_crop_view, get_verification_view, public_verification_view,
+    # ── Phase 2.7: Supply-Chain Timeline ──────────────────────────────
+    crop_timeline_view,
 )
 
 urlpatterns = [
@@ -46,4 +48,7 @@ urlpatterns = [
     path('crops/<int:crop_id>/verification/', get_verification_view, name='crop-ai-verification'),
     # GET  → public verification result (AllowAny)
     path('crops/public/<int:crop_id>/verification/', public_verification_view, name='crop-ai-verification-public'),
+
+    # ── Phase 2.7: Supply-Chain Traceability Timeline ────────────────
+    path('crops/public/<int:crop_id>/timeline/', crop_timeline_view, name='crop-timeline-public'),
 ]
