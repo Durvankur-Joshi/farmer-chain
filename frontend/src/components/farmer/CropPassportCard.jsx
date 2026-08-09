@@ -1,11 +1,13 @@
 /**
- * CropPassportCard.jsx — Phase 2.2 + 2.3
+ * CropPassportCard.jsx — Phase 2.2 + 2.3 + 2.6
  *
  * Displays one CropPassport record.
  * Phase 2.2: NFT details + MintButton
  * Phase 2.3: Decentralized Documents section (upload + list)
+ * Phase 2.6: QR code for public verification
  */
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback } from "react";
+import { QRCodeCanvas } from "qrcode.react";
 import MintButton from "./MintButton";
 import DocumentUploader from "./DocumentUploader";
 import DocumentList from "./DocumentList";
@@ -33,6 +35,20 @@ export default function CropPassportCard({ crop, onMintSuccess }) {
   // Controls visibility of the upload form and triggers doc list refresh
   const [showUploader, setShowUploader] = useState(false);
   const [docRefresh, setDocRefresh]     = useState(0);
+
+  // Phase 2.6 — QR Code
+  const [showQR, setShowQR] = useState(false);
+  const qrRef = useRef(null);
+
+  const downloadQR = useCallback(() => {
+    const canvas = qrRef.current?.querySelector("canvas");
+    if (!canvas) return;
+    const url = canvas.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.download = `crop-passport-${crop.id}-qr.png`;
+    link.href = url;
+    link.click();
+  }, [crop.id]);
 
   const handleUploadSuccess = () => {
     setShowUploader(false);
@@ -125,7 +141,7 @@ export default function CropPassportCard({ crop, onMintSuccess }) {
             </p>
           )}
 
-          <div className="mt-2 flex gap-2">
+          <div className="mt-2 flex gap-2 flex-wrap">
             <a
               href={`/crop-passport/${crop.id}`}
               target="_blank"
@@ -134,7 +150,36 @@ export default function CropPassportCard({ crop, onMintSuccess }) {
             >
               🔍 View Passport
             </a>
+            <button
+              onClick={() => setShowQR((v) => !v)}
+              className="text-xs bg-gray-700 text-white px-3 py-1.5 rounded hover:bg-gray-800"
+            >
+              {showQR ? "✕ Hide QR" : "📱 Show QR"}
+            </button>
           </div>
+
+          {/* ── Phase 2.6: QR Code ─────────────────────────────── */}
+          {showQR && (
+            <div className="mt-3 bg-white border border-purple-200 rounded-xl p-4 flex flex-col items-center gap-3">
+              <p className="text-xs text-gray-500 font-semibold">Scan to verify this Crop Passport</p>
+              <div ref={qrRef}>
+                <QRCodeCanvas
+                  value={`${window.location.origin}/crop-passport/${crop.id}`}
+                  size={180}
+                  level="H"
+                  includeMargin={true}
+                  bgColor="#ffffff"
+                  fgColor="#1a1a2e"
+                />
+              </div>
+              <button
+                onClick={downloadQR}
+                className="text-xs bg-green-600 text-white px-4 py-1.5 rounded hover:bg-green-700"
+              >
+                ⬇ Download QR
+              </button>
+            </div>
+          )}
         </div>
       )}
 

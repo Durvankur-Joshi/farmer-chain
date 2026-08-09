@@ -1,10 +1,11 @@
 /**
- * CropPassportPage.jsx — Phase 2.2 + 2.3 + 2.4
+ * CropPassportPage.jsx — Phase 2.2 + 2.3 + 2.4 + 2.6
  * Public verification page. No authentication required.
  * Route: /crop-passport/:id
  *
  * Phase 2.3: Shows public IPFS documents section.
  * Phase 2.4: Shows public AI Quality Verification result.
+ * Phase 2.6: QR-linked public verification page with overall verification status.
  * Never exposes: email, aadhaar, password, Pinata/Gemini credentials.
  */
 import React, { useEffect, useState } from "react";
@@ -116,15 +117,31 @@ export default function CropPassportPage() {
               <p className="text-sm text-gray-500">#{id} · {crop.crop_category}</p>
             </div>
           </div>
-          <div
-            className={`mt-4 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold w-fit ${
-              isMinted
-                ? "bg-green-100 text-green-800"
-                : "bg-yellow-100 text-yellow-800"
-            }`}
-          >
-            {isMinted ? "✅ Verified on Ethereum Sepolia" : "⏳ Pending NFT Mint"}
-          </div>
+
+          {/* Phase 2.6 — Overall Verification Status */}
+          {(() => {
+            const hasNFT = isMinted;
+            const hasAI = !!aiVerif?.verification;
+            let statusText, statusClass;
+            if (hasNFT && hasAI) {
+              statusText = "✅ VERIFIED — NFT Minted & AI Quality Assessed";
+              statusClass = "bg-green-100 text-green-800 border-green-300";
+            } else if (hasNFT) {
+              statusText = "✅ Verified on Ethereum Sepolia — AI assessment pending";
+              statusClass = "bg-green-100 text-green-800 border-green-300";
+            } else if (hasAI) {
+              statusText = "⏳ AI Assessed — Pending NFT Mint";
+              statusClass = "bg-yellow-100 text-yellow-800 border-yellow-300";
+            } else {
+              statusText = "⏳ Pending Verification";
+              statusClass = "bg-yellow-100 text-yellow-800 border-yellow-300";
+            }
+            return (
+              <div className={`mt-4 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold w-fit border ${statusClass}`}>
+                {statusText}
+              </div>
+            );
+          })()}
         </div>
 
         {/* ── Crop Info ─────────────────────────────────────────────── */}
