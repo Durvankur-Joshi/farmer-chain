@@ -4,6 +4,7 @@ import Cookies from "js-cookie";
 import { useNavigate } from "react-router-dom";
 import FarmerQuotes from "../../components/fpo/FarmerQuotes";
 import RetailerQuotes from "../../components/fpo/RetailerQuotes";
+import FpoEscrowPanel from "../../components/fpo/FpoEscrowPanel";
 
 export default function FpoDashboard() {
   const [activeTab, setActiveTab] = useState("farmer");
@@ -99,10 +100,25 @@ export default function FpoDashboard() {
         >
           Retailer Quotes
         </button>
+        <button
+          className={`px-4 py-2 rounded ${
+            activeTab === "escrow" ? "bg-blue-600 text-white" : "bg-gray-200"
+          }`}
+          onClick={() => setActiveTab("escrow")}
+        >
+          🔐 Escrow
+        </button>
       </div>
 
       {/* Content */}
-      {activeTab === "farmer" ? <FarmerQuotes /> : <RetailerQuotes />}
+      {activeTab === "farmer" && <FarmerQuotes />}
+      {activeTab === "retailer" && <RetailerQuotes />}
+      {activeTab === "escrow" && (
+        <div>
+          <h2 className="text-xl font-bold text-blue-800 mb-4">🔐 Escrow Payments</h2>
+          <FpoEscrowPanel />
+        </div>
+      )}
     </div>
   );
 }

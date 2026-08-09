@@ -13,6 +13,7 @@ urlpatterns = [
     path('api/admin/', include('admin_app.urls')),
     path('api/negotiation/', include('negotiation.urls')),
     path('api/did/', include('did_app.urls')),
+    path('api/escrow/', include('escrow.urls')),
 
     # JWT Auth with cookie support
     path('api/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),

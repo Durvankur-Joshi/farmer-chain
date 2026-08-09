@@ -7,8 +7,9 @@ import QuoteHistory from "../../components/farmer/QuoteHistory";
 import QuoteBids from "../../components/farmer/QuoteBids";
 import CropPassportForm from "../../components/farmer/CropPassportForm";
 import CropPassportCard from "../../components/farmer/CropPassportCard";
+import EscrowPanel from "../../components/farmer/EscrowPanel";
 
-// activePage values: "history" | "newQuote" | "bids" | "crops" | "newCrop"
+// activePage values: "history" | "newQuote" | "bids" | "crops" | "newCrop" | "escrow"
 
 export default function FarmerDashboard() {
   const navigate = useNavigate();
@@ -143,6 +144,14 @@ export default function FarmerDashboard() {
         >
           🌾 Crop Passports
         </button>
+        <button
+          onClick={() => setActivePage("escrow")}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold ${
+            activePage === "escrow" ? "bg-amber-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+          }`}
+        >
+          🔐 Escrow
+        </button>
       </div>
 
       {/* ── Quotes Section ───────────────────────────────────────── */}
@@ -235,6 +244,14 @@ export default function FarmerDashboard() {
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* ── Escrow Section ────────────────────────────────────────── */}
+      {activePage === "escrow" && (
+        <div>
+          <h2 className="text-xl font-bold text-amber-800 mb-4">🔐 Escrow Payments</h2>
+          <EscrowPanel />
         </div>
       )}
     </div>

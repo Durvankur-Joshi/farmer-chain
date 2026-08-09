@@ -292,7 +292,7 @@ export default function AIVerification({ cropId, cropName }) {
               className="absolute top-1 right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-600"
               title="Remove image"
             >
-              ✕
+            
             </button>
           </div>
         )}
