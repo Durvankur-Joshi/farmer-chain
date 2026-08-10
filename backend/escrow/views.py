@@ -149,7 +149,7 @@ def escrow_created_onchain(request, escrow_pk):
     """
     Record the on-chain escrow creation tx hash and escrow ID.
 
-    Body: { "tx_hash": "0x...", "escrow_id": <int> }
+    Body: { "tx_hash": "0x...", "escrow_id": <int>, "contract_address": "0x..." }
     """
     farmer = request.user.user_obj
     escrow = get_object_or_404(EscrowTransaction, pk=escrow_pk)
@@ -157,14 +157,20 @@ def escrow_created_onchain(request, escrow_pk):
     if escrow.farmer_id != farmer.pk:
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
-    if escrow.escrow_id is not None:
-        return Response(
-            {'error': 'On-chain escrow ID already recorded.'},
-            status=status.HTTP_409_CONFLICT,
-        )
-
     tx_hash = request.data.get('tx_hash', '')
     escrow_id = request.data.get('escrow_id')
+    contract_address = request.data.get('contract_address')
+
+    if escrow.escrow_id is not None:
+        if escrow_id is not None and int(escrow_id) == escrow.escrow_id:
+            return Response(
+                {'message': 'On-chain escrow already recorded.', 'escrow': EscrowTransactionSerializer(escrow).data},
+                status=status.HTTP_200_OK,
+            )
+        return Response(
+            {'error': 'On-chain escrow ID already recorded.', 'escrow': EscrowTransactionSerializer(escrow).data},
+            status=status.HTTP_409_CONFLICT,
+        )
 
     if not _validate_tx_hash(tx_hash):
         return Response(
@@ -180,7 +186,11 @@ def escrow_created_onchain(request, escrow_pk):
 
     escrow.escrow_id = int(escrow_id)
     escrow.create_tx_hash = tx_hash
-    escrow.save(update_fields=['escrow_id', 'create_tx_hash'])
+    update_fields = ['escrow_id', 'create_tx_hash']
+    if contract_address:
+        escrow.contract_address = contract_address
+        update_fields.append('contract_address')
+    escrow.save(update_fields=update_fields)
 
     logger.info(
         'Escrow on-chain created: db_id=%d, chain_id=%d, tx=%s',
@@ -198,7 +208,7 @@ def escrow_funded(request, escrow_pk):
     """
     Record the FPO deposit transaction.
 
-    Body: { "tx_hash": "0x..." }
+    Body: { "tx_hash": "0x...", "escrow_id": <int (optional)> }
     """
     fpo = request.user.user_obj
     escrow = get_object_or_404(EscrowTransaction, pk=escrow_pk)
@@ -219,10 +229,23 @@ def escrow_funded(request, escrow_pk):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    req_escrow_id = request.data.get('escrow_id')
+    if req_escrow_id is not None and escrow.escrow_id is None:
+        escrow.escrow_id = int(req_escrow_id)
+
+    if escrow.escrow_id is None:
+        return Response(
+            {'error': 'On-chain escrow ID is missing. Farmer must create on-chain escrow first.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     escrow.status = EscrowTransaction.STATUS_FUNDED
     escrow.deposit_tx_hash = tx_hash
     escrow.funded_at = timezone.now()
-    escrow.save(update_fields=['status', 'deposit_tx_hash', 'funded_at'])
+    fields_to_update = ['status', 'deposit_tx_hash', 'funded_at']
+    if req_escrow_id is not None:
+        fields_to_update.append('escrow_id')
+    escrow.save(update_fields=fields_to_update)
 
     logger.info('Escrow funded: id=%d, tx=%s', escrow.pk, tx_hash)
 
@@ -245,16 +268,22 @@ def escrow_delivery_confirm(request, escrow_pk):
     if escrow.farmer_id != farmer.pk:
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
-    if escrow.status != EscrowTransaction.STATUS_FUNDED:
-        return Response(
-            {'error': f'Cannot confirm delivery in "{escrow.status}" state.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
     tx_hash = request.data.get('tx_hash', '')
     if not _validate_tx_hash(tx_hash):
         return Response(
             {'error': 'Invalid transaction hash format.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if escrow.status == EscrowTransaction.STATUS_DELIVERY_CONFIRMED:
+        if tx_hash and not escrow.delivery_tx_hash:
+            escrow.delivery_tx_hash = tx_hash
+            escrow.save(update_fields=['delivery_tx_hash'])
+        return Response({'message': 'Delivery already confirmed on-chain.', 'escrow': EscrowTransactionSerializer(escrow).data})
+
+    if escrow.status != EscrowTransaction.STATUS_FUNDED:
+        return Response(
+            {'error': f'Cannot confirm delivery in "{escrow.status}" state.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 

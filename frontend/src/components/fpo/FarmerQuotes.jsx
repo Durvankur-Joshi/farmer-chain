@@ -125,7 +125,7 @@ export default function FarmerQuotes() {
                   </span>
                   {quote.price_per_unit && (
                     <span className="bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 font-medium">
-                      <strong className="text-slate-700">Farmer Target:</strong> ₹{quote.price_per_unit} / {quote.unit}
+                      <strong className="text-slate-700">Farmer Target:</strong> {quote.price_per_unit} ETH / {quote.unit}
                     </span>
                   )}
                 </div>

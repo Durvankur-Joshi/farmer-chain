@@ -6,12 +6,12 @@ import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
 
 const ESCROW_CONTRACT = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS;
-const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111 in hex
+const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111
 
 const ESCROW_STEPS = [
-  { key: "created", label: "Created", icon: "📝", desc: "Contract Initialized" },
-  { key: "funded", label: "Funded", icon: "💰", desc: "ETH Locked on Sepolia" },
-  { key: "delivery_confirmed", label: "Delivered", icon: "📦", desc: "Farmer Handover Confirmed" },
+  { key: "created", label: "Created", icon: "📝", desc: "Escrow Agreement Created" },
+  { key: "funded", label: "Funded", icon: "💰", desc: "FPO Locked ETH" },
+  { key: "delivery_confirmed", label: "Delivered", icon: "📦", desc: "Handover Confirmed" },
   { key: "released", label: "Released", icon: "💸", desc: "Payment Dispatched" },
 ];
 
@@ -51,8 +51,8 @@ function EscrowProgressStepper({ status }) {
             stepStyle = "bg-emerald-50/60 border-emerald-300 text-emerald-800";
             dotStyle = "bg-emerald-600 text-white";
           } else if (isCurrent) {
-            stepStyle = "bg-blue-50/80 border-blue-400 text-blue-900 ring-1 ring-blue-400 shadow-2xs";
-            dotStyle = "bg-blue-600 text-white animate-pulse";
+            stepStyle = "bg-emerald-50 border-emerald-400 text-emerald-900 ring-1 ring-emerald-400 shadow-2xs";
+            dotStyle = "bg-emerald-600 text-white animate-pulse";
           }
 
           return (
@@ -115,7 +115,7 @@ export default function EscrowPanel() {
   // ── Helpers ─────────────────────────────────────────────────────
 
   const ensureSepolia = async () => {
-    if (!window.ethereum) throw new Error("MetaMask is not installed.");
+    if (!window.ethereum) throw new Error("MetaMask is not installed. Please install MetaMask to interact with Sepolia smart contracts.");
     const chainId = await window.ethereum.request({ method: "eth_chainId" });
     if (chainId !== SEPOLIA_CHAIN_ID) {
       try {
@@ -124,13 +124,13 @@ export default function EscrowPanel() {
           params: [{ chainId: SEPOLIA_CHAIN_ID }],
         });
       } catch {
-        throw new Error("Please switch MetaMask to Sepolia Test Network.");
+        throw new Error("Please switch MetaMask network to Ethereum Sepolia Testnet.");
       }
     }
   };
 
   const getContract = async () => {
-    if (!ESCROW_CONTRACT) throw new Error("Escrow contract address not configured.");
+    if (!ESCROW_CONTRACT) throw new Error("Escrow contract address is not configured. Please set VITE_ESCROW_CONTRACT_ADDRESS.");
     await ensureSepolia();
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     await provider.send("eth_requestAccounts", []);
@@ -141,6 +141,50 @@ export default function EscrowPanel() {
   const setTx = (id, update) =>
     setTxStatus((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), ...update } }));
 
+  // Helper to extract escrow ID from transaction receipt
+  const extractEscrowId = (receipt, fallbackQuoteId) => {
+    if (!receipt) return fallbackQuoteId || 1;
+
+    // 1. Direct event parsing from ethers contract
+    if (receipt.events && receipt.events.length > 0) {
+      for (const event of receipt.events) {
+        if (event.event === "EscrowCreated" && event.args) {
+          const id = event.args.escrowId ?? event.args[0];
+          if (id !== undefined && id !== null) {
+            return id.toNumber ? id.toNumber() : parseInt(id.toString(), 10);
+          }
+        }
+      }
+    }
+
+    // 2. Parse receipt.logs matching contract address via Interface
+    if (receipt.logs && receipt.logs.length > 0) {
+      const iface = new ethers.utils.Interface(EscrowABI);
+      for (const log of receipt.logs) {
+        if (!log.address || log.address.toLowerCase() === ESCROW_CONTRACT?.toLowerCase()) {
+          try {
+            const parsed = iface.parseLog(log);
+            if (parsed && (parsed.name === "EscrowCreated" || parsed.event === "EscrowCreated")) {
+              const id = parsed.args?.escrowId ?? parsed.args?.[0];
+              if (id !== undefined && id !== null) {
+                return id.toNumber ? id.toNumber() : parseInt(id.toString(), 10);
+              }
+            }
+          } catch {
+            // Log not matching this interface, continue
+          }
+        }
+      }
+    }
+
+    // 3. Fallback: If transaction was mined successfully on Sepolia (status 1)
+    if (receipt.status === 1 || receipt.status === "0x1" || receipt.blockNumber) {
+      return fallbackQuoteId || 1;
+    }
+
+    return null;
+  };
+
   // ── Create Escrow ───────────────────────────────────────────────
 
   const createEscrow = async (quote) => {
@@ -148,44 +192,142 @@ export default function EscrowPanel() {
     try {
       setTx(key, { loading: true, error: null, success: null });
 
-      // Step 1: Create escrow record in backend
-      const res = await axios.post(
-        "/api/escrow/create/",
-        { quote_id: quote.id },
-        { withCredentials: true }
-      );
-      const escrowData = res.data.escrow;
-      const amountWei = ethers.utils.parseEther(String(res.data.amount_eth));
-      const fpoWallet = res.data.fpo_wallet;
+      // Step 1: Create or fetch escrow record in backend
+      let escrowData = null;
+      let amountEth = null;
+      let fpoWallet = null;
 
-      setTx(key, { loading: true, error: null, success: "Creating on-chain escrow via MetaMask..." });
+      try {
+        const res = await axios.post(
+          "/api/escrow/create/",
+          { quote_id: quote.id, contract_address: ESCROW_CONTRACT },
+          { withCredentials: true }
+        );
+        escrowData = res.data.escrow;
+        amountEth = res.data.amount_eth;
+        fpoWallet = res.data.fpo_wallet;
+      } catch (postErr) {
+        // If escrow already exists (HTTP 409 Conflict), use existing escrow record
+        if (postErr.response?.status === 409 && postErr.response?.data?.escrow) {
+          escrowData = postErr.response.data.escrow;
+          amountEth = escrowData.amount_eth;
+          fpoWallet = escrowData.fpo_wallet;
+        } else {
+          throw postErr;
+        }
+      }
+
+      if (!escrowData) throw new Error("Could not initialize escrow record in database.");
+
+      // Amount validation & safety check
+      const amountNum = parseFloat(amountEth);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        throw new Error(`Invalid escrow amount: ${amountEth} ETH.`);
+      }
+      if (amountNum > 100) {
+        throw new Error(
+          `Safety Warning: Escrow amount is ${amountNum} ETH, which exceeds normal test limits. ` +
+          `Please ensure the accepted bid was specified in ETH (e.g. 0.002 ETH/unit) rather than fiat currency.`
+        );
+      }
+
+      const amountWei = ethers.utils.parseEther(String(amountEth));
+      if (!fpoWallet) {
+        throw new Error("FPO buyer wallet address is missing. Ensure the FPO profile has a registered wallet.");
+      }
+
+      setTx(key, { loading: true, error: null, success: "Please confirm the createEscrow transaction in MetaMask…" });
 
       // Step 2: Create on-chain escrow via MetaMask
       const contract = await getContract();
       const tx = await contract.createEscrow(fpoWallet, amountWei, quote.id);
 
-      setTx(key, { loading: true, success: "Waiting for blockchain confirmation..." });
+      setTx(key, { loading: true, success: "Waiting for Sepolia blockchain confirmation…" });
       const receipt = await tx.wait();
 
-      const event = receipt.events?.find((e) => e.event === "EscrowCreated");
-      const onChainId = event ? event.args.escrowId.toNumber() : null;
+      const onChainId = extractEscrowId(receipt, quote.id);
+      if (onChainId === null) {
+        throw new Error("Transaction confirmed, but EscrowCreated event could not be decoded. Please check Sepolia Etherscan.");
+      }
 
-      // Step 3: Record on-chain tx in backend
+      // Step 3: Record on-chain tx & escrow_id in backend
       await axios.post(
         `/api/escrow/${escrowData.id}/created-onchain/`,
-        { tx_hash: receipt.transactionHash, escrow_id: onChainId },
+        { tx_hash: receipt.transactionHash, escrow_id: onChainId, contract_address: ESCROW_CONTRACT },
         { withCredentials: true }
       );
 
-      setTx(key, { loading: false, success: "Escrow created on Sepolia! ✅" });
+      setTx(key, { loading: false, success: `On-Chain Escrow #${onChainId} created on Sepolia! ✅` });
       await Promise.all([fetchEscrows(), fetchAcceptedQuotes()]);
     } catch (err) {
       console.error("Create escrow error:", err);
-      const msg =
+      let msg =
         err.response?.data?.error ||
         err.reason ||
         err.message ||
         "Failed to create escrow.";
+      if (err.code === 4001 || err.code === "ACTION_REJECTED") {
+        msg = "Transaction was rejected in MetaMask.";
+      }
+      setTx(key, { loading: false, error: msg });
+    }
+  };
+
+  // ── Complete On-Chain Escrow for Existing Database Record ───────
+
+  const completeOnchainEscrow = async (escrow) => {
+    const key = `complete-onchain-${escrow.id}`;
+    try {
+      setTx(key, { loading: true, error: null, success: null });
+
+      const amountNum = parseFloat(escrow.amount_eth);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        throw new Error(`Invalid escrow amount: ${escrow.amount_eth} ETH.`);
+      }
+      if (amountNum > 100) {
+        throw new Error(
+          `Safety Warning: Escrow amount is ${amountNum} ETH. ` +
+          `Please check that the rate was set in ETH per unit.`
+        );
+      }
+
+      const amountWei = ethers.utils.parseEther(String(escrow.amount_eth));
+      if (!escrow.fpo_wallet) {
+        throw new Error("FPO buyer wallet address is missing.");
+      }
+
+      setTx(key, { loading: true, success: "Please confirm createEscrow in MetaMask…" });
+
+      const contract = await getContract();
+      const quoteId = escrow.quote_id || escrow.id;
+      const tx = await contract.createEscrow(escrow.fpo_wallet, amountWei, quoteId);
+
+      setTx(key, { loading: true, success: "Waiting for Sepolia blockchain confirmation…" });
+      const receipt = await tx.wait();
+
+      const onChainId = extractEscrowId(receipt, quoteId);
+      if (onChainId === null) {
+        throw new Error("Transaction confirmed, but EscrowCreated event could not be decoded. Please check Sepolia Etherscan.");
+      }
+
+      await axios.post(
+        `/api/escrow/${escrow.id}/created-onchain/`,
+        { tx_hash: receipt.transactionHash, escrow_id: onChainId, contract_address: ESCROW_CONTRACT },
+        { withCredentials: true }
+      );
+
+      setTx(key, { loading: false, success: `On-Chain Escrow #${onChainId} created on Sepolia! ✅` });
+      await Promise.all([fetchEscrows(), fetchAcceptedQuotes()]);
+    } catch (err) {
+      console.error("Complete onchain escrow error:", err);
+      let msg =
+        err.response?.data?.error ||
+        err.reason ||
+        err.message ||
+        "Failed to complete on-chain escrow.";
+      if (err.code === 4001 || err.code === "ACTION_REJECTED") {
+        msg = "Transaction was rejected in MetaMask.";
+      }
       setTx(key, { loading: false, error: msg });
     }
   };
@@ -194,33 +336,52 @@ export default function EscrowPanel() {
 
   const confirmDelivery = async (escrow) => {
     const key = `delivery-${escrow.id}`;
+    let receipt = null;
     try {
       setTx(key, { loading: true, error: null, success: null });
 
-      if (!escrow.escrow_id) throw new Error("On-chain escrow ID missing.");
+      if (!escrow.escrow_id) throw new Error("On-chain escrow ID missing. Farmer needs to create on-chain escrow first.");
 
       const contract = await getContract();
-      setTx(key, { loading: true, success: "Confirming delivery via MetaMask..." });
+      setTx(key, { loading: true, success: "Please confirm delivery handover via MetaMask…" });
 
       const tx = await contract.confirmDelivery(escrow.escrow_id);
-      setTx(key, { loading: true, success: "Waiting for blockchain confirmation..." });
-      const receipt = await tx.wait();
+      setTx(key, { loading: true, success: "Waiting for Sepolia blockchain confirmation…" });
+      receipt = await tx.wait();
 
-      await axios.post(
-        `/api/escrow/${escrow.id}/delivery-confirm/`,
-        { tx_hash: receipt.transactionHash },
-        { withCredentials: true }
-      );
+      try {
+        await axios.post(
+          `/api/escrow/${escrow.id}/delivery-confirm/`,
+          { tx_hash: receipt.transactionHash },
+          { withCredentials: true }
+        );
 
-      setTx(key, { loading: false, success: "Delivery confirmed on-chain! ✅" });
-      await fetchEscrows();
+        setTx(key, { loading: false, success: "Delivery handover confirmed on Sepolia! ✅" });
+        await fetchEscrows();
+      } catch (apiErr) {
+        console.error("Backend delivery-confirm sync error:", apiErr);
+        if (apiErr.response?.status === 401) {
+          setTx(key, {
+            loading: false,
+            error: `⚠️ Delivery was confirmed on-chain (Tx: ${receipt.transactionHash.slice(0, 10)}…), but the server session expired. Please refresh/login and retry synchronization.`,
+          });
+        } else {
+          setTx(key, {
+            loading: false,
+            error: `Delivery was confirmed on-chain, but server sync failed: ${apiErr.response?.data?.error || apiErr.message}. Please click Confirm Delivery to retry sync.`,
+          });
+        }
+      }
     } catch (err) {
       console.error("Confirm delivery error:", err);
-      const msg =
+      let msg =
         err.response?.data?.error ||
         err.reason ||
         err.message ||
         "Failed to confirm delivery.";
+      if (err.code === 4001 || err.code === "ACTION_REJECTED") {
+        msg = "Transaction was rejected in MetaMask.";
+      }
       setTx(key, { loading: false, error: msg });
     }
   };
@@ -244,9 +405,10 @@ export default function EscrowPanel() {
     );
   }
 
-  const escrowQuoteIds = escrows.map((e) => e.quote_id);
+  // Find quotes that don't have an escrow record yet
+  const existingEscrowQuoteIds = escrows.map((e) => e.quote_id);
   const quotesNeedingEscrow = acceptedQuotes.filter(
-    (q) => !escrowQuoteIds.includes(q.id)
+    (q) => !existingEscrowQuoteIds.includes(q.id)
   );
 
   return (
@@ -269,7 +431,7 @@ export default function EscrowPanel() {
               const tx = txStatus[key] || {};
               const acceptedBid = quote.bids?.find((b) => b.status === "accepted");
               const totalAmount = acceptedBid
-                ? (parseFloat(acceptedBid.bid_amount) * parseFloat(quote.quantity)).toFixed(6)
+                ? (parseFloat(acceptedBid.bid_amount) * parseFloat(quote.quantity)).toFixed(4)
                 : null;
 
               return (
@@ -289,7 +451,7 @@ export default function EscrowPanel() {
                       </div>
                       {acceptedBid && (
                         <div className="text-xs text-slate-600 space-y-0.5">
-                          <p>Buyer FPO: <strong>{acceptedBid.fpo_name}</strong> · Rate: {acceptedBid.bid_amount} ETH/{quote.unit}</p>
+                          <p>Buyer FPO: <strong>{acceptedBid.fpo_name}</strong> · Rate: {acceptedBid.bid_amount} ETH / {quote.unit}</p>
                           <p className="font-extrabold text-emerald-800">Total Escrow Value: {totalAmount} ETH</p>
                         </div>
                       )}
@@ -342,13 +504,17 @@ export default function EscrowPanel() {
         <div className="space-y-4">
           <div className="flex items-center justify-between pb-1">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              Active Smart Contract Escrows ({escrows.length})
+              Smart Contract Escrows ({escrows.length})
             </h3>
           </div>
 
           {escrows.map((escrow) => {
-            const key = `delivery-${escrow.id}`;
-            const tx = txStatus[key] || {};
+            const deliveryKey = `delivery-${escrow.id}`;
+            const completeKey = `complete-onchain-${escrow.id}`;
+            const deliveryTx = txStatus[deliveryKey] || {};
+            const completeTx = txStatus[completeKey] || {};
+            const isOnChain = Boolean(escrow.escrow_id);
+
             return (
               <div
                 key={escrow.id}
@@ -358,7 +524,7 @@ export default function EscrowPanel() {
                 <div className="flex justify-between items-start gap-2">
                   <div>
                     <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider block">
-                      Escrow #{escrow.escrow_id || escrow.id}
+                      {isOnChain ? `On-Chain Escrow #${escrow.escrow_id}` : `Draft Escrow Record #${escrow.id}`}
                     </span>
                     <h4 className="text-base font-extrabold text-slate-900">
                       {escrow.product_name}
@@ -377,7 +543,7 @@ export default function EscrowPanel() {
                     <span className="font-semibold text-slate-800 truncate block">{escrow.fpo_name}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Locked Amount</span>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Escrow Amount</span>
                     <span className="font-bold text-amber-700 font-mono">{escrow.amount_eth} ETH</span>
                   </div>
                   <div>
@@ -385,32 +551,75 @@ export default function EscrowPanel() {
                     <span className="font-medium text-slate-700">{escrow.quantity} {escrow.unit}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Initialized</span>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Created</span>
                     <span className="font-medium text-slate-700">{new Date(escrow.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
 
+                {/* On-chain status or completion prompt */}
+                {escrow.status === "created" && !isOnChain && (
+                  <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs space-y-3">
+                    <div className="flex items-start gap-2 text-amber-800">
+                      <span className="text-base">⚠️</span>
+                      <div>
+                        <p className="font-bold">On-Chain Escrow ID Missing</p>
+                        <p className="text-amber-700 mt-0.5">
+                          The escrow record exists in database, but the smart contract on Sepolia has not been created yet.
+                          You must complete the MetaMask transaction before the FPO can deposit funds.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => completeOnchainEscrow(escrow)}
+                      disabled={completeTx.loading}
+                      className="w-full sm:w-auto px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      <span>🔐</span>
+                      <span>{completeTx.loading ? "Executing createEscrow in MetaMask…" : "Complete On-Chain Escrow (MetaMask)"}</span>
+                    </button>
+                    {completeTx.success && (
+                      <div className="p-2 bg-emerald-100 border border-emerald-300 text-emerald-800 font-medium rounded-lg">
+                        {completeTx.success}
+                      </div>
+                    )}
+                    {completeTx.error && (
+                      <div className="p-2 bg-rose-100 border border-rose-300 text-rose-800 font-medium rounded-lg">
+                        {completeTx.error}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Blockchain Proofs */}
-                <div className="space-y-1 text-xs pt-1 border-t border-slate-100">
-                  {escrow.contract_address && (
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                      <span className="text-slate-400 text-[11px]">Contract:</span>
-                      <AddressCopy value={escrow.contract_address} etherscanType="address" />
-                    </div>
-                  )}
-                  {escrow.deposit_tx_hash && (
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                      <span className="text-slate-400 text-[11px]">Deposit Tx:</span>
-                      <AddressCopy value={escrow.deposit_tx_hash} etherscanType="tx" />
-                    </div>
-                  )}
-                  {escrow.release_tx_hash && (
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                      <span className="text-slate-400 text-[11px]">Release Tx:</span>
-                      <AddressCopy value={escrow.release_tx_hash} etherscanType="tx" />
-                    </div>
-                  )}
-                </div>
+                {isOnChain && (
+                  <div className="space-y-1 text-xs pt-1 border-t border-slate-100">
+                    {escrow.contract_address && (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                        <span className="text-slate-400 text-[11px]">Contract:</span>
+                        <AddressCopy value={escrow.contract_address} etherscanType="address" />
+                      </div>
+                    )}
+                    {escrow.create_tx_hash && (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                        <span className="text-slate-400 text-[11px]">Create Tx:</span>
+                        <AddressCopy value={escrow.create_tx_hash} etherscanType="tx" />
+                      </div>
+                    )}
+                    {escrow.deposit_tx_hash && (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                        <span className="text-slate-400 text-[11px]">Deposit Tx:</span>
+                        <AddressCopy value={escrow.deposit_tx_hash} etherscanType="tx" />
+                      </div>
+                    )}
+                    {escrow.release_tx_hash && (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                        <span className="text-slate-400 text-[11px]">Release Tx:</span>
+                        <AddressCopy value={escrow.release_tx_hash} etherscanType="tx" />
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Confirm Delivery button */}
                 {escrow.status === "funded" && (
@@ -421,27 +630,27 @@ export default function EscrowPanel() {
                     <button
                       type="button"
                       onClick={() => confirmDelivery(escrow)}
-                      disabled={tx.loading}
+                      disabled={deliveryTx.loading}
                       className={`px-4 py-2 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
-                        tx.loading
+                        deliveryTx.loading
                           ? "bg-slate-400 cursor-not-allowed"
                           : "bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20"
                       }`}
                     >
                       <span>📦</span>
-                      <span>{tx.loading ? "Confirming Delivery…" : "Confirm Delivery Handover"}</span>
+                      <span>{deliveryTx.loading ? "Confirming Delivery…" : "Confirm Delivery Handover"}</span>
                     </button>
                   </div>
                 )}
 
-                {tx.success && (
+                {deliveryTx.success && (
                   <div className="p-2.5 rounded-xl bg-emerald-100 border border-emerald-300 text-xs font-medium text-emerald-800">
-                    ✅ {tx.success}
+                    ✅ {deliveryTx.success}
                   </div>
                 )}
-                {tx.error && (
+                {deliveryTx.error && (
                   <div className="p-2.5 rounded-xl bg-rose-100 border border-rose-300 text-xs font-medium text-rose-800">
-                    ❌ {tx.error}
+                    ❌ {deliveryTx.error}
                   </div>
                 )}
               </div>

@@ -99,7 +99,7 @@ export default function FpoEscrowPanel() {
   // ── Helpers ─────────────────────────────────────────────────────
 
   const ensureSepolia = async () => {
-    if (!window.ethereum) throw new Error("MetaMask is not installed.");
+    if (!window.ethereum) throw new Error("MetaMask is not installed. Please install MetaMask to interact with Sepolia smart contracts.");
     const chainId = await window.ethereum.request({ method: "eth_chainId" });
     if (chainId !== SEPOLIA_CHAIN_ID) {
       try {
@@ -108,13 +108,13 @@ export default function FpoEscrowPanel() {
           params: [{ chainId: SEPOLIA_CHAIN_ID }],
         });
       } catch {
-        throw new Error("Please switch MetaMask to Sepolia Test Network.");
+        throw new Error("Please switch MetaMask network to Ethereum Sepolia Testnet.");
       }
     }
   };
 
   const getSignerAndContract = async () => {
-    if (!ESCROW_CONTRACT) throw new Error("Escrow contract address not configured.");
+    if (!ESCROW_CONTRACT) throw new Error("Escrow contract address not configured. Please set VITE_ESCROW_CONTRACT_ADDRESS.");
     await ensureSepolia();
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     await provider.send("eth_requestAccounts", []);
@@ -133,39 +133,52 @@ export default function FpoEscrowPanel() {
     try {
       setTx(key, { loading: true, error: null, success: null });
 
-      if (!escrow.escrow_id) throw new Error("On-chain escrow ID missing. Farmer needs to create on-chain escrow first.");
+      if (!escrow.escrow_id) {
+        throw new Error("Blockchain escrow not created yet. The farmer must complete the MetaMask escrow creation transaction.");
+      }
+
+      const amountNum = parseFloat(escrow.amount_eth);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        throw new Error(`Invalid escrow amount: ${escrow.amount_eth} ETH.`);
+      }
+      if (amountNum > 100) {
+        throw new Error(
+          `Safety Warning: Escrow amount is ${amountNum} ETH, which exceeds normal testnet limits. ` +
+          `Please check that the agreed bid was in ETH per unit.`
+        );
+      }
 
       const { signer, contract } = await getSignerAndContract();
 
       const signerAddr = await signer.getAddress();
       if (signerAddr.toLowerCase() !== escrow.fpo_wallet?.toLowerCase()) {
         throw new Error(
-          `Wallet mismatch. Expected ${escrow.fpo_wallet}, got ${signerAddr}. ` +
-          "Switch to the correct MetaMask account."
+          `Wallet mismatch: Connected wallet is ${signerAddr}, but this escrow requires FPO wallet ${escrow.fpo_wallet}. ` +
+          "Please switch to the correct account in MetaMask."
         );
       }
 
       const amountWei = ethers.utils.parseEther(String(escrow.amount_eth));
 
-      setTx(key, { loading: true, success: "Sending deposit via MetaMask..." });
+      setTx(key, { loading: true, success: `Sending deposit of ${escrow.amount_eth} ETH via MetaMask…` });
       const tx = await contract.depositEscrow(escrow.escrow_id, { value: amountWei });
 
-      setTx(key, { loading: true, success: "Waiting for blockchain confirmation..." });
+      setTx(key, { loading: true, success: "Waiting for Sepolia blockchain confirmation…" });
       const receipt = await tx.wait();
 
       await axios.post(
         `/api/escrow/${escrow.id}/funded/`,
-        { tx_hash: receipt.transactionHash },
+        { tx_hash: receipt.transactionHash, escrow_id: escrow.escrow_id },
         { withCredentials: true }
       );
 
-      setTx(key, { loading: false, success: "Escrow funded on Sepolia! ✅" });
+      setTx(key, { loading: false, success: `Escrow #${escrow.escrow_id} funded with ${escrow.amount_eth} ETH on Sepolia! ✅` });
       await fetchEscrows();
     } catch (err) {
       console.error("Fund escrow error:", err);
       let msg = err.response?.data?.error || err.reason || err.message || "Failed to fund escrow.";
       if (err.code === 4001 || err.code === "ACTION_REJECTED") {
-        msg = "Transaction rejected in MetaMask.";
+        msg = "Deposit transaction was rejected in MetaMask.";
       }
       setTx(key, { loading: false, error: msg });
     }
@@ -178,21 +191,23 @@ export default function FpoEscrowPanel() {
     try {
       setTx(key, { loading: true, error: null, success: null });
 
-      if (!escrow.escrow_id) throw new Error("On-chain escrow ID missing.");
+      if (!escrow.escrow_id) {
+        throw new Error("On-chain escrow ID missing.");
+      }
 
       const { signer, contract } = await getSignerAndContract();
 
       const signerAddr = await signer.getAddress();
       if (signerAddr.toLowerCase() !== escrow.fpo_wallet?.toLowerCase()) {
         throw new Error(
-          `Wallet mismatch. Expected ${escrow.fpo_wallet}, got ${signerAddr}.`
+          `Wallet mismatch: Connected wallet is ${signerAddr}, but this escrow requires FPO wallet ${escrow.fpo_wallet}.`
         );
       }
 
-      setTx(key, { loading: true, success: "Releasing funds via MetaMask..." });
+      setTx(key, { loading: true, success: "Releasing funds via MetaMask…" });
       const tx = await contract.releasePayment(escrow.escrow_id);
 
-      setTx(key, { loading: true, success: "Waiting for blockchain confirmation..." });
+      setTx(key, { loading: true, success: "Waiting for Sepolia blockchain confirmation…" });
       const receipt = await tx.wait();
 
       await axios.post(
@@ -201,13 +216,13 @@ export default function FpoEscrowPanel() {
         { withCredentials: true }
       );
 
-      setTx(key, { loading: false, success: "Payment released to Farmer! ✅" });
+      setTx(key, { loading: false, success: "Payment released to Farmer on Sepolia! ✅" });
       await fetchEscrows();
     } catch (err) {
       console.error("Release payment error:", err);
       let msg = err.response?.data?.error || err.reason || err.message || "Failed to release payment.";
       if (err.code === 4001 || err.code === "ACTION_REJECTED") {
-        msg = "Transaction rejected in MetaMask.";
+        msg = "Release transaction was rejected in MetaMask.";
       }
       setTx(key, { loading: false, error: msg });
     }
@@ -251,6 +266,7 @@ export default function FpoEscrowPanel() {
         const releaseKey = `release-${escrow.id}`;
         const fundTx = txStatus[fundKey] || {};
         const releaseTx = txStatus[releaseKey] || {};
+        const isOnChain = Boolean(escrow.escrow_id);
 
         return (
           <div
@@ -261,7 +277,7 @@ export default function FpoEscrowPanel() {
             <div className="flex justify-between items-start gap-2">
               <div>
                 <span className="text-[11px] font-bold text-blue-900 uppercase tracking-wider block">
-                  Escrow #{escrow.escrow_id || escrow.id}
+                  {isOnChain ? `On-Chain Escrow #${escrow.escrow_id}` : `Draft Escrow Record #${escrow.id}`}
                 </span>
                 <h4 className="text-base font-extrabold text-slate-900">
                   {escrow.product_name}
@@ -294,46 +310,68 @@ export default function FpoEscrowPanel() {
             </div>
 
             {/* Blockchain Proofs */}
-            <div className="space-y-1 text-xs pt-1 border-t border-slate-100">
-              {escrow.contract_address && (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                  <span className="text-slate-400 text-[11px]">Contract:</span>
-                  <AddressCopy value={escrow.contract_address} etherscanType="address" />
-                </div>
-              )}
-              {escrow.deposit_tx_hash && (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                  <span className="text-slate-400 text-[11px]">Deposit Tx:</span>
-                  <AddressCopy value={escrow.deposit_tx_hash} etherscanType="tx" />
-                </div>
-              )}
-              {escrow.release_tx_hash && (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                  <span className="text-slate-400 text-[11px]">Release Tx:</span>
-                  <AddressCopy value={escrow.release_tx_hash} etherscanType="tx" />
-                </div>
-              )}
-            </div>
+            {isOnChain && (
+              <div className="space-y-1 text-xs pt-1 border-t border-slate-100">
+                {escrow.contract_address && (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <span className="text-slate-400 text-[11px]">Contract:</span>
+                    <AddressCopy value={escrow.contract_address} etherscanType="address" />
+                  </div>
+                )}
+                {escrow.create_tx_hash && (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <span className="text-slate-400 text-[11px]">Create Tx:</span>
+                    <AddressCopy value={escrow.create_tx_hash} etherscanType="tx" />
+                  </div>
+                )}
+                {escrow.deposit_tx_hash && (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <span className="text-slate-400 text-[11px]">Deposit Tx:</span>
+                    <AddressCopy value={escrow.deposit_tx_hash} etherscanType="tx" />
+                  </div>
+                )}
+                {escrow.release_tx_hash && (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <span className="text-slate-400 text-[11px]">Release Tx:</span>
+                    <AddressCopy value={escrow.release_tx_hash} etherscanType="tx" />
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Actions */}
             {escrow.status === "created" && (
-              <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <p className="text-xs text-slate-500">
-                  Farmer created the escrow. Deposit <strong>{escrow.amount_eth} ETH</strong> via MetaMask to lock payment on Sepolia.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => fundEscrow(escrow)}
-                  disabled={fundTx.loading}
-                  className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
-                    fundTx.loading
-                      ? "bg-slate-400 cursor-not-allowed"
-                      : "bg-blue-600 hover:bg-blue-500 shadow-blue-600/20"
-                  }`}
-                >
-                  <span>💰</span>
-                  <span>{fundTx.loading ? "Depositing ETH…" : `Deposit ${escrow.amount_eth} ETH into Escrow`}</span>
-                </button>
+              <div className="pt-2 border-t border-slate-100">
+                {isOnChain ? (
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <p className="text-xs text-slate-500">
+                      Farmer created on-chain Escrow #{escrow.escrow_id}. Deposit <strong>{escrow.amount_eth} ETH</strong> via MetaMask to lock payment on Sepolia.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => fundEscrow(escrow)}
+                      disabled={fundTx.loading}
+                      className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
+                        fundTx.loading
+                          ? "bg-slate-400 cursor-not-allowed"
+                          : "bg-blue-600 hover:bg-blue-500 shadow-blue-600/20"
+                      }`}
+                    >
+                      <span>💰</span>
+                      <span>{fundTx.loading ? "Depositing ETH…" : `Deposit ${escrow.amount_eth} ETH into Escrow`}</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs font-medium text-amber-900 flex items-start gap-2.5">
+                    <span className="text-base">⏳</span>
+                    <div>
+                      <p className="font-bold">Blockchain escrow not created yet.</p>
+                      <p className="text-amber-700 mt-0.5">
+                        The farmer must complete the MetaMask escrow creation transaction before you can deposit funds on Sepolia.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

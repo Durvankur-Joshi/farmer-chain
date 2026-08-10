@@ -86,6 +86,11 @@ export default function AuthForm() {
       });
 
       if (isLogin) {
+        if (res.data.access) {
+          localStorage.setItem("access_token", res.data.access);
+          Cookies.set("access_token", res.data.access, { path: "/", expires: 7 });
+          Cookies.set("token", res.data.access, { path: "/", expires: 7 });
+        }
         Cookies.set("role", role, { path: "/", expires: 7 });
 
         if (role === "farmer") {

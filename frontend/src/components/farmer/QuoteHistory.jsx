@@ -57,7 +57,7 @@ export default function QuoteHistory({ history, onViewBids }) {
                   </span>
                   {item.price_per_unit && (
                     <span className="bg-slate-50 px-2 py-1 rounded-lg border border-slate-100 font-medium">
-                      <strong className="text-slate-700">Price Target:</strong> ₹{item.price_per_unit} / {item.unit}
+                      <strong className="text-slate-700">Price Target:</strong> {item.price_per_unit} ETH / {item.unit}
                     </span>
                   )}
                 </div>
