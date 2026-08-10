@@ -1,24 +1,12 @@
 /**
- * MintButton.jsx — Phase 2.2
- *
- * Complete MetaMask minting flow:
- *  1. Request backend to prepare metadata + upload to IPFS (server-side Pinata)
- *  2. Verify MetaMask is present
- *  3. Switch to Sepolia if needed
- *  4. Compare connected wallet with registered farmer wallet (case-insensitive)
- *  5. Call contract.mintCropPassport(tokenURI) via ethers.js
- *  6. Wait for tx confirmation
- *  7. Extract tokenId from CropPassportMinted event
- *  8. Call confirm-mint endpoint
- *  9. Callback to refresh crop list
- *
- * Private keys are NEVER requested or stored.
- * Pinata credentials NEVER touch the browser.
+ * MintButton.jsx — Phase 2.2 + UI Modernization
+ * Modernized MetaMask minting component with clear feedback states.
  */
 import React, { useState } from "react";
 import axios from "axios";
 import { ethers } from "ethers";
 import CropPassportABI from "../../utils/CropPassportABI.json";
+import StatusBadge from "../common/StatusBadge";
 
 const CONTRACT_ADDRESS = import.meta.env.VITE_CROP_PASSPORT_CONTRACT;
 const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111 in hex
@@ -29,11 +17,7 @@ export default function MintButton({ crop, onMintSuccess }) {
   const [minting, setMinting] = useState(false);
 
   if (crop.status === "minted") {
-    return (
-      <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-semibold">
-        ✅ NFT Minted
-      </span>
-    );
+    return <StatusBadge status="minted" />;
   }
 
   const handleMint = async () => {
@@ -42,71 +26,49 @@ export default function MintButton({ crop, onMintSuccess }) {
     setMinting(true);
 
     try {
-      // ── 1. Check MetaMask ──────────────────────────────────────────
       if (!window.ethereum) {
         throw new Error("MetaMask is not installed. Please install MetaMask to mint NFTs.");
       }
 
-      // ── 2. Request accounts ────────────────────────────────────────
       setStatus("Connecting to MetaMask…");
       let accounts;
       try {
         accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
       } catch (connErr) {
         if (connErr.code === 4001) {
-          throw new Error(
-            "MetaMask connection rejected. Please click 'Connect' when MetaMask asks for permission."
-          );
+          throw new Error("MetaMask connection rejected.");
         }
-        throw new Error(
-          `Could not connect to MetaMask: ${connErr.message}. ` +
-          "Make sure MetaMask is unlocked and this site is connected " +
-          "(click the MetaMask icon → Connected sites → connect localhost:5173)."
-        );
+        throw new Error(`Could not connect to MetaMask: ${connErr.message}`);
       }
       const connectedWallet = accounts[0];
 
-      // ── 3. Switch to / add Sepolia ─────────────────────────────────
       const chainId = await window.ethereum.request({ method: "eth_chainId" });
       if (chainId !== SEPOLIA_CHAIN_ID) {
-        setStatus("Switching to Sepolia…");
+        setStatus("Switching to Sepolia Testnet…");
         try {
           await window.ethereum.request({
             method: "wallet_switchEthereumChain",
             params: [{ chainId: SEPOLIA_CHAIN_ID }],
           });
         } catch (switchErr) {
-          // 4902 = chain not added to MetaMask yet — add it automatically
           if (switchErr.code === 4902) {
-            try {
-              await window.ethereum.request({
-                method: "wallet_addEthereumChain",
-                params: [{
-                  chainId: SEPOLIA_CHAIN_ID,
-                  chainName: "Sepolia",
-                  nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-                  rpcUrls: ["https://rpc.sepolia.org"],
-                  blockExplorerUrls: ["https://sepolia.etherscan.io"],
-                }],
-              });
-            } catch (addErr) {
-              throw new Error(
-                "Could not add Sepolia network to MetaMask. " +
-                "Please add it manually: Network name=Sepolia, Chain ID=11155111, " +
-                "RPC=https://rpc.sepolia.org"
-              );
-            }
-          } else if (switchErr.code === 4001) {
-            throw new Error("You rejected the network switch. Please switch to Sepolia in MetaMask and try again.");
+            await window.ethereum.request({
+              method: "wallet_addEthereumChain",
+              params: [{
+                chainId: SEPOLIA_CHAIN_ID,
+                chainName: "Sepolia",
+                nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+                rpcUrls: ["https://rpc.sepolia.org"],
+                blockExplorerUrls: ["https://sepolia.etherscan.io"],
+              }],
+            });
           } else {
-            throw new Error("Please switch MetaMask to the Ethereum Sepolia network and try again.");
+            throw new Error("Please switch MetaMask to Sepolia network.");
           }
         }
       }
 
-
-      // ── 4. Verify wallet matches registered farmer wallet ──────────
-      setStatus("Verifying wallet…");
+      setStatus("Preparing IPFS metadata & token URI…");
       const mintPrepRes = await axios.post(
         `/api/farmer/crops/${crop.id}/mint/`,
         {},
@@ -117,23 +79,15 @@ export default function MintButton({ crop, onMintSuccess }) {
       if (connectedWallet.toLowerCase() !== farmer_wallet.toLowerCase()) {
         throw new Error(
           `Connected MetaMask wallet (${connectedWallet.slice(0, 8)}…) ` +
-          `does not match your registered FarmerChain wallet ` +
-          `(${farmer_wallet.slice(0, 8)}…). ` +
-          "Please switch to your registered wallet in MetaMask."
+          `does not match your registered Farmer wallet (${farmer_wallet.slice(0, 8)}…).`
         );
       }
 
-      // ── 5. Check contract address is configured ────────────────────
       if (!CONTRACT_ADDRESS || CONTRACT_ADDRESS === "0xYourCropPassportContractAddress") {
-        throw new Error(
-          "NFT contract address is not configured. " +
-          "Deploy FarmerChainCropPassport.sol via Remix and set " +
-          "VITE_CROP_PASSPORT_CONTRACT in frontend/.env."
-        );
+        throw new Error("NFT contract address is not configured.");
       }
 
-      // ── 6. Call contract via ethers.js ─────────────────────────────
-      setStatus("Waiting for MetaMask confirmation…");
+      setStatus("Confirm transaction in MetaMask…");
       const provider = new ethers.providers.Web3Provider(window.ethereum);
       const signer   = provider.getSigner();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, CropPassportABI, signer);
@@ -143,21 +97,14 @@ export default function MintButton({ crop, onMintSuccess }) {
         tx = await contract.mintCropPassport(token_uri);
       } catch (txErr) {
         if (txErr.code === 4001 || txErr.code === "ACTION_REJECTED") {
-          throw new Error("Transaction rejected in MetaMask.");
+          throw new Error("Transaction cancelled in MetaMask.");
         }
-        throw new Error(`Transaction failed: ${txErr.message}`);
+        throw new Error(`Transaction error: ${txErr.message}`);
       }
 
-      // ── 7. Wait for mining ─────────────────────────────────────────
-      setStatus("Transaction submitted. Waiting for blockchain confirmation… ⛓️");
-      let receipt;
-      try {
-        receipt = await tx.wait(1); // wait for 1 confirmation
-      } catch (waitErr) {
-        throw new Error(`Transaction failed on-chain: ${waitErr.message}`);
-      }
+      setStatus("Transaction submitted! Waiting for Sepolia block confirmation… ⛓️");
+      let receipt = await tx.wait(1);
 
-      // ── 8. Extract token ID from CropPassportMinted event ──────────
       let tokenId = null;
       const iface = new ethers.utils.Interface(CropPassportABI);
       for (const log of receipt.logs) {
@@ -168,16 +115,14 @@ export default function MintButton({ crop, onMintSuccess }) {
             break;
           }
         } catch {
-          // not a matching log — skip
+          // not a matching log
         }
       }
       if (!tokenId) {
-        // Fallback: try to get from return value (may not be available for eth_call)
         tokenId = receipt.logs.length > 0 ? "unknown" : null;
       }
 
-      // ── 9. Confirm mint on backend ─────────────────────────────────
-      setStatus("Recording NFT on FarmerChain…");
+      setStatus("Recording NFT certificate on FarmerChain…");
       await axios.post(
         `/api/farmer/crops/${crop.id}/confirm-mint/`,
         {
@@ -189,7 +134,7 @@ export default function MintButton({ crop, onMintSuccess }) {
         { withCredentials: true }
       );
 
-      setStatus("🎉 NFT Crop Passport minted successfully!");
+      setStatus("🎉 NFT Crop Passport successfully minted on Ethereum Sepolia!");
       onMintSuccess && onMintSuccess();
     } catch (err) {
       console.error("Mint error:", err);
@@ -201,20 +146,26 @@ export default function MintButton({ crop, onMintSuccess }) {
   };
 
   return (
-    <div className="mt-2">
+    <div className="space-y-2">
       <button
+        type="button"
         onClick={handleMint}
         disabled={minting}
-        className="bg-purple-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50 font-semibold"
+        className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
       >
-        {minting ? "⏳ Minting…" : "🪙 Mint NFT Crop Passport"}
+        <span>🪙</span>
+        <span>{minting ? "Minting on Sepolia…" : "Mint NFT Digital Twin"}</span>
       </button>
 
       {status && (
-        <p className="mt-2 text-xs text-blue-600 font-medium">{status}</p>
+        <p className="text-xs text-blue-700 font-semibold bg-blue-50 border border-blue-200 p-2.5 rounded-xl">
+          ℹ️ {status}
+        </p>
       )}
       {error && (
-        <p className="mt-2 text-xs text-red-600 font-medium">❌ {error}</p>
+        <p className="text-xs text-rose-700 font-semibold bg-rose-50 border border-rose-200 p-2.5 rounded-xl">
+          ⚠️ {error}
+        </p>
       )}
     </div>
   );

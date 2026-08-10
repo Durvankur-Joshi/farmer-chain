@@ -106,11 +106,11 @@ def create_escrow(request):
     # Calculate amount: bid_amount (price per unit) × quantity
     amount_eth = Decimal(str(bid.bid_amount)) * Decimal(str(quote.quantity))
 
-    contract_address = ESCROW_CONTRACT
+    contract_address = request.data.get('contract_address') or ESCROW_CONTRACT or os.environ.get('ESCROW_CONTRACT_ADDRESS', '').strip()
     if not contract_address:
         return Response(
-            {'error': 'Escrow contract address is not configured on the server.'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            {'error': 'Escrow contract address is not configured on the server or provided in request.'},
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     escrow = EscrowTransaction.objects.create(

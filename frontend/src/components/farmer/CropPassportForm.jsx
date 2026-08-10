@@ -1,7 +1,6 @@
 /**
- * CropPassportForm.jsx — Phase 2.2
- * Form for creating a new Crop Passport.
- * farmer_id is NEVER sent — the backend derives it from the JWT cookie.
+ * CropPassportForm.jsx — Phase 2.2 + UI Modernization
+ * Modernized Crop Passport creation form.
  */
 import React, { useState } from "react";
 import axios from "axios";
@@ -59,36 +58,36 @@ export default function CropPassportForm({ onSuccess, onCancel }) {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow p-6 border border-green-100">
-      <h2 className="text-lg font-bold text-green-800 mb-4">🌾 Create Crop Passport</h2>
-
+    <div className="space-y-4 max-w-2xl">
       {error && (
-        <div className="bg-red-50 border border-red-300 text-red-700 rounded p-3 mb-4 text-sm">
-          {error}
+        <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-3 text-xs font-medium">
+          ⚠️ {error}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Crop Name *</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Crop Lot Name *</label>
             <input
               name="crop_name"
               value={form.crop_name}
               onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-              placeholder="e.g. Wheat"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-purple-500 outline-none"
+              placeholder="e.g. Organic Sharbati Wheat"
+              required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Category *</label>
             <select
               name="crop_category"
               value={form.crop_category}
               onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-purple-500 outline-none cursor-pointer"
+              required
             >
-              <option value="">Select category</option>
+              <option value="">Select Category</option>
               {CATEGORY_OPTIONS.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
@@ -97,20 +96,20 @@ export default function CropPassportForm({ onSuccess, onCancel }) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <label className="block text-xs font-semibold text-slate-700 mb-1">Crop Description & Traceability Details</label>
           <textarea
             name="description"
             value={form.description}
             onChange={handleChange}
             rows={2}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            placeholder="Optional notes about this crop batch"
+            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-purple-500 outline-none resize-none"
+            placeholder="Seed variety, pesticide-free practices, organic farm details…"
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Quantity *</label>
             <input
               name="quantity"
               type="number"
@@ -118,17 +117,19 @@ export default function CropPassportForm({ onSuccess, onCancel }) {
               step="0.01"
               value={form.quantity}
               onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-purple-500 outline-none"
               placeholder="e.g. 500"
+              required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Unit *</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Unit of Measure *</label>
             <select
               name="unit"
               value={form.unit}
               onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-purple-500 outline-none cursor-pointer"
+              required
             >
               {UNIT_OPTIONS.map((u) => (
                 <option key={u} value={u}>{u}</option>
@@ -137,42 +138,44 @@ export default function CropPassportForm({ onSuccess, onCancel }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Cultivation Date *</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Cultivation Start Date *</label>
             <input
               name="cultivation_date"
               type="date"
               value={form.cultivation_date}
               onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-purple-500 outline-none"
+              required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Harvest Date *</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Harvest Completion Date *</label>
             <input
               name="harvest_date"
               type="date"
               value={form.harvest_date}
               onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-purple-500 outline-none"
+              required
             />
           </div>
         </div>
 
-        <div className="flex gap-3 pt-2">
+        <div className="flex items-center gap-3 pt-2">
           <button
             type="submit"
             disabled={submitting}
-            className="bg-green-600 text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50"
+            className="bg-purple-600 hover:bg-purple-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs disabled:opacity-50 cursor-pointer"
           >
-            {submitting ? "Creating…" : "✅ Create Passport"}
+            {submitting ? "Creating…" : "✅ Register Digital Passport"}
           </button>
           {onCancel && (
             <button
               type="button"
               onClick={onCancel}
-              className="bg-gray-200 text-gray-700 px-5 py-2 rounded-lg text-sm hover:bg-gray-300"
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
             >
               Cancel
             </button>

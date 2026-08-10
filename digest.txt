@@ -12,6 +12,9 @@ Directory structure:
     │   ├── test_phase23.py
     │   ├── test_phase24.py
     │   ├── test_phase25.py
+    │   ├── test_phase27.py
+    │   ├── test_phase28.py
+    │   ├── test_phase29_e2e.py
     │   ├── admin_app/
     │   │   ├── __init__.py
     │   │   ├── admin.py
@@ -68,6 +71,14 @@ Directory structure:
     │   │   ├── tests.py
     │   │   ├── urls.py
     │   │   └── views.py
+    │   ├── reputation/
+    │   │   ├── __init__.py
+    │   │   ├── admin.py
+    │   │   ├── models.py
+    │   │   ├── serializers.py
+    │   │   ├── services.py
+    │   │   ├── urls.py
+    │   │   └── views.py
     │   ├── retailer/
     │   │   ├── __init__.py
     │   │   ├── admin.py
@@ -103,6 +114,8 @@ Directory structure:
             ├── index.css
             ├── main.jsx
             ├── components/
+            │   ├── common/
+            │   │   └── TrustReputationCard.jsx
             │   ├── farmer/
             │   │   ├── AIVerification.jsx
             │   │   ├── CropPassportCard.jsx
@@ -1509,6 +1522,486 @@ else:
 
 
 ================================================
+FILE: backend/test_phase27.py
+================================================
+"""
+Phase 2.7 â€” Supply-Chain Traceability Timeline Test Suite.
+Tests the public timeline endpoint, lifecycle events, permissions, and security.
+"""
+import os
+import sys
+import django
+
+# Setup Django
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'FarmerChain.settings')
+sys.path.insert(0, os.path.dirname(__file__))
+django.setup()
+
+from decimal import Decimal
+from django.utils import timezone
+from rest_framework.test import APIClient
+from farmer.models import Farmer, FarmerQuote, CropPassport, CropPassportDocument, AIQualityVerification
+from fpo.models import FPO, FPOBid
+from escrow.models import EscrowTransaction
+
+passed = 0
+failed = 0
+
+def test(name, condition, detail=""):
+    global passed, failed
+    if condition:
+        passed += 1
+        print(f"  PASS  {name}")
+    else:
+        failed += 1
+        print(f"  FAIL  {name}  {detail}")
+
+print("=" * 60)
+print("Phase 2.7 â€” Supply-Chain Traceability Timeline Test Suite")
+print("=" * 60)
+
+# Setup
+print("\n--- Setup Test Data ---")
+client = APIClient()
+
+# Clean up test accounts if present
+Farmer.objects.filter(email='timeline_test_farmer@test.com').delete()
+FPO.objects.filter(email='timeline_test_fpo@test.com').delete()
+
+farmer, _ = Farmer.objects.get_or_create(
+    email='timeline_test_farmer@test.com',
+    defaults={
+        'name': 'Timeline Farmer',
+        'password': 'testpassword',
+        'aadhaar_number': '778899001122',
+        'wallet_address': '0x1234567890123456789012345678901234567890',
+        'city': 'Nashik',
+        'state': 'Maharashtra',
+        'approval_status': 'approved',
+    }
+)
+
+fpo, _ = FPO.objects.get_or_create(
+    email='timeline_test_fpo@test.com',
+    defaults={
+        'name': 'Timeline FPO',
+        'password': 'testpassword',
+        'corporate_identification_number': 'TIMELINE_CIN_999',
+        'wallet_address': '0x0987654321098765432109876543210987654321',
+        'city': 'Pune',
+        'state': 'Maharashtra',
+        'approval_status': 'approved',
+    }
+)
+
+# Clean up existing test crops
+CropPassport.objects.filter(crop_name__startswith='TIMELINE_TEST_').delete()
+FarmerQuote.objects.filter(product_name__startswith='TIMELINE_TEST_').delete()
+
+# Test 1: New Crop (Initial State)
+print("\n--- Test 1: New Crop Timeline ---")
+crop_initial = CropPassport.objects.create(
+    farmer=farmer,
+    crop_name='TIMELINE_TEST_Corn',
+    crop_category='Grain',
+    description='Test initial crop',
+    quantity=Decimal('50.00'),
+    unit='kg',
+    cultivation_date=timezone.now().date() - timezone.timedelta(days=90),
+    harvest_date=timezone.now().date() - timezone.timedelta(days=10),
+    status=CropPassport.STATUS_REGISTERED
+)
+
+resp1 = client.get(f'/api/farmer/crops/public/{crop_initial.id}/timeline/')
+test("Public access without authentication (HTTP 200)", resp1.status_code == 200)
+data1 = resp1.json()
+test("Response contains crop_id and events", 'crop_id' in data1 and 'events' in data1)
+test("Initial crop has exactly 1 event (crop_registered)", len(data1['events']) == 1)
+if len(data1['events']) > 0:
+    test("Event type is crop_registered", data1['events'][0]['type'] == 'crop_registered')
+
+# Test 2: Crop with IPFS Document, AI Quality Verification, NFT Minted
+print("\n--- Test 2: Crop with Documents, AI Verification, and NFT ---")
+crop_advanced = CropPassport.objects.create(
+    farmer=farmer,
+    crop_name='TIMELINE_TEST_Soybean',
+    crop_category='Legume',
+    description='Test advanced crop',
+    quantity=Decimal('100.00'),
+    unit='kg',
+    cultivation_date=timezone.now().date() - timezone.timedelta(days=120),
+    harvest_date=timezone.now().date() - timezone.timedelta(days=15),
+    status=CropPassport.STATUS_MINTED,
+    nft_token_id='42',
+    nft_contract_address='0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8',
+    nft_token_uri='ipfs://QmTestSoybeanMetadata123',
+    nft_transaction_hash='0x' + 'f' * 64,
+    nft_minted_at=timezone.now() - timezone.timedelta(days=5),
+)
+
+doc = CropPassportDocument.objects.create(
+    crop_passport=crop_advanced,
+    uploaded_by=farmer,
+    file_name='soil_test.pdf',
+    file_type='application/pdf',
+    file_size=10240,
+    document_type='soil_report',
+    ipfs_cid='QmTestSoybeanSoilCID123',
+    ipfs_uri='ipfs://QmTestSoybeanSoilCID123'
+)
+
+ai_verif = AIQualityVerification.objects.create(
+    crop_passport=crop_advanced,
+    verified_by=farmer,
+    image_cid='QmTestSoybeanImgCID123',
+    image_uri='ipfs://QmTestSoybeanImgCID123',
+    crop_detected='Soybean',
+    quality_grade='A',
+    quality_score=Decimal('92.50'),
+    confidence_score=Decimal('0.98'),
+    disease_detected=False,
+    verification_status=AIQualityVerification.STATUS_VERIFIED
+)
+
+resp2 = client.get(f'/api/farmer/crops/public/{crop_advanced.id}/timeline/')
+test("Advanced crop status HTTP 200", resp2.status_code == 200)
+data2 = resp2.json()
+event_types2 = [e['type'] for e in data2['events']]
+test("Events include crop_registered", 'crop_registered' in event_types2)
+test("Events include document_uploaded", 'document_uploaded' in event_types2)
+test("Events include ai_verified", 'ai_verified' in event_types2)
+test("Events include nft_minted", 'nft_minted' in event_types2)
+test("Events do NOT include unreached stages (no quote/bid/escrow)", 'quote_created' not in event_types2 and 'escrow_funded' not in event_types2)
+
+# Test 3: Full Lifecycle (Quote + Bid + Escrow Stages)
+print("\n--- Test 3: Full Lifecycle Crop with Quote, Bid & Escrow ---")
+quote = FarmerQuote.objects.create(
+    farmer=farmer,
+    product_name='TIMELINE_TEST_Soybean',
+    category='Legume',
+    description='Quote matching advanced crop',
+    quantity=Decimal('100.00'),
+    unit='kg',
+    status='accepted',
+    deadline=timezone.now().date() + timezone.timedelta(days=20),
+)
+
+bid = FPOBid.objects.create(
+    fpo=fpo,
+    quote=quote,
+    bid_amount=Decimal('0.05'),
+    delivery_time_days=7,
+    status='accepted'
+)
+quote.accepted_bid = bid
+quote.save()
+
+escrow = EscrowTransaction.objects.create(
+    farmer=farmer,
+    fpo=fpo,
+    quote=quote,
+    contract_address='0x3333333333333333333333333333333333333333',
+    amount_eth=Decimal('5.00000000'),
+    status=EscrowTransaction.STATUS_RELEASED,
+    deposit_tx_hash='0x' + '1' * 64,
+    delivery_tx_hash='0x' + '2' * 64,
+    release_tx_hash='0x' + '3' * 64,
+    funded_at=timezone.now() - timezone.timedelta(days=3),
+    delivery_confirmed_at=timezone.now() - timezone.timedelta(days=2),
+    released_at=timezone.now() - timezone.timedelta(days=1),
+)
+
+resp3 = client.get(f'/api/farmer/crops/public/{crop_advanced.id}/timeline/')
+test("Full lifecycle response HTTP 200", resp3.status_code == 200)
+data3 = resp3.json()
+event_types3 = [e['type'] for e in data3['events']]
+
+test("Contains quote_created", 'quote_created' in event_types3)
+test("Contains bid_accepted", 'bid_accepted' in event_types3)
+test("Contains escrow_created", 'escrow_created' in event_types3)
+test("Contains escrow_funded", 'escrow_funded' in event_types3)
+test("Contains delivery_confirmed", 'delivery_confirmed' in event_types3)
+test("Contains payment_released", 'payment_released' in event_types3)
+test("All 10 events present in full lifecycle", len(data3['events']) == 10)
+
+# Chronological order check
+timestamps = [e['timestamp'] for e in data3['events']]
+test("Events are strictly chronological", timestamps == sorted(timestamps))
+
+# Test 4: Security & Privacy Check
+print("\n--- Test 4: Security & Privacy Verification ---")
+import json
+raw_json = json.dumps(data3)
+test("No password exposed", 'password' not in raw_json and 'testpassword' not in raw_json)
+test("No farmer email exposed", 'timeline_test_farmer@test.com' not in raw_json)
+test("No aadhaar number exposed", '123456789012' not in raw_json)
+test("No Pinata secrets / JWTs exposed", 'PINATA' not in raw_json and 'jwt' not in raw_json.lower())
+
+# Cleanup
+print("\n--- Cleanup ---")
+escrow.delete()
+bid.delete()
+quote.delete()
+ai_verif.delete()
+doc.delete()
+crop_advanced.delete()
+crop_initial.delete()
+print("  Test data cleaned up.")
+
+# Summary
+print("\n" + "=" * 60)
+print(f"  PASSED: {passed}")
+print(f"  FAILED: {failed}")
+print("=" * 60)
+
+if failed > 0:
+    sys.exit(1)
+else:
+    print("\n  ALL TESTS PASSED!\n")
+
+
+
+================================================
+FILE: backend/test_phase28.py
+================================================
+"""
+Phase 2.8 â€” FarmerChain Reputation & Trust Score Test Suite.
+Tests the private /api/reputation/me/ endpoint, public /api/reputation/<role>/<id>/ endpoint,
+deterministic score calculation, role support (Farmer, FPO, Retailer), and security/privacy.
+"""
+import os
+import sys
+import json
+import django
+
+# Setup Django
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'FarmerChain.settings')
+sys.path.insert(0, os.path.dirname(__file__))
+django.setup()
+
+from decimal import Decimal
+from django.utils import timezone
+from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import RefreshToken
+
+from farmer.models import Farmer, CropPassport, CropPassportDocument, AIQualityVerification
+from fpo.models import FPO, FPOBid, FPOQuote
+from retailer.models import Retailer, RetailerBid
+from escrow.models import EscrowTransaction
+from reputation.models import Reputation
+from reputation.services import get_or_update_reputation
+
+passed = 0
+failed = 0
+
+def test(name, condition, detail=""):
+    global passed, failed
+    if condition:
+        passed += 1
+        print(f"  PASS  {name}")
+    else:
+        failed += 1
+        print(f"  FAIL  {name}  {detail}")
+
+print("=" * 60)
+print("Phase 2.8 â€” Reputation & Trust Score Test Suite")
+print("=" * 60)
+
+# Setup Test Users
+print("\n--- Setup Test Accounts ---")
+Farmer.objects.filter(email='rep_test_farmer@test.com').delete()
+FPO.objects.filter(email='rep_test_fpo@test.com').delete()
+Retailer.objects.filter(email='rep_test_retailer@test.com').delete()
+
+farmer = Farmer.objects.create(
+    name='Reputation Farmer',
+    email='rep_test_farmer@test.com',
+    password='password123',
+    aadhaar_number='889900112233',
+    wallet_address='0x1111222233334444555566667777888899990000',
+    city='Nashik',
+    state='Maharashtra',
+    approval_status='approved',
+)
+
+fpo = FPO.objects.create(
+    name='Reputation FPO',
+    email='rep_test_fpo@test.com',
+    password='password123',
+    corporate_identification_number='REP_CIN_888',
+    wallet_address='0x2222333344445555666677778888999900001111',
+    city='Pune',
+    state='Maharashtra',
+    approval_status='approved',
+)
+
+retailer = Retailer.objects.create(
+    name='Reputation Retailer',
+    email='rep_test_retailer@test.com',
+    password='password123',
+    gstin='27REPTEST1234F1Z',
+    wallet_address='0x3333444455556666777788889999000011112222',
+    city='Mumbai',
+    state='Maharashtra',
+    approval_status='approved',
+)
+
+print(f"  Farmer ID: {farmer.id}")
+print(f"  FPO ID:    {fpo.id}")
+print(f"  Retailer ID: {retailer.id}")
+
+def get_token(user, role):
+    token = RefreshToken()
+    token['user_id'] = user.id
+    token['role'] = role
+    token['name'] = user.name
+    token['username'] = user.name
+    return str(token.access_token)
+
+# â”€â”€ Test 1: Farmer View Own Reputation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+print("\n--- Test 1: Farmer View Own Reputation ---")
+client = APIClient()
+farmer_token = get_token(farmer, 'farmer')
+client.cookies['access_token'] = farmer_token
+
+resp1 = client.get('/api/reputation/me/')
+test("Farmer /api/reputation/me/ status HTTP 200", resp1.status_code == 200)
+data1 = resp1.json()
+test("Returns role == 'farmer'", data1.get('role') == 'farmer')
+test("Returns trust_score >= 50 (approved base)", data1.get('trust_score', 0) >= 50)
+test("Returns trust_tier string", bool(data1.get('trust_tier')))
+test("Returns completed_transactions int", isinstance(data1.get('completed_transactions'), int))
+test("Returns verified_activities int", isinstance(data1.get('verified_activities'), int))
+
+# â”€â”€ Test 2: Dynamic Score Progression for Farmer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+print("\n--- Test 2: Dynamic Trust Score Progression for Farmer ---")
+initial_score = data1.get('trust_score')
+
+# Add a minted Crop Passport and IPFS doc
+crop = CropPassport.objects.create(
+    farmer=farmer,
+    crop_name='Rep Wheat',
+    crop_category='Grain',
+    quantity=Decimal('200.00'),
+    cultivation_date=timezone.now().date(),
+    harvest_date=timezone.now().date(),
+    status=CropPassport.STATUS_MINTED,
+    nft_token_id='1001',
+    nft_contract_address='0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8',
+    nft_minted_at=timezone.now(),
+)
+CropPassportDocument.objects.create(
+    crop_passport=crop,
+    uploaded_by=farmer,
+    file_name='quality.pdf',
+    file_type='application/pdf',
+    file_size=5000,
+    document_type='quality_report',
+    ipfs_cid='QmRepDocCID123',
+    ipfs_uri='ipfs://QmRepDocCID123'
+)
+AIQualityVerification.objects.create(
+    crop_passport=crop,
+    verified_by=farmer,
+    image_cid='QmRepImgCID123',
+    image_uri='ipfs://QmRepImgCID123',
+    crop_detected='Wheat',
+    quality_grade='A',
+    quality_score=Decimal('95.00'),
+    confidence_score=Decimal('0.99'),
+    verification_status=AIQualityVerification.STATUS_VERIFIED
+)
+
+resp2 = client.get('/api/reputation/me/')
+data2 = resp2.json()
+test("Score increased after minting NFT + AI verification + IPFS upload", data2.get('trust_score') > initial_score)
+test("Verified activities counter increased", data2.get('verified_activities') > data1.get('verified_activities'))
+
+# â”€â”€ Test 3: FPO View Own Reputation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+print("\n--- Test 3: FPO View Own Reputation ---")
+fpo_token = get_token(fpo, 'fpo')
+client.cookies['access_token'] = fpo_token
+
+resp3 = client.get('/api/reputation/me/')
+test("FPO /api/reputation/me/ status HTTP 200", resp3.status_code == 200)
+data3 = resp3.json()
+test("Returns role == 'fpo'", data3.get('role') == 'fpo')
+test("FPO trust_score >= 50", data3.get('trust_score', 0) >= 50)
+
+# â”€â”€ Test 4: Retailer View Own Reputation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+print("\n--- Test 4: Retailer View Own Reputation ---")
+retailer_token = get_token(retailer, 'retailer')
+client.cookies['access_token'] = retailer_token
+
+resp4 = client.get('/api/reputation/me/')
+test("Retailer /api/reputation/me/ status HTTP 200", resp4.status_code == 200)
+data4 = resp4.json()
+test("Returns role == 'retailer'", data4.get('role') == 'retailer')
+test("Retailer trust_score >= 50", data4.get('trust_score', 0) >= 50)
+
+# â”€â”€ Test 5: Public Reputation Endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+print("\n--- Test 5: Public Reputation Profiles (Unauthenticated) ---")
+public_client = APIClient()  # No cookies/tokens
+
+resp_pub_farmer = public_client.get(f'/api/reputation/farmer/{farmer.id}/')
+test("Public farmer profile HTTP 200", resp_pub_farmer.status_code == 200)
+pub_data_farmer = resp_pub_farmer.json()
+test("Public farmer returns display_name", pub_data_farmer.get('display_name') == farmer.name)
+test("Public farmer returns trust_score", 'trust_score' in pub_data_farmer)
+test("Public farmer returns trust_tier", 'trust_tier' in pub_data_farmer)
+
+resp_pub_fpo = public_client.get(f'/api/reputation/fpo/{fpo.id}/')
+test("Public FPO profile HTTP 200", resp_pub_fpo.status_code == 200)
+
+resp_pub_retailer = public_client.get(f'/api/reputation/retailer/{retailer.id}/')
+test("Public Retailer profile HTTP 200", resp_pub_retailer.status_code == 200)
+
+# â”€â”€ Test 6: Security & Privacy Check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+print("\n--- Test 6: Security & Privacy Protection ---")
+raw_pub_json = json.dumps(pub_data_farmer) + json.dumps(resp_pub_fpo.json()) + json.dumps(resp_pub_retailer.json())
+
+test("No passwords in public response", 'password' not in raw_pub_json and 'password123' not in raw_pub_json)
+test("No email addresses in public response", 'rep_test_' not in raw_pub_json and '@' not in raw_pub_json)
+test("No Aadhaar number in public response", '889900112233' not in raw_pub_json)
+test("No GSTIN in public response", '27REPTEST1234F1Z' not in raw_pub_json)
+test("No CIN in public response", 'REP_CIN_888' not in raw_pub_json)
+test("No JWT or secret tokens in response", 'jwt' not in raw_pub_json.lower())
+
+# Test invalid roles / tampering
+resp_invalid = public_client.get(f'/api/reputation/hacker/{farmer.id}/')
+test("Invalid role rejected with HTTP 400", resp_invalid.status_code == 400)
+
+resp_post = public_client.post('/api/reputation/me/', {'trust_score': 100})
+test("Direct score modification POST rejected (HTTP 405 or 401)", resp_post.status_code in [401, 405])
+
+# â”€â”€ Cleanup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+print("\n--- Cleanup ---")
+crop.delete()
+farmer.delete()
+fpo.delete()
+retailer.delete()
+print("  Test data cleaned up.")
+
+# â”€â”€ Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+print("\n" + "=" * 60)
+print(f"  PASSED: {passed}")
+print(f"  FAILED: {failed}")
+print("=" * 60)
+
+if failed > 0:
+    sys.exit(1)
+else:
+    print("\n  ALL TESTS PASSED!\n")
+
+
+
+================================================
+FILE: backend/test_phase29_e2e.py
+================================================
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 2889: character maps to <undefined>
+
+
+================================================
 FILE: backend/admin_app/__init__.py
 ================================================
 [Empty file]
@@ -2424,11 +2917,11 @@ def create_escrow(request):
     # Calculate amount: bid_amount (price per unit) Ã— quantity
     amount_eth = Decimal(str(bid.bid_amount)) * Decimal(str(quote.quantity))
 
-    contract_address = ESCROW_CONTRACT
+    contract_address = request.data.get('contract_address') or ESCROW_CONTRACT or os.environ.get('ESCROW_CONTRACT_ADDRESS', '').strip()
     if not contract_address:
         return Response(
-            {'error': 'Escrow contract address is not configured on the server.'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            {'error': 'Escrow contract address is not configured on the server or provided in request.'},
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     escrow = EscrowTransaction.objects.create(
@@ -3483,6 +3976,7 @@ INSTALLED_APPS = [
     'negotiation',
     'did_app',
     'escrow',
+    'reputation',
 ]
 
 
@@ -3601,6 +4095,7 @@ urlpatterns = [
     path('api/negotiation/', include('negotiation.urls')),
     path('api/did/', include('did_app.urls')),
     path('api/escrow/', include('escrow.urls')),
+    path('api/reputation/', include('reputation.urls')),
 
     # JWT Auth with cookie support
     path('api/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
@@ -4273,6 +4768,292 @@ class NegotiationDetailView(APIView):
             **serializer.validated_data
         )
         return Response(NegotiationSerializer(negotiation).data, status=status.HTTP_201_CREATED)
+
+
+================================================
+FILE: backend/reputation/__init__.py
+================================================
+"""
+Phase 2.8 â€” Reputation & Trust Score App
+"""
+
+
+
+================================================
+FILE: backend/reputation/admin.py
+================================================
+from django.contrib import admin
+from .models import Reputation
+
+
+@admin.register(Reputation)
+class ReputationAdmin(admin.ModelAdmin):
+    list_display = (
+        'user_role',
+        'user_id',
+        'trust_score',
+        'completed_transactions',
+        'verified_activities',
+        'updated_at',
+    )
+    list_filter = ('user_role',)
+    search_fields = ('user_id', 'user_role')
+    readonly_fields = (
+        'user_role',
+        'user_id',
+        'trust_score',
+        'completed_transactions',
+        'verified_activities',
+        'created_at',
+        'updated_at',
+    )
+
+
+
+================================================
+FILE: backend/reputation/models.py
+================================================
+from django.db import models
+
+
+class Reputation(models.Model):
+    """
+    Phase 2.8 â€” Minimal Reputation Model.
+    Tracks reputation score, completed transactions, and verified activities
+    derived deterministically from genuine on-chain and database activity.
+    """
+
+    ROLE_FARMER = 'farmer'
+    ROLE_FPO = 'fpo'
+    ROLE_RETAILER = 'retailer'
+    ROLE_CHOICES = [
+        (ROLE_FARMER, 'Farmer'),
+        (ROLE_FPO, 'FPO'),
+        (ROLE_RETAILER, 'Retailer'),
+    ]
+
+    user_role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    user_id = models.PositiveIntegerField()
+    trust_score = models.IntegerField(default=50, help_text="Calculated Trust Score (0-100)")
+    completed_transactions = models.PositiveIntegerField(default=0)
+    verified_activities = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user_role', 'user_id')
+        ordering = ['-trust_score', '-updated_at']
+        verbose_name = 'Reputation'
+        verbose_name_plural = 'Reputations'
+
+    def __str__(self):
+        return (
+            f"[{self.user_role.upper()} #{self.user_id}] "
+            f"Trust: {self.trust_score}/100 | Tx: {self.completed_transactions} | "
+            f"Verified: {self.verified_activities}"
+        )
+
+
+
+================================================
+FILE: backend/reputation/serializers.py
+================================================
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 1269: character maps to <undefined>
+
+
+================================================
+FILE: backend/reputation/services.py
+================================================
+"""
+Phase 2.8 â€” Reputation & Trust Score Calculation Service.
+
+Deterministically calculates trust scores based strictly on real activity:
+- Escrow transactions (funded, delivery confirmed, released)
+- NFT Crop Passports minted
+- AI Quality Verifications completed
+- IPFS evidence documents uploaded
+- Approved registration status
+- Accepted quotes and bids
+"""
+from decimal import Decimal
+from farmer.models import Farmer, CropPassport, CropPassportDocument, AIQualityVerification, FarmerQuote
+from fpo.models import FPO, FPOBid, FPOQuote
+from retailer.models import Retailer, RetailerBid
+from escrow.models import EscrowTransaction
+from .models import Reputation
+
+
+def calculate_farmer_reputation(farmer: Farmer) -> dict:
+    """
+    Computes reputation signals for a Farmer.
+    """
+    # 1. Base verification
+    is_approved = (farmer.approval_status == 'approved')
+    base_score = 50 if is_approved else 10
+
+    # 2. Crop Passports & Blockchain Minting
+    crops = CropPassport.objects.filter(farmer=farmer)
+    total_crops = crops.count()
+    minted_crops = crops.filter(status=CropPassport.STATUS_MINTED).count()
+
+    # 3. IPFS Evidence Documents
+    ipfs_docs = CropPassportDocument.objects.filter(uploaded_by=farmer).count()
+
+    # 4. AI Quality Verifications
+    ai_verifs = AIQualityVerification.objects.filter(
+        verified_by=farmer,
+        verification_status=AIQualityVerification.STATUS_VERIFIED
+    ).count()
+
+    # 5. Escrow Transactions (highest trust signal)
+    escrows = EscrowTransaction.objects.filter(farmer=farmer)
+    completed_escrows = escrows.filter(status=EscrowTransaction.STATUS_RELEASED).count()
+    active_escrows = escrows.filter(
+        status__in=[EscrowTransaction.STATUS_FUNDED, EscrowTransaction.STATUS_DELIVERY_CONFIRMED]
+    ).count()
+
+    # 6. Accepted Quotes
+    accepted_quotes = FarmerQuote.objects.filter(farmer=farmer, status__in=['accepted', 'awarded', 'contract_created']).count()
+
+    # Calculations
+    score = base_score
+    score += min(15, total_crops * 3)
+    score += min(20, minted_crops * 10)
+    score += min(10, ipfs_docs * 2)
+    score += min(15, ai_verifs * 5)
+    score += min(30, completed_escrows * 15 + active_escrows * 5)
+    score += min(10, accepted_quotes * 3)
+
+    trust_score = max(0, min(100, score))
+    completed_tx = completed_escrows + accepted_quotes
+    verified_acts = (1 if is_approved else 0) + minted_crops + ai_verifs + ipfs_docs + completed_escrows
+
+    return {
+        'trust_score': trust_score,
+        'completed_transactions': completed_tx,
+        'verified_activities': verified_acts,
+    }
+
+
+def calculate_fpo_reputation(fpo: FPO) -> dict:
+    """
+    Computes reputation signals for an FPO.
+    """
+    is_approved = (fpo.approval_status == 'approved')
+    base_score = 50 if is_approved else 10
+
+    # 1. Bids submitted & accepted
+    bids = FPOBid.objects.filter(fpo=fpo)
+    total_bids = bids.count()
+    accepted_bids = bids.filter(status='accepted').count()
+
+    # 2. Escrows (Funded & Released payments)
+    escrows = EscrowTransaction.objects.filter(fpo=fpo)
+    completed_escrows = escrows.filter(status=EscrowTransaction.STATUS_RELEASED).count()
+    funded_escrows = escrows.filter(status=EscrowTransaction.STATUS_FUNDED).count()
+
+    # 3. FPO Quotes created for Retailers
+    fpo_quotes = FPOQuote.objects.filter(fpo=fpo).count()
+
+    # Score formula
+    score = base_score
+    score += min(15, total_bids * 2)
+    score += min(25, accepted_bids * 8)
+    score += min(30, completed_escrows * 15 + funded_escrows * 5)
+    score += min(10, fpo_quotes * 3)
+
+    trust_score = max(0, min(100, score))
+    completed_tx = completed_escrows + accepted_bids
+    verified_acts = (1 if is_approved else 0) + accepted_bids + completed_escrows + fpo_quotes
+
+    return {
+        'trust_score': trust_score,
+        'completed_transactions': completed_tx,
+        'verified_activities': verified_acts,
+    }
+
+
+def calculate_retailer_reputation(retailer: Retailer) -> dict:
+    """
+    Computes reputation signals for a Retailer.
+    """
+    is_approved = (retailer.approval_status == 'approved')
+    base_score = 50 if is_approved else 10
+
+    # 1. Bids placed on FPO Quotes
+    bids = RetailerBid.objects.filter(retailer=retailer)
+    total_bids = bids.count()
+    accepted_bids = bids.filter(status='accepted').count()
+    paid_bids = bids.filter(payment_status='paid').count()
+
+    # Score formula
+    score = base_score
+    score += min(15, total_bids * 3)
+    score += min(25, accepted_bids * 10)
+    score += min(30, paid_bids * 15)
+
+    trust_score = max(0, min(100, score))
+    completed_tx = accepted_bids + paid_bids
+    verified_acts = (1 if is_approved else 0) + total_bids + paid_bids
+
+    return {
+        'trust_score': trust_score,
+        'completed_transactions': completed_tx,
+        'verified_activities': verified_acts,
+    }
+
+
+def get_or_update_reputation(role: str, user_id: int, user_obj=None) -> Reputation:
+    """
+    Gets or recalculates the reputation object for any user role.
+    """
+    role = role.lower()
+
+    if role == Reputation.ROLE_FARMER:
+        if user_obj is None:
+            user_obj = Farmer.objects.get(pk=user_id)
+        stats = calculate_farmer_reputation(user_obj)
+    elif role == Reputation.ROLE_FPO:
+        if user_obj is None:
+            user_obj = FPO.objects.get(pk=user_id)
+        stats = calculate_fpo_reputation(user_obj)
+    elif role == Reputation.ROLE_RETAILER:
+        if user_obj is None:
+            user_obj = Retailer.objects.get(pk=user_id)
+        stats = calculate_retailer_reputation(user_obj)
+    else:
+        stats = {'trust_score': 50, 'completed_transactions': 0, 'verified_activities': 0}
+
+    rep, _ = Reputation.objects.update_or_create(
+        user_role=role,
+        user_id=user_id,
+        defaults={
+            'trust_score': stats['trust_score'],
+            'completed_transactions': stats['completed_transactions'],
+            'verified_activities': stats['verified_activities'],
+        }
+    )
+    return rep
+
+
+
+================================================
+FILE: backend/reputation/urls.py
+================================================
+from django.urls import path
+from .views import my_reputation_view, public_reputation_view
+
+urlpatterns = [
+    path('me/', my_reputation_view, name='reputation-me'),
+    path('<str:role>/<int:user_id>/', public_reputation_view, name='reputation-public'),
+]
+
+
+
+================================================
+FILE: backend/reputation/views.py
+================================================
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 1497: character maps to <undefined>
 
 
 ================================================
@@ -6101,6 +6882,7 @@ FILE: frontend/package.json
     "ethers": "^5.8.0",
     "js-cookie": "^3.0.5",
     "lucide-react": "^0.544.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-icons": "^5.5.0",
@@ -6266,6 +7048,12 @@ createRoot(document.getElementById("root")).render(
 
 
 ================================================
+FILE: frontend/src/components/common/TrustReputationCard.jsx
+================================================
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 1816: character maps to <undefined>
+
+
+================================================
 FILE: frontend/src/components/farmer/AIVerification.jsx
 ================================================
 Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 2273: character maps to <undefined>
@@ -6274,7 +7062,7 @@ Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in posi
 ================================================
 FILE: frontend/src/components/farmer/CropPassportCard.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8d in position 5295: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8d in position 5858: character maps to <undefined>
 
 
 ================================================
@@ -8614,12 +9402,13 @@ export default function AuthForm() {
 FILE: frontend/src/pages/CropPassportPage.jsx
 ================================================
 /**
- * CropPassportPage.jsx — Phase 2.2 + 2.3 + 2.4
+ * CropPassportPage.jsx — Phase 2.2 + 2.3 + 2.4 + 2.6
  * Public verification page. No authentication required.
  * Route: /crop-passport/:id
  *
  * Phase 2.3: Shows public IPFS documents section.
  * Phase 2.4: Shows public AI Quality Verification result.
+ * Phase 2.6: QR-linked public verification page with overall verification status.
  * Never exposes: email, aadhaar, password, Pinata/Gemini credentials.
  */
 import React, { useEffect, useState } from "react";
@@ -8672,6 +9461,7 @@ export default function CropPassportPage() {
   const [notFound, setNotFound] = useState(false);
   const [copied, setCopied]     = useState("");
   const [aiVerif, setAiVerif]   = useState(null);   // public AI verification result
+  const [timeline, setTimeline] = useState([]);       // Phase 2.7 timeline events
 
   useEffect(() => {
     axios
@@ -8687,6 +9477,12 @@ export default function CropPassportPage() {
       .get(`/api/farmer/crops/public/${id}/verification/`)
       .then((res) => { if (res.data.verification) setAiVerif(res.data); })
       .catch(() => {/* no verified result yet — silently ignore */});
+
+    // Phase 2.7 — Fetch supply-chain timeline (best-effort)
+    axios
+      .get(`/api/farmer/crops/public/${id}/timeline/`)
+      .then((res) => { if (res.data.events) setTimeline(res.data.events); })
+      .catch(() => {/* timeline not available */});
   }, [id]);
 
   const handleCopyCid = (cid) => {
@@ -8731,15 +9527,31 @@ export default function CropPassportPage() {
               <p className="text-sm text-gray-500">#{id} · {crop.crop_category}</p>
             </div>
           </div>
-          <div
-            className={`mt-4 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold w-fit ${
-              isMinted
-                ? "bg-green-100 text-green-800"
-                : "bg-yellow-100 text-yellow-800"
-            }`}
-          >
-            {isMinted ? "✅ Verified on Ethereum Sepolia" : "⏳ Pending NFT Mint"}
-          </div>
+
+          {/* Phase 2.6 — Overall Verification Status */}
+          {(() => {
+            const hasNFT = isMinted;
+            const hasAI = !!aiVerif?.verification;
+            let statusText, statusClass;
+            if (hasNFT && hasAI) {
+              statusText = "✅ VERIFIED — NFT Minted & AI Quality Assessed";
+              statusClass = "bg-green-100 text-green-800 border-green-300";
+            } else if (hasNFT) {
+              statusText = "✅ Verified on Ethereum Sepolia — AI assessment pending";
+              statusClass = "bg-green-100 text-green-800 border-green-300";
+            } else if (hasAI) {
+              statusText = "⏳ AI Assessed — Pending NFT Mint";
+              statusClass = "bg-yellow-100 text-yellow-800 border-yellow-300";
+            } else {
+              statusText = "⏳ Pending Verification";
+              statusClass = "bg-yellow-100 text-yellow-800 border-yellow-300";
+            }
+            return (
+              <div className={`mt-4 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold w-fit border ${statusClass}`}>
+                {statusText}
+              </div>
+            );
+          })()}
         </div>
 
         {/* ── Crop Info ─────────────────────────────────────────────── */}
@@ -8899,6 +9711,94 @@ export default function CropPassportPage() {
           })()}
         </div>
 
+        {/* ── Phase 2.7: Supply-Chain Traceability Timeline ───────────── */}
+        <div className="bg-white rounded-3xl shadow-lg border border-gray-100 p-6 mb-6">
+          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-6">
+            📦 Supply-Chain Traceability
+          </h2>
+          {timeline.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">No supply-chain events recorded yet.</p>
+          ) : (
+            <div className="relative">
+              {/* Vertical line */}
+              <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-green-200" />
+              <div className="space-y-6">
+                {timeline.map((evt, idx) => {
+                  const ICONS = {
+                    crop_registered: "🌱",
+                    document_uploaded: "📄",
+                    ai_verified: "🤖",
+                    nft_minted: "🏷️",
+                    quote_created: "📝",
+                    bid_accepted: "🤝",
+                    escrow_created: "🔐",
+                    escrow_funded: "💰",
+                    delivery_confirmed: "🚚",
+                    payment_released: "💸",
+                  };
+                  const icon = ICONS[evt.type] || "✅";
+                  const d = evt.details || {};
+                  const ts = new Date(evt.timestamp).toLocaleString();
+                  return (
+                    <div key={idx} className="relative flex items-start gap-4 pl-1">
+                      {/* Dot */}
+                      <div className="z-10 flex items-center justify-center w-8 h-8 rounded-full bg-green-100 border-2 border-green-400 text-lg shrink-0">
+                        {icon}
+                      </div>
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800">{evt.title}</p>
+                        <p className="text-xs text-gray-400">{ts}</p>
+                        {/* Event-specific details */}
+                        {evt.type === "ai_verified" && d.quality_grade && (
+                          <p className="text-xs text-gray-600 mt-0.5">
+                            Grade {d.quality_grade} · Score {d.quality_score}
+                          </p>
+                        )}
+                        {evt.type === "nft_minted" && d.token_id && (
+                          <p className="text-xs text-gray-600 mt-0.5">
+                            Token #{d.token_id}
+                            {d.etherscan_url && (
+                              <> · <a href={d.etherscan_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Etherscan</a></>
+                            )}
+                          </p>
+                        )}
+                        {evt.type === "document_uploaded" && d.gateway_url && (
+                          <a href={d.gateway_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline">
+                            View on IPFS
+                          </a>
+                        )}
+                        {evt.type === "bid_accepted" && d.fpo_name && (
+                          <p className="text-xs text-gray-600 mt-0.5">
+                            FPO: {d.fpo_name} · {d.bid_amount} ETH/unit
+                          </p>
+                        )}
+                        {evt.type === "escrow_created" && d.amount_eth && (
+                          <p className="text-xs text-gray-600 mt-0.5">
+                            {d.amount_eth} ETH
+                            {d.etherscan_url && (
+                              <> · <a href={d.etherscan_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Contract</a></>
+                            )}
+                          </p>
+                        )}
+                        {(evt.type === "escrow_funded" || evt.type === "payment_released") && d.etherscan_url && (
+                          <a href={d.etherscan_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline">
+                            View Transaction
+                          </a>
+                        )}
+                      </div>
+                      {/* Status badge */}
+                      <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full shrink-0">
+                        ✓
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
         <p className="text-center text-xs text-gray-400 mt-6">
           FarmerChain · Decentralized Agricultural Supply Chain ·{" "}
           <a href="https://sepolia.etherscan.io" target="_blank" rel="noopener noreferrer" className="underline">
@@ -8927,19 +9827,19 @@ Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in posi
 ================================================
 FILE: frontend/src/pages/farmer/FarmerDashboard.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 4070: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 4149: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/pages/fpo/FpoDashboard.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 1594: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 1673: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/pages/retailer/RetailerDashboard.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 2564: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 2644: character maps to <undefined>
 
 
 ================================================

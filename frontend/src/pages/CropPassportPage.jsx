@@ -1,16 +1,19 @@
 /**
- * CropPassportPage.jsx — Phase 2.2 + 2.3 + 2.4 + 2.6
+ * CropPassportPage.jsx — Phase 2.2 + 2.3 + 2.4 + 2.6 + 2.7
  * Public verification page. No authentication required.
  * Route: /crop-passport/:id
  *
  * Phase 2.3: Shows public IPFS documents section.
  * Phase 2.4: Shows public AI Quality Verification result.
  * Phase 2.6: QR-linked public verification page with overall verification status.
+ * Phase 2.7: Supply-Chain Traceability Timeline.
  * Never exposes: email, aadhaar, password, Pinata/Gemini credentials.
  */
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
+import AddressCopy from "../components/common/AddressCopy";
+import StatusBadge from "../components/common/StatusBadge";
 
 const SEPOLIA_EXPLORER = "https://sepolia.etherscan.io";
 
@@ -20,7 +23,7 @@ const DOC_TYPE_LABELS = {
   quality_report:   "📊 Quality Report",
   certification:    "🏆 Certification",
   harvest_document: "📋 Harvest Document",
-  other:            "📁 Other",
+  other:            "📁 Evidence Document",
 };
 
 function ipfsGateway(uri) {
@@ -33,19 +36,19 @@ function ipfsGateway(uri) {
 
 function Row({ label, value, link }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-start gap-1 py-2 border-b border-gray-100 last:border-0">
-      <span className="w-44 text-sm font-semibold text-gray-500 shrink-0">{label}</span>
+    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-1 py-2.5 border-b border-slate-100 last:border-0 text-xs">
+      <span className="font-semibold text-slate-500 shrink-0">{label}</span>
       {link ? (
         <a
           href={link}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm text-blue-600 underline break-all"
+          className="text-blue-600 hover:text-blue-800 hover:underline break-all font-mono transition-colors"
         >
           {value}
         </a>
       ) : (
-        <span className="text-sm text-gray-800 break-all">{value || "—"}</span>
+        <span className="text-slate-800 font-medium break-all sm:text-right">{value || "—"}</span>
       )}
     </div>
   );
@@ -91,17 +94,28 @@ export default function CropPassportPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-500 animate-pulse">Loading Crop Passport…</p>
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-100">
+        <div className="text-center space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-2xl mx-auto animate-spin">
+            🌾
+          </div>
+          <p className="text-xs text-slate-400 font-mono tracking-wider">Verifying Crop Passport #{id}…</p>
+        </div>
       </div>
     );
   }
 
   if (notFound || !crop) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-        <h1 className="text-2xl font-bold text-red-600">404 — Crop Passport Not Found</h1>
-        <p className="text-gray-500">The requested Crop Passport does not exist.</p>
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 text-center text-slate-100">
+        <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-3xl mb-4">
+          🔍
+        </div>
+        <h1 className="text-xl font-bold text-white mb-1">Crop Passport Not Found</h1>
+        <p className="text-xs text-slate-400 mb-6">The requested digital passport ID #{id} was not found on the registry.</p>
+        <a href="/" className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white transition-all">
+          ← Return to FarmerChain
+        </a>
       </div>
     );
   }
@@ -110,216 +124,287 @@ export default function CropPassportPage() {
   const documents = crop.documents || [];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-purple-50 py-10 px-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-slate-900 text-slate-100 py-10 px-4 relative overflow-hidden">
+      {/* Background Glows */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-emerald-500/10 blur-[140px] pointer-events-none" />
+      <div className="absolute top-[40%] right-[-10%] w-[40%] h-[40%] rounded-full bg-purple-500/10 blur-[140px] pointer-events-none" />
 
-        {/* ── Header ───────────────────────────────────────────────── */}
-        <div className="bg-white rounded-3xl shadow-lg border border-green-100 p-8 mb-6">
-          <div className="flex items-center gap-3 mb-2">
-            <span className="text-4xl">🌾</span>
+      <div className="max-w-3xl mx-auto relative z-10 space-y-6">
+
+        {/* ── Top Header Brand ─────────────────────────────────────── */}
+        <div className="flex items-center justify-between gap-4 pb-2 border-b border-slate-800">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-base font-bold shadow-md">
+              🌾
+            </div>
             <div>
-              <h1 className="text-2xl font-extrabold text-gray-900">
-                FarmerChain Crop Passport
+              <span className="font-extrabold text-white text-sm tracking-tight">FarmerChain</span>
+              <p className="text-[10px] text-slate-400">Public Verification Explorer</p>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Verified Registry
+          </span>
+        </div>
+
+        {/* ── Passport Hero Card ───────────────────────────────────── */}
+        <div className="bg-slate-800/80 backdrop-blur-xl rounded-3xl border border-slate-700/80 p-6 sm:p-8 shadow-2xl shadow-black/40">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs uppercase font-bold text-emerald-400 tracking-wider">
+                  Crop Passport #{id}
+                </span>
+                <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-md bg-slate-700 text-slate-300">
+                  {crop.crop_category}
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                {crop.crop_name}
               </h1>
-              <p className="text-sm text-gray-500">#{id} · {crop.crop_category}</p>
+              <p className="text-xs text-slate-400 font-medium">
+                {crop.quantity} {crop.unit} · Cultivated in {crop.location || "Maharashtra, India"}
+              </p>
+            </div>
+
+            {/* Overall Verification Status */}
+            <div>
+              {(() => {
+                const hasNFT = isMinted;
+                const hasAI = !!aiVerif?.verification;
+                if (hasNFT && hasAI) {
+                  return (
+                    <div className="px-3.5 py-2 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/10">
+                      <span className="text-base">🛡️</span>
+                      <span>Verified On-Chain + AI Assessed</span>
+                    </div>
+                  );
+                } else if (hasNFT) {
+                  return (
+                    <div className="px-3.5 py-2 rounded-2xl bg-purple-500/15 border border-purple-500/40 text-purple-300 text-xs font-bold flex items-center gap-2">
+                      <span className="text-base">🏷️</span>
+                      <span>Minted on Sepolia</span>
+                    </div>
+                  );
+                } else if (hasAI) {
+                  return (
+                    <div className="px-3.5 py-2 rounded-2xl bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center gap-2">
+                      <span className="text-base">🤖</span>
+                      <span>AI Assessed (Pending Mint)</span>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="px-3.5 py-2 rounded-2xl bg-slate-700/60 border border-slate-600 text-slate-300 text-xs font-semibold flex items-center gap-2">
+                    <span className="text-base">⏳</span>
+                    <span>Registered Crop</span>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Details Grid ─────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Crop Info */}
+          <div className="bg-slate-800/80 backdrop-blur-md rounded-2xl border border-slate-700/80 p-5 shadow-lg">
+            <h2 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <span>🌱</span> Crop Specifications
+            </h2>
+            <div className="space-y-1">
+              <Row label="Crop Name"        value={crop.crop_name} />
+              <Row label="Category"         value={crop.crop_category} />
+              <Row label="Batch Quantity"   value={`${crop.quantity} ${crop.unit}`} />
+              <Row label="Cultivation Date" value={crop.cultivation_date} />
+              <Row label="Harvest Date"     value={crop.harvest_date} />
+              <Row label="Location"         value={crop.location} />
+              {crop.description && <Row label="Description" value={crop.description} />}
             </div>
           </div>
 
-          {/* Phase 2.6 — Overall Verification Status */}
-          {(() => {
-            const hasNFT = isMinted;
-            const hasAI = !!aiVerif?.verification;
-            let statusText, statusClass;
-            if (hasNFT && hasAI) {
-              statusText = "✅ VERIFIED — NFT Minted & AI Quality Assessed";
-              statusClass = "bg-green-100 text-green-800 border-green-300";
-            } else if (hasNFT) {
-              statusText = "✅ Verified on Ethereum Sepolia — AI assessment pending";
-              statusClass = "bg-green-100 text-green-800 border-green-300";
-            } else if (hasAI) {
-              statusText = "⏳ AI Assessed — Pending NFT Mint";
-              statusClass = "bg-yellow-100 text-yellow-800 border-yellow-300";
-            } else {
-              statusText = "⏳ Pending Verification";
-              statusClass = "bg-yellow-100 text-yellow-800 border-yellow-300";
-            }
+          {/* Farmer Identity */}
+          <div className="bg-slate-800/80 backdrop-blur-md rounded-2xl border border-slate-700/80 p-5 shadow-lg">
+            <h2 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <span>🔐</span> Provenance & Farmer Identity
+            </h2>
+            <div className="space-y-1">
+              <div className="py-2 border-b border-slate-700/60">
+                <span className="text-[11px] font-semibold text-slate-400 block mb-1">Farmer DID</span>
+                <AddressCopy value={crop.farmer_did} truncate={false} className="text-slate-200 break-all text-[11px]" />
+              </div>
+              <div className="py-2 border-b border-slate-700/60">
+                <span className="text-[11px] font-semibold text-slate-400 block mb-1">Wallet Address</span>
+                <AddressCopy value={crop.farmer_wallet} etherscanType="address" truncate={false} className="text-slate-200 break-all text-[11px]" />
+              </div>
+              <Row label="Origin District" value={crop.farmer_location} />
+            </div>
+          </div>
+        </div>
+
+        {/* ── NFT Blockchain Record ─────────────────────────────────── */}
+        {isMinted && (
+          <div className="bg-slate-800/80 backdrop-blur-md rounded-2xl border border-purple-500/30 p-5 shadow-lg">
+            <h2 className="text-xs font-bold text-purple-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <span>🏷️</span> ERC-721 Blockchain Certificate (Sepolia)
+            </h2>
+            <div className="space-y-1">
+              <Row label="Token ID"    value={`Token #${crop.nft_token_id}`} />
+              <div className="py-2 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-start justify-between gap-1 text-xs">
+                <span className="font-semibold text-slate-400">Contract Address</span>
+                <AddressCopy value={crop.nft_contract_address} etherscanType="address" truncate={false} className="text-purple-300" />
+              </div>
+              <div className="py-2 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-start justify-between gap-1 text-xs">
+                <span className="font-semibold text-slate-400">Mint Transaction</span>
+                <AddressCopy value={crop.nft_transaction_hash} etherscanType="tx" truncate={false} className="text-purple-300" />
+              </div>
+              <Row
+                label="IPFS Metadata"
+                value={crop.nft_token_uri}
+                link={ipfsGateway(crop.nft_token_uri)}
+              />
+              {crop.nft_minted_at && (
+                <Row label="Minted On" value={new Date(crop.nft_minted_at).toLocaleString()} />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── AI Quality Verification ───────────────────────────────── */}
+        <div className="bg-slate-800/80 backdrop-blur-md rounded-2xl border border-slate-700/80 p-5 shadow-lg">
+          <h2 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <span>🤖</span> AI Quality Assessment
+          </h2>
+          {!aiVerif ? (
+            <p className="text-xs text-slate-500 italic">Visual crop assessment not performed yet.</p>
+          ) : (() => {
+            const v = aiVerif.verification;
+            const GRADE_COLORS = {
+              A: "text-emerald-400 bg-emerald-500/15 border-emerald-500/40",
+              B: "text-blue-400 bg-blue-500/15 border-blue-500/40",
+              C: "text-yellow-400 bg-yellow-500/15 border-yellow-500/40",
+              D: "text-orange-400 bg-orange-500/15 border-orange-500/40",
+              F: "text-rose-400 bg-rose-500/15 border-rose-500/40",
+            };
+            const gradeClass = GRADE_COLORS[v.quality_grade] || "text-slate-300 bg-slate-700/50 border-slate-600";
+            const pct = Math.max(0, Math.min(100, Number(v.quality_score) || 0));
+
             return (
-              <div className={`mt-4 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold w-fit border ${statusClass}`}>
-                {statusText}
+              <div className="space-y-4">
+                <div className="flex gap-4 items-center flex-wrap">
+                  <div className={`${gradeClass} rounded-2xl p-4 text-center min-w-[90px] border shadow-md`}>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Quality Grade</p>
+                    <p className="text-3xl font-extrabold">{v.quality_grade}</p>
+                  </div>
+                  <div className="flex-1 min-w-[180px] space-y-2">
+                    <div>
+                      <div className="flex justify-between text-xs font-bold text-slate-300 mb-1">
+                        <span>Quality Index</span>
+                        <span>{v.quality_score} / 100</span>
+                      </div>
+                      <div className="w-full bg-slate-700/70 rounded-full h-2 overflow-hidden">
+                        <div className="bg-emerald-500 h-full rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-xs font-semibold text-slate-400 mb-1">
+                        <span>Model Confidence</span>
+                        <span>{Math.round(v.confidence_score * 100)}%</span>
+                      </div>
+                      <div className="w-full bg-slate-700/70 rounded-full h-2 overflow-hidden">
+                        <div className="bg-blue-500 h-full rounded-full" style={{ width: `${Math.round(v.confidence_score * 100)}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Row label="Crop Species" value={v.crop_detected} />
+                  <Row label="Health / Disease" value={v.disease_detected ? `⚠️ ${v.disease_name || "Detected"}` : "✓ No Disease Detected"} />
+                  <Row label="Defects" value={v.visible_defects || "None detected"} />
+                  {v.ai_summary && (
+                    <div className="bg-slate-900/60 border border-slate-700/60 rounded-xl p-3 text-xs text-slate-300 italic">
+                      "{v.ai_summary}"
+                    </div>
+                  )}
+                  {v.image_gateway_url && (
+                    <div className="pt-2">
+                      <a
+                        href={v.image_gateway_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-emerald-400 hover:text-emerald-300 underline font-medium"
+                      >
+                        🔗 Inspect Analyzed Image on IPFS
+                      </a>
+                    </div>
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-500 italic">⚠️ {aiVerif.disclaimer}</p>
               </div>
             );
           })()}
         </div>
 
-        {/* ── Crop Info ─────────────────────────────────────────────── */}
-        <div className="bg-white rounded-3xl shadow-lg border border-gray-100 p-6 mb-6">
-          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">
-            🌱 Crop Information
-          </h2>
-          <Row label="Crop Name"        value={crop.crop_name} />
-          <Row label="Category"         value={crop.crop_category} />
-          <Row label="Quantity"         value={`${crop.quantity} ${crop.unit}`} />
-          <Row label="Cultivation Date" value={crop.cultivation_date} />
-          <Row label="Harvest Date"     value={crop.harvest_date} />
-          <Row label="Location"         value={crop.location} />
-          {crop.description && <Row label="Description" value={crop.description} />}
-        </div>
-
-        {/* ── Farmer Identity ───────────────────────────────────────── */}
-        <div className="bg-white rounded-3xl shadow-lg border border-gray-100 p-6 mb-6">
-          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">
-            🔐 Farmer Identity
-          </h2>
-          <Row label="Farmer DID" value={crop.farmer_did} />
-          <Row label="Wallet"     value={crop.farmer_wallet} />
-          <Row label="Location"   value={crop.farmer_location} />
-        </div>
-
-        {/* ── NFT Record ───────────────────────────────────────────── */}
-        {isMinted && (
-          <div className="bg-white rounded-3xl shadow-lg border border-purple-100 p-6 mb-6">
-            <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">
-              🪙 NFT Blockchain Record
-            </h2>
-            <Row label="Token ID"    value={`#${crop.nft_token_id}`} />
-            <Row
-              label="Contract"
-              value={crop.nft_contract_address}
-              link={`${SEPOLIA_EXPLORER}/address/${crop.nft_contract_address}`}
-            />
-            <Row
-              label="Transaction"
-              value={crop.nft_transaction_hash}
-              link={`${SEPOLIA_EXPLORER}/tx/${crop.nft_transaction_hash}`}
-            />
-            <Row
-              label="IPFS Metadata"
-              value={crop.nft_token_uri}
-              link={ipfsGateway(crop.nft_token_uri)}
-            />
-            {crop.nft_minted_at && (
-              <Row label="Minted At" value={new Date(crop.nft_minted_at).toLocaleString()} />
-            )}
-          </div>
-        )}
-
-        {/* ── Phase 2.3: Verified Evidence (public documents) ────────── */}
-        <div className="bg-white rounded-3xl shadow-lg border border-blue-100 p-6 mb-6">
-          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">
-            📦 Verified Evidence
+        {/* ── Verified IPFS Evidence Documents ──────────────────────── */}
+        <div className="bg-slate-800/80 backdrop-blur-md rounded-2xl border border-slate-700/80 p-5 shadow-lg">
+          <h2 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <span>📄</span> Decentralized IPFS Evidence Files ({documents.length})
           </h2>
 
           {documents.length === 0 ? (
-            <p className="text-sm text-gray-400 italic">No documents have been uploaded for this crop yet.</p>
+            <p className="text-xs text-slate-500 italic">No evidence documents uploaded for this crop yet.</p>
           ) : (
             <div className="space-y-3">
               {documents.map((doc) => (
                 <div
                   key={doc.id}
-                  className="bg-blue-50 border border-blue-100 rounded-xl p-4"
+                  className="bg-slate-900/60 border border-slate-700 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
                 >
-                  <div className="flex justify-between items-start flex-wrap gap-2">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-800">
-                        {DOC_TYPE_LABELS[doc.document_type] || doc.document_type}
-                      </p>
-                      <p className="text-xs text-gray-500">{doc.file_name}</p>
-                      <p className="text-xs font-mono text-gray-500 mt-1 break-all">
-                        CID: {doc.ipfs_cid}
-                      </p>
-                    </div>
-                    <div className="flex gap-2 flex-wrap">
-                      <a
-                        href={doc.gateway_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700"
-                      >
-                        🔗 View on IPFS
-                      </a>
-                      <button
-                        onClick={() => handleCopyCid(doc.ipfs_cid)}
-                        className="text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-200"
-                      >
-                        {copied === doc.ipfs_cid ? "✅ Copied!" : "📋 Copy CID"}
-                      </button>
-                    </div>
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-bold text-white">
+                      {DOC_TYPE_LABELS[doc.document_type] || doc.document_type}
+                    </p>
+                    <p className="text-[11px] text-slate-400">{doc.file_name}</p>
+                    <p className="text-[10px] font-mono text-slate-500 break-all">
+                      CID: {doc.ipfs_cid}
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Uploaded: {new Date(doc.uploaded_at).toLocaleDateString()}
-                  </p>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <a
+                      href={doc.gateway_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg transition-all"
+                    >
+                      View on IPFS
+                    </a>
+                    <button
+                      onClick={() => handleCopyCid(doc.ipfs_cid)}
+                      className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1.5 rounded-lg border border-slate-600"
+                    >
+                      {copied === doc.ipfs_cid ? "✓ Copied" : "Copy CID"}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* ── Phase 2.4: Public AI Quality Verification ───────────────── */}
-        <div className="bg-white rounded-3xl shadow-lg border border-purple-100 p-6 mb-6">
-          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">
-            🤖 AI Quality Verification
+        {/* ── Supply-Chain Traceability Timeline ─────────────────────── */}
+        <div className="bg-slate-800/80 backdrop-blur-md rounded-2xl border border-slate-700/80 p-5 shadow-lg">
+          <h2 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-5 flex items-center gap-1.5">
+            <span>📦</span> Complete Supply-Chain Traceability Lifecycle
           </h2>
-          {!aiVerif ? (
-            <p className="text-sm text-gray-400 italic">No AI verification has been submitted for this crop yet.</p>
-          ) : (() => {
-            const v = aiVerif.verification;
-            const GRADE_COLORS = { A:"text-green-700 bg-green-100", B:"text-lime-700 bg-lime-100", C:"text-yellow-700 bg-yellow-100", D:"text-orange-700 bg-orange-100", F:"text-red-700 bg-red-100" };
-            const gradeClass = GRADE_COLORS[v.quality_grade] || "text-gray-700 bg-gray-100";
-            const pct = Math.max(0,Math.min(100,Number(v.quality_score)||0));
-            const barColor = pct>=80?"bg-green-500":pct>=60?"bg-lime-500":pct>=40?"bg-yellow-500":pct>=20?"bg-orange-500":"bg-red-500";
-            return (
-              <div className="space-y-3">
-                <div className="flex gap-3 flex-wrap items-start">
-                  <div className={`${gradeClass} rounded-xl px-4 py-2 text-center min-w-[90px] border`}>
-                    <p className="text-xs font-semibold uppercase">Grade</p>
-                    <p className="text-4xl font-extrabold">{v.quality_grade}</p>
-                  </div>
-                  <div className="flex-1 min-w-[180px] space-y-2">
-                    <div>
-                      <div className="flex justify-between text-xs font-semibold text-gray-600">
-                        <span>Quality Score</span><span>{v.quality_score}/100</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                        <div className={`${barColor} h-2 rounded-full`} style={{width:`${pct}%`}} />
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-xs font-semibold text-gray-600">
-                        <span>Confidence</span><span>{Math.round(v.confidence_score*100)}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                        <div className="bg-blue-500 h-2 rounded-full" style={{width:`${Math.round(v.confidence_score*100)}%`}} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <Row label="Crop Detected" value={v.crop_detected} />
-                <Row label="Disease" value={v.disease_detected ? `⚠️ ${v.disease_name||"Detected"}` : "✓ Not detected"} />
-                <Row label="Visible Defects" value={v.visible_defects||"None"} />
-                {v.ai_summary && (
-                  <div className="bg-purple-50 border border-purple-100 rounded-lg p-3 text-sm text-gray-700 italic">"{v.ai_summary}"</div>
-                )}
-                {v.image_gateway_url && (
-                  <a href={v.image_gateway_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline">🔗 View verified crop image on IPFS</a>
-                )}
-                <p className="text-xs text-gray-400 italic mt-1">⚠️ {aiVerif.disclaimer}</p>
-              </div>
-            );
-          })()}
-        </div>
 
-        {/* ── Phase 2.7: Supply-Chain Traceability Timeline ───────────── */}
-        <div className="bg-white rounded-3xl shadow-lg border border-gray-100 p-6 mb-6">
-          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-6">
-            📦 Supply-Chain Traceability
-          </h2>
           {timeline.length === 0 ? (
-            <p className="text-sm text-gray-400 italic">No supply-chain events recorded yet.</p>
+            <p className="text-xs text-slate-500 italic">No supply-chain events recorded yet.</p>
           ) : (
-            <div className="relative">
-              {/* Vertical line */}
-              <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-green-200" />
-              <div className="space-y-6">
+            <div className="relative pl-2">
+              <div className="absolute left-6 top-3 bottom-3 w-0.5 bg-slate-700" />
+              <div className="space-y-5">
                 {timeline.map((evt, idx) => {
                   const ICONS = {
                     crop_registered: "🌱",
@@ -333,61 +418,59 @@ export default function CropPassportPage() {
                     delivery_confirmed: "🚚",
                     payment_released: "💸",
                   };
-                  const icon = ICONS[evt.type] || "✅";
+                  const icon = ICONS[evt.type] || "✓";
                   const d = evt.details || {};
                   const ts = new Date(evt.timestamp).toLocaleString();
+
                   return (
-                    <div key={idx} className="relative flex items-start gap-4 pl-1">
-                      {/* Dot */}
-                      <div className="z-10 flex items-center justify-center w-8 h-8 rounded-full bg-green-100 border-2 border-green-400 text-lg shrink-0">
+                    <div key={idx} className="relative flex items-start gap-4">
+                      <div className="z-10 flex items-center justify-center w-8 h-8 rounded-full bg-slate-900 border-2 border-emerald-500/80 text-sm shrink-0 shadow-md">
                         {icon}
                       </div>
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800">{evt.title}</p>
-                        <p className="text-xs text-gray-400">{ts}</p>
-                        {/* Event-specific details */}
+
+                      <div className="flex-1 bg-slate-900/50 border border-slate-700/60 rounded-xl p-3 space-y-1">
+                        <div className="flex justify-between items-start gap-2 flex-wrap">
+                          <p className="text-xs font-bold text-white">{evt.title}</p>
+                          <span className="text-[10px] text-slate-400 font-mono">{ts}</span>
+                        </div>
+
                         {evt.type === "ai_verified" && d.quality_grade && (
-                          <p className="text-xs text-gray-600 mt-0.5">
-                            Grade {d.quality_grade} · Score {d.quality_score}
+                          <p className="text-[11px] text-emerald-300">
+                            Grade {d.quality_grade} · Score {d.quality_score}/100
                           </p>
                         )}
                         {evt.type === "nft_minted" && d.token_id && (
-                          <p className="text-xs text-gray-600 mt-0.5">
+                          <p className="text-[11px] text-purple-300 font-mono">
                             Token #{d.token_id}
                             {d.etherscan_url && (
-                              <> · <a href={d.etherscan_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Etherscan</a></>
+                              <> · <a href={d.etherscan_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Etherscan</a></>
                             )}
                           </p>
                         )}
                         {evt.type === "document_uploaded" && d.gateway_url && (
-                          <a href={d.gateway_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline">
-                            View on IPFS
+                          <a href={d.gateway_url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-blue-400 hover:underline">
+                            View Document on IPFS →
                           </a>
                         )}
                         {evt.type === "bid_accepted" && d.fpo_name && (
-                          <p className="text-xs text-gray-600 mt-0.5">
-                            FPO: {d.fpo_name} · {d.bid_amount} ETH/unit
+                          <p className="text-[11px] text-slate-300">
+                            FPO: <span className="font-semibold text-white">{d.fpo_name}</span> · {d.bid_amount} ETH/unit
                           </p>
                         )}
                         {evt.type === "escrow_created" && d.amount_eth && (
-                          <p className="text-xs text-gray-600 mt-0.5">
-                            {d.amount_eth} ETH
+                          <p className="text-[11px] text-amber-300 font-mono">
+                            {d.amount_eth} ETH Locked
                             {d.etherscan_url && (
-                              <> · <a href={d.etherscan_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Contract</a></>
+                              <> · <a href={d.etherscan_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Contract</a></>
                             )}
                           </p>
                         )}
                         {(evt.type === "escrow_funded" || evt.type === "payment_released") && d.etherscan_url && (
-                          <a href={d.etherscan_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline">
-                            View Transaction
+                          <a href={d.etherscan_url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-emerald-400 hover:underline">
+                            Verify Tx on Sepolia Etherscan →
                           </a>
                         )}
                       </div>
-                      {/* Status badge */}
-                      <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full shrink-0">
-                        ✓
-                      </span>
                     </div>
                   );
                 })}
@@ -396,11 +479,9 @@ export default function CropPassportPage() {
           )}
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
-          FarmerChain · Decentralized Agricultural Supply Chain ·{" "}
-          <a href="https://sepolia.etherscan.io" target="_blank" rel="noopener noreferrer" className="underline">
-            Ethereum Sepolia
-          </a>
+        {/* Footer */}
+        <p className="text-center text-[11px] text-slate-500 pt-4">
+          FarmerChain Decentralized Trust Protocol · Powered by Ethereum Sepolia, W3C DID, IPFS & Gemini AI
         </p>
       </div>
     </div>

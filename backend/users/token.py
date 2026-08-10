@@ -11,12 +11,21 @@ from django.conf import settings
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    # Require 'role' in addition to username/email and password
+    username = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.CharField(required=False, allow_blank=True)
     role = serializers.CharField(required=True)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.username_field in self.fields:
+            self.fields[self.username_field].required = False
+            self.fields[self.username_field].allow_blank = True
+
     def validate(self, attrs):
-        role = attrs.get("role").lower()
-        user_identifier = attrs.get("username")
+        role = attrs.get("role", "").lower()
+        user_identifier = attrs.get("email") or attrs.get("username")
+        if not user_identifier:
+            raise serializers.ValidationError("Email or username is required.")
         password = attrs.get("password")
 
         # Determine which model to authenticate against
@@ -108,7 +117,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     @classmethod
     def get_token(cls, user):
-        # This method is required by the parent class
         return RefreshToken.for_user(user)
 
 
@@ -121,7 +129,17 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         try:
             serializer.is_valid(raise_exception=True)
         except Exception as e:
-            return Response({"error": str(e)}, status=400)
+            err_msg = str(e)
+            if hasattr(e, "detail"):
+                if isinstance(e.detail, dict):
+                    err_msg = next(iter(e.detail.values()))
+                    if isinstance(err_msg, list):
+                        err_msg = str(err_msg[0])
+                elif isinstance(e.detail, list):
+                    err_msg = str(e.detail[0])
+                else:
+                    err_msg = str(e.detail)
+            return Response({"error": err_msg}, status=400)
 
         token_data = serializer.validated_data
 
@@ -133,6 +151,14 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             "name": token_data['name'],
             "message": "Login successful"
         }
+
+        # Provide role-specific IDs for frontend backward compatibility
+        if token_data['role'] == 'farmer':
+            response_data['farmer_id'] = token_data['user_id']
+        elif token_data['role'] == 'fpo':
+            response_data['fpo_id'] = token_data['user_id']
+        elif token_data['role'] == 'retailer':
+            response_data['retailer_id'] = token_data['user_id']
 
         response = Response(response_data)
 

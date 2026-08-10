@@ -2,27 +2,79 @@ import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { ethers } from "ethers";
 import EscrowABI from "../../utils/EscrowABI.json";
+import StatusBadge from "../common/StatusBadge";
+import AddressCopy from "../common/AddressCopy";
 
 const ESCROW_CONTRACT = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS;
 const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111 in hex
 
-const STATUS_LABELS = {
-  created: "⏳ Created",
-  funded: "💰 Funded",
-  delivery_confirmed: "📦 Delivery Confirmed",
-  released: "✅ Released",
-  cancelled: "❌ Cancelled",
-  disputed: "⚠️ Disputed",
-};
+const ESCROW_STEPS = [
+  { key: "created", label: "Created", icon: "📝", desc: "Contract Initialized" },
+  { key: "funded", label: "Funded", icon: "💰", desc: "ETH Locked on Sepolia" },
+  { key: "delivery_confirmed", label: "Delivered", icon: "📦", desc: "Farmer Handover Confirmed" },
+  { key: "released", label: "Released", icon: "💸", desc: "Payment Dispatched" },
+];
 
-const STATUS_COLORS = {
-  created: "bg-yellow-100 text-yellow-800",
-  funded: "bg-blue-100 text-blue-800",
-  delivery_confirmed: "bg-purple-100 text-purple-800",
-  released: "bg-green-100 text-green-800",
-  cancelled: "bg-red-100 text-red-800",
-  disputed: "bg-orange-100 text-orange-800",
-};
+function getStepIndex(status) {
+  switch (status) {
+    case "created": return 0;
+    case "funded": return 1;
+    case "delivery_confirmed": return 2;
+    case "released": return 3;
+    default: return -1;
+  }
+}
+
+function EscrowProgressStepper({ status }) {
+  const currentIdx = getStepIndex(status);
+
+  if (status === "cancelled" || status === "disputed") {
+    return (
+      <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+        <span>⚠️</span>
+        <span>Escrow {status === "cancelled" ? "Cancelled" : "Disputed on-chain"}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-2">
+      <div className="grid grid-cols-4 gap-1 sm:gap-2">
+        {ESCROW_STEPS.map((step, idx) => {
+          const isDone = currentIdx > idx || currentIdx === 3;
+          const isCurrent = currentIdx === idx && currentIdx !== 3;
+
+          let stepStyle = "bg-slate-50 border-slate-200 text-slate-400";
+          let dotStyle = "bg-slate-200 text-slate-500";
+
+          if (isDone) {
+            stepStyle = "bg-emerald-50/60 border-emerald-300 text-emerald-800";
+            dotStyle = "bg-emerald-600 text-white";
+          } else if (isCurrent) {
+            stepStyle = "bg-blue-50/80 border-blue-400 text-blue-900 ring-1 ring-blue-400 shadow-2xs";
+            dotStyle = "bg-blue-600 text-white animate-pulse";
+          }
+
+          return (
+            <div
+              key={step.key}
+              className={`border rounded-xl p-2 text-center transition-all ${stepStyle}`}
+            >
+              <div className="flex items-center justify-center gap-1 mb-0.5">
+                <span className={`w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center ${dotStyle}`}>
+                  {isDone ? "✓" : idx + 1}
+                </span>
+                <span className="text-xs">{step.icon}</span>
+              </div>
+              <p className="text-[11px] font-bold truncate">{step.label}</p>
+              <p className="text-[9px] text-slate-400 hidden sm:block truncate mt-0.5">{step.desc}</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function EscrowPanel() {
   const [escrows, setEscrows] = useState([]);
@@ -45,9 +97,6 @@ export default function EscrowPanel() {
     try {
       const res = await axios.get("/api/farmer/quotes/", { withCredentials: true });
       const quotes = res.data || [];
-      // A quote is eligible for escrow if it has an accepted_bid (truthy PK).
-      // The status may be "accepted", "awarded", or "contract_created" depending
-      // on which workflow path was used. We rely on accepted_bid presence instead.
       const accepted = quotes.filter(
         (q) => q.accepted_bid && q.status !== "open"
       );
@@ -109,16 +158,15 @@ export default function EscrowPanel() {
       const amountWei = ethers.utils.parseEther(String(res.data.amount_eth));
       const fpoWallet = res.data.fpo_wallet;
 
-      setTx(key, { loading: true, error: null, success: "Creating on-chain escrow..." });
+      setTx(key, { loading: true, error: null, success: "Creating on-chain escrow via MetaMask..." });
 
       // Step 2: Create on-chain escrow via MetaMask
       const contract = await getContract();
       const tx = await contract.createEscrow(fpoWallet, amountWei, quote.id);
 
-      setTx(key, { loading: true, success: "Waiting for confirmation..." });
+      setTx(key, { loading: true, success: "Waiting for blockchain confirmation..." });
       const receipt = await tx.wait();
 
-      // Extract escrow ID from EscrowCreated event
       const event = receipt.events?.find((e) => e.event === "EscrowCreated");
       const onChainId = event ? event.args.escrowId.toNumber() : null;
 
@@ -129,7 +177,7 @@ export default function EscrowPanel() {
         { withCredentials: true }
       );
 
-      setTx(key, { loading: false, success: "Escrow created on blockchain! ✅" });
+      setTx(key, { loading: false, success: "Escrow created on Sepolia! ✅" });
       await Promise.all([fetchEscrows(), fetchAcceptedQuotes()]);
     } catch (err) {
       console.error("Create escrow error:", err);
@@ -155,17 +203,16 @@ export default function EscrowPanel() {
       setTx(key, { loading: true, success: "Confirming delivery via MetaMask..." });
 
       const tx = await contract.confirmDelivery(escrow.escrow_id);
-      setTx(key, { loading: true, success: "Waiting for confirmation..." });
+      setTx(key, { loading: true, success: "Waiting for blockchain confirmation..." });
       const receipt = await tx.wait();
 
-      // Record in backend
       await axios.post(
         `/api/escrow/${escrow.id}/delivery-confirm/`,
         { tx_hash: receipt.transactionHash },
         { withCredentials: true }
       );
 
-      setTx(key, { loading: false, success: "Delivery confirmed! ✅" });
+      setTx(key, { loading: false, success: "Delivery confirmed on-chain! ✅" });
       await fetchEscrows();
     } catch (err) {
       console.error("Confirm delivery error:", err);
@@ -178,212 +225,229 @@ export default function EscrowPanel() {
     }
   };
 
-  // ── Render ──────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2].map((i) => (
+          <div key={i} className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 animate-pulse space-y-3">
+            <div className="h-4 bg-slate-200 rounded w-1/4"></div>
+            <div className="h-10 bg-slate-200 rounded"></div>
+            <div className="grid grid-cols-4 gap-2">
+              <div className="h-8 bg-slate-200 rounded"></div>
+              <div className="h-8 bg-slate-200 rounded"></div>
+              <div className="h-8 bg-slate-200 rounded"></div>
+              <div className="h-8 bg-slate-200 rounded"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
-  if (loading) return <p className="text-gray-500 text-sm">Loading escrows…</p>;
-
-  // Filter accepted quotes that already have escrows
   const escrowQuoteIds = escrows.map((e) => e.quote_id);
   const quotesNeedingEscrow = acceptedQuotes.filter(
     (q) => !escrowQuoteIds.includes(q.id)
   );
 
   return (
-    <div>
+    <div className="space-y-6">
       {/* ── Accepted Quotes Needing Escrow ─────────────────────── */}
       {quotesNeedingEscrow.length > 0 && (
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold text-green-700 mb-3">
-            💼 Create Escrow for Accepted Quotes
-          </h3>
-          {quotesNeedingEscrow.map((quote) => {
-            const key = `create-${quote.id}`;
-            const tx = txStatus[key] || {};
-            const acceptedBid = quote.bids?.find((b) => b.status === "accepted");
-            const totalAmount = acceptedBid
-              ? (parseFloat(acceptedBid.bid_amount) * parseFloat(quote.quantity)).toFixed(6)
-              : null;
-            return (
-              <div
-                key={quote.id}
-                className="bg-white border border-green-200 rounded-xl p-4 mb-3 shadow-sm"
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="font-semibold text-gray-800">
-                      {quote.product_name} — {quote.quantity} {quote.unit}
-                    </p>
-                    {acceptedBid && (
-                      <>
-                        <p className="text-sm text-gray-600">
-                          FPO: {acceptedBid.fpo_name} — {acceptedBid.bid_amount} ETH/unit
-                        </p>
-                        <p className="text-sm font-semibold text-green-700">
-                          Total Escrow: {totalAmount} ETH
-                        </p>
-                      </>
-                    )}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+              <span>💼</span> Accepted Quotes Awaiting Smart Escrow
+            </h3>
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+              {quotesNeedingEscrow.length} Action Required
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {quotesNeedingEscrow.map((quote) => {
+              const key = `create-${quote.id}`;
+              const tx = txStatus[key] || {};
+              const acceptedBid = quote.bids?.find((b) => b.status === "accepted");
+              const totalAmount = acceptedBid
+                ? (parseFloat(acceptedBid.bid_amount) * parseFloat(quote.quantity)).toFixed(6)
+                : null;
+
+              return (
+                <div
+                  key={quote.id}
+                  className="bg-gradient-to-r from-emerald-50/50 via-white to-emerald-50/30 border border-emerald-200 rounded-2xl p-5 shadow-2xs transition-all hover:border-emerald-300"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-slate-900">
+                          {quote.product_name}
+                        </span>
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                          {quote.quantity} {quote.unit}
+                        </span>
+                      </div>
+                      {acceptedBid && (
+                        <div className="text-xs text-slate-600 space-y-0.5">
+                          <p>Buyer FPO: <strong>{acceptedBid.fpo_name}</strong> · Rate: {acceptedBid.bid_amount} ETH/{quote.unit}</p>
+                          <p className="font-extrabold text-emerald-800">Total Escrow Value: {totalAmount} ETH</p>
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => createEscrow(quote)}
+                      disabled={tx.loading}
+                      className={`px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
+                        tx.loading
+                          ? "bg-slate-400 cursor-not-allowed"
+                          : "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20"
+                      }`}
+                    >
+                      <span>🔐</span>
+                      <span>{tx.loading ? "Initializing Escrow…" : "Create Smart Escrow"}</span>
+                    </button>
                   </div>
-                  <button
-                    onClick={() => createEscrow(quote)}
-                    disabled={tx.loading}
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold text-white ${
-                      tx.loading
-                        ? "bg-gray-400 cursor-not-allowed"
-                        : "bg-green-600 hover:bg-green-700"
-                    }`}
-                  >
-                    {tx.loading ? "⏳ Processing..." : "🔐 Create Escrow"}
-                  </button>
+
+                  {tx.success && (
+                    <div className="p-2.5 mt-3 rounded-xl bg-emerald-100 border border-emerald-300 text-xs font-medium text-emerald-800 flex items-center gap-1.5">
+                      <span>✅</span>
+                      <span>{tx.success}</span>
+                    </div>
+                  )}
+                  {tx.error && (
+                    <div className="p-2.5 mt-3 rounded-xl bg-rose-100 border border-rose-300 text-xs font-medium text-rose-800 flex items-center gap-1.5">
+                      <span>❌</span>
+                      <span>{tx.error}</span>
+                    </div>
+                  )}
                 </div>
-                {tx.success && (
-                  <p className="text-sm text-green-600 mt-2">✅ {tx.success}</p>
-                )}
-                {tx.error && (
-                  <p className="text-sm text-red-600 mt-2">❌ {tx.error}</p>
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
 
       {/* ── Active Escrows ─────────────────────────────────────── */}
       {escrows.length === 0 && quotesNeedingEscrow.length === 0 ? (
-        <div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center">
-          <p className="text-green-700 font-medium">No escrow transactions yet.</p>
-          <p className="text-gray-500 text-sm mt-1">
-            Accept an FPO bid, then create an escrow for secure payment.
+        <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-100">
+          <span className="text-4xl block mb-2">🔐</span>
+          <p className="text-sm font-bold text-slate-800">No Escrow Transactions Yet</p>
+          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+            Once an FPO places a bid and you accept it, you can initialize a trustless Sepolia smart contract escrow payment right here.
           </p>
         </div>
       ) : (
-        escrows.map((escrow) => {
-          const key = `delivery-${escrow.id}`;
-          const tx = txStatus[key] || {};
-          return (
-            <div
-              key={escrow.id}
-              className="bg-white border border-gray-200 rounded-xl p-5 mb-4 shadow-sm"
-            >
-              {/* Header */}
-              <div className="flex justify-between items-center mb-3">
-                <h4 className="font-semibold text-gray-800">
-                  🔐 Escrow #{escrow.escrow_id || escrow.id}
-                </h4>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    STATUS_COLORS[escrow.status] || "bg-gray-100 text-gray-700"
-                  }`}
-                >
-                  {STATUS_LABELS[escrow.status] || escrow.status}
-                </span>
-              </div>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between pb-1">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+              Active Smart Contract Escrows ({escrows.length})
+            </h3>
+          </div>
 
-              {/* Details */}
-              <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3">
-                <p>
-                  <span className="font-medium text-gray-500">Product:</span>{" "}
-                  {escrow.product_name}
-                </p>
-                <p>
-                  <span className="font-medium text-gray-500">FPO:</span>{" "}
-                  {escrow.fpo_name}
-                </p>
-                <p>
-                  <span className="font-medium text-gray-500">Amount:</span>{" "}
-                  {escrow.amount_eth} ETH
-                </p>
-                <p>
-                  <span className="font-medium text-gray-500">Quantity:</span>{" "}
-                  {escrow.quantity} {escrow.unit}
-                </p>
-              </div>
+          {escrows.map((escrow) => {
+            const key = `delivery-${escrow.id}`;
+            const tx = txStatus[key] || {};
+            return (
+              <div
+                key={escrow.id}
+                className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs hover:border-slate-300 transition-all space-y-4"
+              >
+                {/* Top Title & Status */}
+                <div className="flex justify-between items-start gap-2">
+                  <div>
+                    <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider block">
+                      Escrow #{escrow.escrow_id || escrow.id}
+                    </span>
+                    <h4 className="text-base font-extrabold text-slate-900">
+                      {escrow.product_name}
+                    </h4>
+                  </div>
+                  <StatusBadge status={escrow.status} />
+                </div>
 
-              {/* Contract address */}
-              {escrow.contract_address && (
-                <p className="text-xs text-gray-500 mb-2 break-all">
-                  Contract:{" "}
-                  <a
-                    href={escrow.etherscan_contract_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    {escrow.contract_address}
-                  </a>
-                </p>
-              )}
+                {/* Visual Stepper */}
+                <EscrowProgressStepper status={escrow.status} />
 
-              {/* Tx hashes */}
-              {escrow.deposit_tx_hash && (
-                <p className="text-xs text-gray-500 mb-1 break-all">
-                  Deposit Tx:{" "}
-                  <a
-                    href={escrow.etherscan_deposit_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    {escrow.deposit_tx_hash}
-                  </a>
-                </p>
-              )}
-              {escrow.release_tx_hash && (
-                <p className="text-xs text-gray-500 mb-1 break-all">
-                  Release Tx:{" "}
-                  <a
-                    href={escrow.etherscan_release_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    {escrow.release_tx_hash}
-                  </a>
-                </p>
-              )}
+                {/* Details Metrics */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-slate-50/70 p-3 rounded-xl border border-slate-100">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">FPO Partner</span>
+                    <span className="font-semibold text-slate-800 truncate block">{escrow.fpo_name}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Locked Amount</span>
+                    <span className="font-bold text-amber-700 font-mono">{escrow.amount_eth} ETH</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Quantity</span>
+                    <span className="font-medium text-slate-700">{escrow.quantity} {escrow.unit}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Initialized</span>
+                    <span className="font-medium text-slate-700">{new Date(escrow.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
 
-              {/* Confirm Delivery button */}
-              {escrow.status === "funded" && (
-                <div className="mt-3">
-                  <button
-                    onClick={() => confirmDelivery(escrow)}
-                    disabled={tx.loading}
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold text-white ${
-                      tx.loading
-                        ? "bg-gray-400 cursor-not-allowed"
-                        : "bg-purple-600 hover:bg-purple-700"
-                    }`}
-                  >
-                    {tx.loading ? "⏳ Processing..." : "📦 Confirm Delivery"}
-                  </button>
-                  {tx.success && (
-                    <p className="text-sm text-green-600 mt-2">{tx.success}</p>
+                {/* Blockchain Proofs */}
+                <div className="space-y-1 text-xs pt-1 border-t border-slate-100">
+                  {escrow.contract_address && (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <span className="text-slate-400 text-[11px]">Contract:</span>
+                      <AddressCopy value={escrow.contract_address} etherscanType="address" />
+                    </div>
                   )}
-                  {tx.error && (
-                    <p className="text-sm text-red-600 mt-2">❌ {tx.error}</p>
+                  {escrow.deposit_tx_hash && (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <span className="text-slate-400 text-[11px]">Deposit Tx:</span>
+                      <AddressCopy value={escrow.deposit_tx_hash} etherscanType="tx" />
+                    </div>
+                  )}
+                  {escrow.release_tx_hash && (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <span className="text-slate-400 text-[11px]">Release Tx:</span>
+                      <AddressCopy value={escrow.release_tx_hash} etherscanType="tx" />
+                    </div>
                   )}
                 </div>
-              )}
 
-              {/* Status timeline */}
-              <div className="mt-3 text-xs text-gray-400 space-y-1">
-                <p>Created: {new Date(escrow.created_at).toLocaleString()}</p>
-                {escrow.funded_at && (
-                  <p>Funded: {new Date(escrow.funded_at).toLocaleString()}</p>
+                {/* Confirm Delivery button */}
+                {escrow.status === "funded" && (
+                  <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <p className="text-xs text-slate-500">
+                      FPO has funded the escrow. Once the crop has been handed over, confirm delivery to allow payment release.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => confirmDelivery(escrow)}
+                      disabled={tx.loading}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
+                        tx.loading
+                          ? "bg-slate-400 cursor-not-allowed"
+                          : "bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20"
+                      }`}
+                    >
+                      <span>📦</span>
+                      <span>{tx.loading ? "Confirming Delivery…" : "Confirm Delivery Handover"}</span>
+                    </button>
+                  </div>
                 )}
-                {escrow.delivery_confirmed_at && (
-                  <p>
-                    Delivery:{" "}
-                    {new Date(escrow.delivery_confirmed_at).toLocaleString()}
-                  </p>
+
+                {tx.success && (
+                  <div className="p-2.5 rounded-xl bg-emerald-100 border border-emerald-300 text-xs font-medium text-emerald-800">
+                    ✅ {tx.success}
+                  </div>
                 )}
-                {escrow.released_at && (
-                  <p>Released: {new Date(escrow.released_at).toLocaleString()}</p>
+                {tx.error && (
+                  <div className="p-2.5 rounded-xl bg-rose-100 border border-rose-300 text-xs font-medium text-rose-800">
+                    ❌ {tx.error}
+                  </div>
                 )}
               </div>
-            </div>
-          );
-        })
+            );
+          })}
+        </div>
       )}
     </div>
   );
