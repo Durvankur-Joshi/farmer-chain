@@ -8,17 +8,17 @@ export default function DashboardNavbar({
 }) {
   const roleThemes = {
     farmer: {
-      badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      badge: "bg-emerald-50 text-emerald-800 border-emerald-200",
       title: "Farmer Portal",
       icon: "🌱",
     },
     fpo: {
-      badge: "bg-blue-50 text-blue-700 border-blue-200",
+      badge: "bg-blue-50 text-blue-800 border-blue-200",
       title: "FPO Procurement Portal",
       icon: "🏢",
     },
     retailer: {
-      badge: "bg-purple-50 text-purple-700 border-purple-200",
+      badge: "bg-purple-50 text-purple-800 border-purple-200",
       title: "Retailer Market Portal",
       icon: "🏪",
     },
@@ -33,33 +33,33 @@ export default function DashboardNavbar({
 
   return (
     <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 shadow-2xs">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
         {/* Brand */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center text-xl shadow-sm text-white font-bold">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center text-lg sm:text-xl shadow-sm text-white font-bold shrink-0">
             🌾
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-extrabold text-slate-900 text-lg tracking-tight">
+              <span className="font-extrabold text-slate-900 text-base sm:text-lg tracking-tight">
                 FarmerChain
               </span>
-              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 Sepolia
               </span>
             </div>
-            <p className="text-xs text-slate-500 font-medium">
+            <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
               {theme.icon} {theme.title}
             </p>
           </div>
         </div>
 
         {/* User Context & Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {userName && (
             <div className="hidden md:flex flex-col items-end text-right">
-              <span className="text-xs font-semibold text-slate-800">
+              <span className="text-xs font-bold text-slate-800">
                 {userName}
               </span>
               <span className="text-[10px] text-slate-400 font-mono">
@@ -69,7 +69,7 @@ export default function DashboardNavbar({
           )}
 
           <span
-            className={`text-xs uppercase font-bold px-2.5 py-1 rounded-lg border ${theme.badge} tracking-wider`}
+            className={`text-[10px] sm:text-xs uppercase font-bold px-2.5 py-1 rounded-lg border ${theme.badge} tracking-wider`}
           >
             {role}
           </span>
@@ -77,10 +77,11 @@ export default function DashboardNavbar({
           <button
             type="button"
             onClick={onLogout}
-            className="flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-rose-600 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-rose-200 hover:bg-rose-50/50 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-rose-600 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-rose-200 hover:bg-rose-50/50 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none"
             title="Log out of session"
+            aria-label="Log out of session"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
             <span className="hidden sm:inline">Logout</span>

@@ -13,20 +13,23 @@ export default function QuoteForm({ onSuccess }) {
 
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [feedback, setFeedback] = useState(null);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     setErrors({ ...errors, [e.target.name]: "" });
+    setFeedback(null);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setFeedback(null);
     try {
       await axios.post("/api/farmer/quotes/", formData, {
         withCredentials: true,
       });
-      alert("✅ Supply quote published successfully!");
+      setFeedback({ type: "success", text: "✅ Supply quote published successfully!" });
       setFormData({
         product_name: "",
         category: "",
@@ -35,12 +38,16 @@ export default function QuoteForm({ onSuccess }) {
         unit: "",
         deadline: "",
       });
-      onSuccess();
+      onSuccess && onSuccess();
     } catch (err) {
       if (err.response?.data) {
         setErrors(err.response.data);
+        const generalErr = err.response.data.detail || err.response.data.error;
+        if (generalErr) {
+          setFeedback({ type: "error", text: `❌ ${generalErr}` });
+        }
       } else {
-        console.error("Error posting product:", err);
+        setFeedback({ type: "error", text: "❌ Failed to publish supply quote. Please check your inputs and try again." });
       }
     } finally {
       setLoading(false);
@@ -52,10 +59,22 @@ export default function QuoteForm({ onSuccess }) {
       onSubmit={handleSubmit}
       className="space-y-4 max-w-2xl"
     >
+      {feedback && (
+        <div
+          className={`p-3.5 rounded-xl border text-xs font-semibold flex items-center gap-2 animate-fade-in ${
+            feedback.type === "success"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : "bg-rose-50 border-rose-200 text-rose-800"
+          }`}
+        >
+          <span>{feedback.text}</span>
+        </div>
+      )}
+
       {/* Product Name */}
       <div>
         <label className="block text-xs font-semibold text-slate-700 mb-1">
-          Product / Crop Name
+          Product / Crop Name *
         </label>
         <input
           type="text"
@@ -72,10 +91,10 @@ export default function QuoteForm({ onSuccess }) {
       </div>
 
       {/* Category & Unit */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-semibold text-slate-700 mb-1">
-            Category
+            Category *
           </label>
           <select
             name="category"
@@ -99,7 +118,7 @@ export default function QuoteForm({ onSuccess }) {
 
         <div>
           <label className="block text-xs font-semibold text-slate-700 mb-1">
-            Measurement Unit
+            Measurement Unit *
           </label>
           <select
             name="unit"
@@ -121,18 +140,20 @@ export default function QuoteForm({ onSuccess }) {
       </div>
 
       {/* Quantity & Deadline */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-semibold text-slate-700 mb-1">
-            Total Quantity Available
+            Total Quantity Available *
           </label>
           <input
             type="number"
             name="quantity"
             placeholder="e.g. 500"
+            min="0.01"
+            step="0.01"
             value={formData.quantity}
             onChange={handleChange}
-            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
+            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all font-mono"
             required
           />
           {errors.quantity && (
@@ -142,7 +163,7 @@ export default function QuoteForm({ onSuccess }) {
 
         <div>
           <label className="block text-xs font-semibold text-slate-700 mb-1">
-            Bidding Deadline
+            Bidding Deadline *
           </label>
           <input
             type="date"
@@ -170,7 +191,6 @@ export default function QuoteForm({ onSuccess }) {
           onChange={handleChange}
           rows={3}
           className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all resize-none"
-          required
         />
         {errors.description && (
           <p className="text-rose-500 text-xs mt-1">{errors.description[0]}</p>

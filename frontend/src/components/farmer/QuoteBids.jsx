@@ -4,20 +4,23 @@ import StatusBadge from "../common/StatusBadge";
 
 export default function QuoteBids({ quote, onBack, refreshHistory }) {
   const [acceptingId, setAcceptingId] = useState(null);
+  const [feedback, setFeedback] = useState(null);
 
   const acceptBid = async (bidId) => {
     setAcceptingId(bidId);
+    setFeedback(null);
     try {
       await axios.post(
         `/api/farmer/bids/fpo/${bidId}/accept/`,
         {},
         { withCredentials: true }
       );
-      alert("✅ Bid accepted successfully! You can now create an Escrow payment.");
+      setFeedback({ type: "success", text: "✅ Bid accepted successfully! You can now create an Escrow payment." });
       if (refreshHistory) refreshHistory();
     } catch (err) {
       console.error("Error accepting bid:", err);
-      alert("❌ Failed to accept bid. Please try again.");
+      const msg = err.response?.data?.error || err.response?.data?.detail || "Failed to accept bid. Please try again.";
+      setFeedback({ type: "error", text: `❌ ${msg}` });
     } finally {
       setAcceptingId(null);
     }
@@ -25,13 +28,14 @@ export default function QuoteBids({ quote, onBack, refreshHistory }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
+      <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100 flex-wrap gap-2">
         <div>
           <button
+            type="button"
             onClick={onBack}
-            className="text-xs font-semibold text-slate-500 hover:text-slate-800 mb-1 flex items-center gap-1 cursor-pointer"
+            className="text-xs font-bold text-slate-500 hover:text-slate-800 mb-1 flex items-center gap-1 cursor-pointer"
           >
-            ← Back to Quotes
+            ← Back to Supply Quotes
           </button>
           <h3 className="text-base font-extrabold text-slate-900">
             📦 Bids for {quote.product_name} <span className="text-xs text-slate-500 font-normal">({quote.category})</span>
@@ -41,6 +45,18 @@ export default function QuoteBids({ quote, onBack, refreshHistory }) {
           Lot Qty: {quote.quantity} {quote.unit}
         </span>
       </div>
+
+      {feedback && (
+        <div
+          className={`p-3.5 rounded-xl border text-xs font-semibold mb-4 flex items-center gap-2 animate-fade-in ${
+            feedback.type === "success"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : "bg-rose-50 border-rose-200 text-rose-800"
+          }`}
+        >
+          <span>{feedback.text}</span>
+        </div>
+      )}
 
       {quote.bids && quote.bids.length > 0 ? (
         <div className="space-y-3">
