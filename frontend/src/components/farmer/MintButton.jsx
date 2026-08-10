@@ -1,7 +1,3 @@
-/**
- * MintButton.jsx — Phase 2.2 + UI Modernization
- * Modernized MetaMask minting component with clear feedback states.
- */
 import React, { useState } from "react";
 import axios from "axios";
 import { ethers } from "ethers";
@@ -13,7 +9,7 @@ const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111 in hex
 
 export default function MintButton({ crop, onMintSuccess }) {
   const [status, setStatus] = useState("");
-  const [error, setError]   = useState("");
+  const [error, setError] = useState("");
   const [minting, setMinting] = useState(false);
 
   if (crop.status === "minted") {
@@ -30,13 +26,13 @@ export default function MintButton({ crop, onMintSuccess }) {
         throw new Error("MetaMask is not installed. Please install MetaMask to mint NFTs.");
       }
 
-      setStatus("Connecting to MetaMask…");
+      setStatus("Connecting to MetaMask wallet…");
       let accounts;
       try {
         accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
       } catch (connErr) {
         if (connErr.code === 4001) {
-          throw new Error("MetaMask connection rejected.");
+          throw new Error("MetaMask connection was rejected.");
         }
         throw new Error(`Could not connect to MetaMask: ${connErr.message}`);
       }
@@ -44,7 +40,7 @@ export default function MintButton({ crop, onMintSuccess }) {
 
       const chainId = await window.ethereum.request({ method: "eth_chainId" });
       if (chainId !== SEPOLIA_CHAIN_ID) {
-        setStatus("Switching to Sepolia Testnet…");
+        setStatus("Switching network to Ethereum Sepolia Testnet…");
         try {
           await window.ethereum.request({
             method: "wallet_switchEthereumChain",
@@ -54,21 +50,23 @@ export default function MintButton({ crop, onMintSuccess }) {
           if (switchErr.code === 4902) {
             await window.ethereum.request({
               method: "wallet_addEthereumChain",
-              params: [{
-                chainId: SEPOLIA_CHAIN_ID,
-                chainName: "Sepolia",
-                nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-                rpcUrls: ["https://rpc.sepolia.org"],
-                blockExplorerUrls: ["https://sepolia.etherscan.io"],
-              }],
+              params: [
+                {
+                  chainId: SEPOLIA_CHAIN_ID,
+                  chainName: "Sepolia Test Network",
+                  nativeCurrency: { name: "SepoliaETH", symbol: "ETH", decimals: 18 },
+                  rpcUrls: ["https://rpc.sepolia.org"],
+                  blockExplorerUrls: ["https://sepolia.etherscan.io"],
+                },
+              ],
             });
           } else {
-            throw new Error("Please switch MetaMask to Sepolia network.");
+            throw new Error("Please switch your MetaMask network to Sepolia.");
           }
         }
       }
 
-      setStatus("Preparing IPFS metadata & token URI…");
+      setStatus("Preparing IPFS metadata & decentralized token URI…");
       const mintPrepRes = await axios.post(
         `/api/farmer/crops/${crop.id}/mint/`,
         {},
@@ -84,12 +82,12 @@ export default function MintButton({ crop, onMintSuccess }) {
       }
 
       if (!CONTRACT_ADDRESS || CONTRACT_ADDRESS === "0xYourCropPassportContractAddress") {
-        throw new Error("NFT contract address is not configured.");
+        throw new Error("Crop Passport NFT contract address is not configured.");
       }
 
       setStatus("Confirm transaction in MetaMask…");
       const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const signer   = provider.getSigner();
+      const signer = provider.getSigner();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, CropPassportABI, signer);
 
       let tx;
@@ -97,7 +95,7 @@ export default function MintButton({ crop, onMintSuccess }) {
         tx = await contract.mintCropPassport(token_uri);
       } catch (txErr) {
         if (txErr.code === 4001 || txErr.code === "ACTION_REJECTED") {
-          throw new Error("Transaction cancelled in MetaMask.");
+          throw new Error("Transaction was rejected in MetaMask.");
         }
         throw new Error(`Transaction error: ${txErr.message}`);
       }
@@ -115,21 +113,21 @@ export default function MintButton({ crop, onMintSuccess }) {
             break;
           }
         } catch {
-          // not a matching log
+          // non-matching log
         }
       }
       if (!tokenId) {
         tokenId = receipt.logs.length > 0 ? "unknown" : null;
       }
 
-      setStatus("Recording NFT certificate on FarmerChain…");
+      setStatus("Recording NFT certificate on FarmerChain protocol…");
       await axios.post(
         `/api/farmer/crops/${crop.id}/confirm-mint/`,
         {
-          token_id:         tokenId,
+          token_id: tokenId,
           contract_address: CONTRACT_ADDRESS,
-          tx_hash:          receipt.transactionHash,
-          token_uri:        token_uri,
+          tx_hash: receipt.transactionHash,
+          token_uri: token_uri,
         },
         { withCredentials: true }
       );
@@ -146,26 +144,28 @@ export default function MintButton({ crop, onMintSuccess }) {
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       <button
         type="button"
         onClick={handleMint}
         disabled={minting}
-        className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+        className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-xs disabled:opacity-50 flex items-center gap-2 cursor-pointer"
       >
         <span>🪙</span>
         <span>{minting ? "Minting on Sepolia…" : "Mint NFT Digital Twin"}</span>
       </button>
 
       {status && (
-        <p className="text-xs text-blue-700 font-semibold bg-blue-50 border border-blue-200 p-2.5 rounded-xl">
-          ℹ️ {status}
-        </p>
+        <div className="text-xs text-purple-900 font-semibold bg-purple-50 border border-purple-200 p-3 rounded-xl flex items-center gap-2 animate-fade-in">
+          <span className="animate-spin text-purple-600">⏳</span>
+          <span>{status}</span>
+        </div>
       )}
       {error && (
-        <p className="text-xs text-rose-700 font-semibold bg-rose-50 border border-rose-200 p-2.5 rounded-xl">
-          ⚠️ {error}
-        </p>
+        <div className="text-xs text-rose-800 font-medium bg-rose-50 border border-rose-200 p-3 rounded-xl flex items-center gap-2">
+          <span>❌</span>
+          <span>{error}</span>
+        </div>
       )}
     </div>
   );

@@ -1,21 +1,7 @@
-/**
- * CropPassportPage.jsx — Phase 2.2 + 2.3 + 2.4 + 2.6 + 2.7
- * Public verification page. No authentication required.
- * Route: /crop-passport/:id
- *
- * Phase 2.3: Shows public IPFS documents section.
- * Phase 2.4: Shows public AI Quality Verification result.
- * Phase 2.6: QR-linked public verification page with overall verification status.
- * Phase 2.7: Supply-Chain Traceability Timeline.
- * Never exposes: email, aadhaar, password, Pinata/Gemini credentials.
- */
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
 import AddressCopy from "../components/common/AddressCopy";
-import StatusBadge from "../components/common/StatusBadge";
-
-const SEPOLIA_EXPLORER = "https://sepolia.etherscan.io";
 
 const DOC_TYPE_LABELS = {
   crop_image:       "🌾 Crop Image",
@@ -36,19 +22,19 @@ function ipfsGateway(uri) {
 
 function Row({ label, value, link }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-1 py-2.5 border-b border-slate-100 last:border-0 text-xs">
-      <span className="font-semibold text-slate-500 shrink-0">{label}</span>
+    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-1 py-2.5 border-b border-slate-700/60 last:border-0 text-xs">
+      <span className="font-semibold text-slate-400 shrink-0">{label}</span>
       {link ? (
         <a
           href={link}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-600 hover:text-blue-800 hover:underline break-all font-mono transition-colors"
+          className="text-blue-400 hover:text-blue-300 hover:underline break-all font-mono transition-colors"
         >
           {value}
         </a>
       ) : (
-        <span className="text-slate-800 font-medium break-all sm:text-right">{value || "—"}</span>
+        <span className="text-slate-200 font-medium break-all sm:text-right">{value || "—"}</span>
       )}
     </div>
   );
@@ -56,33 +42,40 @@ function Row({ label, value, link }) {
 
 export default function CropPassportPage() {
   const { id } = useParams();
-  const [crop, setCrop]       = useState(null);
-  const [loading, setLoading]   = useState(true);
+  const [crop, setCrop] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [copied, setCopied]     = useState("");
-  const [aiVerif, setAiVerif]   = useState(null);   // public AI verification result
-  const [timeline, setTimeline] = useState([]);       // Phase 2.7 timeline events
+  const [copied, setCopied] = useState("");
+  const [aiVerif, setAiVerif] = useState(null);
+  const [timeline, setTimeline] = useState([]);
 
   useEffect(() => {
     axios
       .get(`/api/farmer/crops/public/${id}/`)
-      .then((res) => { setCrop(res.data); setLoading(false); })
+      .then((res) => {
+        setCrop(res.data);
+        setLoading(false);
+      })
       .catch((err) => {
         setLoading(false);
         if (err.response?.status === 404) setNotFound(true);
       });
 
-    // Fetch public AI verification (best-effort, non-blocking)
+    // Fetch public AI verification
     axios
       .get(`/api/farmer/crops/public/${id}/verification/`)
-      .then((res) => { if (res.data.verification) setAiVerif(res.data); })
-      .catch(() => {/* no verified result yet — silently ignore */});
+      .then((res) => {
+        if (res.data.verification) setAiVerif(res.data);
+      })
+      .catch(() => {});
 
-    // Phase 2.7 — Fetch supply-chain timeline (best-effort)
+    // Fetch public supply-chain timeline
     axios
       .get(`/api/farmer/crops/public/${id}/timeline/`)
-      .then((res) => { if (res.data.events) setTimeline(res.data.events); })
-      .catch(() => {/* timeline not available */});
+      .then((res) => {
+        if (res.data.events) setTimeline(res.data.events);
+      })
+      .catch(() => {});
   }, [id]);
 
   const handleCopyCid = (cid) => {
@@ -99,7 +92,7 @@ export default function CropPassportPage() {
           <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-2xl mx-auto animate-spin">
             🌾
           </div>
-          <p className="text-xs text-slate-400 font-mono tracking-wider">Verifying Crop Passport #{id}…</p>
+          <p className="text-xs text-slate-400 font-mono tracking-wider">Verifying Digital Crop Passport #{id}…</p>
         </div>
       </div>
     );
@@ -107,24 +100,29 @@ export default function CropPassportPage() {
 
   if (notFound || !crop) {
     return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 text-center text-slate-100">
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 text-center text-slate-100 font-sans">
         <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-3xl mb-4">
           🔍
         </div>
         <h1 className="text-xl font-bold text-white mb-1">Crop Passport Not Found</h1>
-        <p className="text-xs text-slate-400 mb-6">The requested digital passport ID #{id} was not found on the registry.</p>
-        <a href="/" className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white transition-all">
+        <p className="text-xs text-slate-400 mb-6 max-w-sm">
+          The requested digital passport ID #{id} was not found on the FarmerChain decentralized registry.
+        </p>
+        <a
+          href="/"
+          className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white transition-all shadow-md shadow-emerald-900/30"
+        >
           ← Return to FarmerChain
         </a>
       </div>
     );
   }
 
-  const isMinted  = crop.status === "minted";
+  const isMinted = crop.status === "minted";
   const documents = crop.documents || [];
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 py-10 px-4 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-900 text-slate-100 py-10 px-4 relative overflow-hidden font-sans">
       {/* Background Glows */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-emerald-500/10 blur-[140px] pointer-events-none" />
       <div className="absolute top-[40%] right-[-10%] w-[40%] h-[40%] rounded-full bg-purple-500/10 blur-[140px] pointer-events-none" />
@@ -134,27 +132,27 @@ export default function CropPassportPage() {
         {/* ── Top Header Brand ─────────────────────────────────────── */}
         <div className="flex items-center justify-between gap-4 pb-2 border-b border-slate-800">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-base font-bold shadow-md">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center text-base font-bold shadow-md shadow-emerald-500/20 text-white">
               🌾
             </div>
             <div>
-              <span className="font-extrabold text-white text-sm tracking-tight">FarmerChain</span>
-              <p className="text-[10px] text-slate-400">Public Verification Explorer</p>
+              <span className="font-extrabold text-white text-base tracking-tight">FarmerChain</span>
+              <p className="text-[10px] text-slate-400 font-medium">Public Verification Explorer</p>
             </div>
           </div>
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            Verified Registry
+            Verified Registry Certificate
           </span>
         </div>
 
         {/* ── Passport Hero Card ───────────────────────────────────── */}
-        <div className="bg-slate-800/80 backdrop-blur-xl rounded-3xl border border-slate-700/80 p-6 sm:p-8 shadow-2xl shadow-black/40">
+        <div className="bg-slate-800/80 backdrop-blur-xl rounded-3xl border border-slate-700/80 p-6 sm:p-8 shadow-2xl shadow-black/40 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="text-xs uppercase font-bold text-emerald-400 tracking-wider">
-                  Crop Passport #{id}
+                  Digital Crop Passport #{id}
                 </span>
                 <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-md bg-slate-700 text-slate-300">
                   {crop.crop_category}
@@ -168,37 +166,37 @@ export default function CropPassportPage() {
               </p>
             </div>
 
-            {/* Overall Verification Status */}
+            {/* Verification Seal */}
             <div>
               {(() => {
                 const hasNFT = isMinted;
                 const hasAI = !!aiVerif?.verification;
                 if (hasNFT && hasAI) {
                   return (
-                    <div className="px-3.5 py-2 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/10">
+                    <div className="px-4 py-2.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/10">
                       <span className="text-base">🛡️</span>
                       <span>Verified On-Chain + AI Assessed</span>
                     </div>
                   );
                 } else if (hasNFT) {
                   return (
-                    <div className="px-3.5 py-2 rounded-2xl bg-purple-500/15 border border-purple-500/40 text-purple-300 text-xs font-bold flex items-center gap-2">
-                      <span className="text-base">🏷️</span>
+                    <div className="px-4 py-2.5 rounded-2xl bg-purple-500/15 border border-purple-500/40 text-purple-300 text-xs font-bold flex items-center gap-2">
+                      <span className="text-base">🪙</span>
                       <span>Minted on Sepolia</span>
                     </div>
                   );
                 } else if (hasAI) {
                   return (
-                    <div className="px-3.5 py-2 rounded-2xl bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center gap-2">
+                    <div className="px-4 py-2.5 rounded-2xl bg-blue-500/15 border border-blue-500/40 text-blue-300 text-xs font-bold flex items-center gap-2">
                       <span className="text-base">🤖</span>
-                      <span>AI Assessed (Pending Mint)</span>
+                      <span>AI Quality Assessed</span>
                     </div>
                   );
                 }
                 return (
-                  <div className="px-3.5 py-2 rounded-2xl bg-slate-700/60 border border-slate-600 text-slate-300 text-xs font-semibold flex items-center gap-2">
+                  <div className="px-4 py-2.5 rounded-2xl bg-slate-700/60 border border-slate-600 text-slate-300 text-xs font-semibold flex items-center gap-2">
                     <span className="text-base">⏳</span>
-                    <span>Registered Crop</span>
+                    <span>Registered Crop Twin</span>
                   </div>
                 );
               })()}
@@ -208,49 +206,54 @@ export default function CropPassportPage() {
 
         {/* ── Details Grid ─────────────────────────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Crop Info */}
-          <div className="bg-slate-800/80 backdrop-blur-md rounded-2xl border border-slate-700/80 p-5 shadow-lg">
-            <h2 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+          {/* Crop Specifications */}
+          <div className="bg-slate-800/80 backdrop-blur-md rounded-3xl border border-slate-700/80 p-5 sm:p-6 shadow-xl">
+            <h2 className="text-xs font-extrabold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-2">
               <span>🌱</span> Crop Specifications
             </h2>
             <div className="space-y-1">
-              <Row label="Crop Name"        value={crop.crop_name} />
-              <Row label="Category"         value={crop.crop_category} />
-              <Row label="Batch Quantity"   value={`${crop.quantity} ${crop.unit}`} />
+              <Row label="Crop Name" value={crop.crop_name} />
+              <Row label="Category" value={crop.crop_category} />
+              <Row label="Batch Quantity" value={`${crop.quantity} ${crop.unit}`} />
               <Row label="Cultivation Date" value={crop.cultivation_date} />
-              <Row label="Harvest Date"     value={crop.harvest_date} />
-              <Row label="Location"         value={crop.location} />
-              {crop.description && <Row label="Description" value={crop.description} />}
+              <Row label="Harvest Date" value={crop.harvest_date} />
+              <Row label="Origin Location" value={crop.location} />
+              {crop.description && <Row label="Agronomic Notes" value={crop.description} />}
             </div>
           </div>
 
-          {/* Farmer Identity */}
-          <div className="bg-slate-800/80 backdrop-blur-md rounded-2xl border border-slate-700/80 p-5 shadow-lg">
-            <h2 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-              <span>🔐</span> Provenance & Farmer Identity
+          {/* Farmer Provenance & DID */}
+          <div className="bg-slate-800/80 backdrop-blur-md rounded-3xl border border-slate-700/80 p-5 sm:p-6 shadow-xl">
+            <h2 className="text-xs font-extrabold text-blue-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <span>🔐</span> Provenance & Producer DID
             </h2>
-            <div className="space-y-1">
+            <div className="space-y-2">
               <div className="py-2 border-b border-slate-700/60">
-                <span className="text-[11px] font-semibold text-slate-400 block mb-1">Farmer DID</span>
+                <span className="text-[11px] font-semibold text-slate-400 block mb-1">Farmer W3C DID</span>
                 <AddressCopy value={crop.farmer_did} truncate={false} className="text-slate-200 break-all text-[11px]" />
               </div>
               <div className="py-2 border-b border-slate-700/60">
-                <span className="text-[11px] font-semibold text-slate-400 block mb-1">Wallet Address</span>
+                <span className="text-[11px] font-semibold text-slate-400 block mb-1">Registered Wallet</span>
                 <AddressCopy value={crop.farmer_wallet} etherscanType="address" truncate={false} className="text-slate-200 break-all text-[11px]" />
               </div>
-              <Row label="Origin District" value={crop.farmer_location} />
+              <Row label="Producer Region" value={crop.farmer_location} />
             </div>
           </div>
         </div>
 
         {/* ── NFT Blockchain Record ─────────────────────────────────── */}
         {isMinted && (
-          <div className="bg-slate-800/80 backdrop-blur-md rounded-2xl border border-purple-500/30 p-5 shadow-lg">
-            <h2 className="text-xs font-bold text-purple-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-              <span>🏷️</span> ERC-721 Blockchain Certificate (Sepolia)
-            </h2>
+          <div className="bg-slate-800/80 backdrop-blur-md rounded-3xl border border-purple-500/40 p-5 sm:p-6 shadow-xl space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-700/60">
+              <h2 className="text-xs font-extrabold text-purple-400 uppercase tracking-wider flex items-center gap-2">
+                <span>🪙</span> ERC-721 Blockchain Certificate (Ethereum Sepolia)
+              </h2>
+              <span className="font-mono text-purple-300 font-extrabold text-xs px-2.5 py-0.5 rounded-lg bg-purple-500/20 border border-purple-500/40">
+                Token #{crop.nft_token_id}
+              </span>
+            </div>
+
             <div className="space-y-1">
-              <Row label="Token ID"    value={`Token #${crop.nft_token_id}`} />
               <div className="py-2 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-start justify-between gap-1 text-xs">
                 <span className="font-semibold text-slate-400">Contract Address</span>
                 <AddressCopy value={crop.nft_contract_address} etherscanType="address" truncate={false} className="text-purple-300" />
@@ -260,7 +263,7 @@ export default function CropPassportPage() {
                 <AddressCopy value={crop.nft_transaction_hash} etherscanType="tx" truncate={false} className="text-purple-300" />
               </div>
               <Row
-                label="IPFS Metadata"
+                label="IPFS Token URI"
                 value={crop.nft_token_uri}
                 link={ipfsGateway(crop.nft_token_uri)}
               />
@@ -272,12 +275,13 @@ export default function CropPassportPage() {
         )}
 
         {/* ── AI Quality Verification ───────────────────────────────── */}
-        <div className="bg-slate-800/80 backdrop-blur-md rounded-2xl border border-slate-700/80 p-5 shadow-lg">
-          <h2 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <span>🤖</span> AI Quality Assessment
+        <div className="bg-slate-800/80 backdrop-blur-md rounded-3xl border border-slate-700/80 p-5 sm:p-6 shadow-xl space-y-4">
+          <h2 className="text-xs font-extrabold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+            <span>🤖</span> Gemini Vision AI Quality Assessment
           </h2>
+
           {!aiVerif ? (
-            <p className="text-xs text-slate-500 italic">Visual crop assessment not performed yet.</p>
+            <p className="text-xs text-slate-500 italic">Visual crop quality assessment not performed for this lot yet.</p>
           ) : (() => {
             const v = aiVerif.verification;
             const GRADE_COLORS = {
@@ -293,17 +297,18 @@ export default function CropPassportPage() {
             return (
               <div className="space-y-4">
                 <div className="flex gap-4 items-center flex-wrap">
-                  <div className={`${gradeClass} rounded-2xl p-4 text-center min-w-[90px] border shadow-md`}>
+                  <div className={`${gradeClass} rounded-2xl p-4 text-center min-w-[100px] border shadow-md`}>
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Quality Grade</p>
                     <p className="text-3xl font-extrabold">{v.quality_grade}</p>
                   </div>
+
                   <div className="flex-1 min-w-[180px] space-y-2">
                     <div>
                       <div className="flex justify-between text-xs font-bold text-slate-300 mb-1">
-                        <span>Quality Index</span>
+                        <span>Quality Score</span>
                         <span>{v.quality_score} / 100</span>
                       </div>
-                      <div className="w-full bg-slate-700/70 rounded-full h-2 overflow-hidden">
+                      <div className="w-full bg-slate-700/70 rounded-full h-2.5 overflow-hidden">
                         <div className="bg-emerald-500 h-full rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
                       </div>
                     </div>
@@ -312,7 +317,7 @@ export default function CropPassportPage() {
                         <span>Model Confidence</span>
                         <span>{Math.round(v.confidence_score * 100)}%</span>
                       </div>
-                      <div className="w-full bg-slate-700/70 rounded-full h-2 overflow-hidden">
+                      <div className="w-full bg-slate-700/70 rounded-full h-2.5 overflow-hidden">
                         <div className="bg-blue-500 h-full rounded-full" style={{ width: `${Math.round(v.confidence_score * 100)}%` }} />
                       </div>
                     </div>
@@ -320,11 +325,11 @@ export default function CropPassportPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <Row label="Crop Species" value={v.crop_detected} />
-                  <Row label="Health / Disease" value={v.disease_detected ? `⚠️ ${v.disease_name || "Detected"}` : "✓ No Disease Detected"} />
-                  <Row label="Defects" value={v.visible_defects || "None detected"} />
+                  <Row label="Identified Species" value={v.crop_detected} />
+                  <Row label="Plant Health / Disease" value={v.disease_detected ? `⚠️ ${v.disease_name || "Disease Detected"}` : "✓ Clean — No Disease Observed"} />
+                  <Row label="Defect Notes" value={v.visible_defects || "None detected"} />
                   {v.ai_summary && (
-                    <div className="bg-slate-900/60 border border-slate-700/60 rounded-xl p-3 text-xs text-slate-300 italic">
+                    <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-3.5 text-xs text-slate-300 italic">
                       "{v.ai_summary}"
                     </div>
                   )}
@@ -336,21 +341,24 @@ export default function CropPassportPage() {
                         rel="noopener noreferrer"
                         className="text-xs text-emerald-400 hover:text-emerald-300 underline font-medium"
                       >
-                        🔗 Inspect Analyzed Image on IPFS
+                        🔗 View Verified Analysis Image on IPFS →
                       </a>
                     </div>
                   )}
                 </div>
-                <p className="text-[10px] text-slate-500 italic">⚠️ {aiVerif.disclaimer}</p>
+
+                <p className="text-[10px] text-slate-500 italic pt-1 border-t border-slate-700/60">
+                  ⚠️ {aiVerif.disclaimer}
+                </p>
               </div>
             );
           })()}
         </div>
 
         {/* ── Verified IPFS Evidence Documents ──────────────────────── */}
-        <div className="bg-slate-800/80 backdrop-blur-md rounded-2xl border border-slate-700/80 p-5 shadow-lg">
-          <h2 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <span>📄</span> Decentralized IPFS Evidence Files ({documents.length})
+        <div className="bg-slate-800/80 backdrop-blur-md rounded-3xl border border-slate-700/80 p-5 sm:p-6 shadow-xl space-y-3">
+          <h2 className="text-xs font-extrabold text-blue-400 uppercase tracking-wider flex items-center gap-2">
+            <span>📦</span> Decentralized IPFS Evidence Files ({documents.length})
           </h2>
 
           {documents.length === 0 ? (
@@ -360,7 +368,7 @@ export default function CropPassportPage() {
               {documents.map((doc) => (
                 <div
                   key={doc.id}
-                  className="bg-slate-900/60 border border-slate-700 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                  className="bg-slate-900/60 border border-slate-700/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
                 >
                   <div className="space-y-0.5">
                     <p className="text-xs font-bold text-white">
@@ -376,13 +384,13 @@ export default function CropPassportPage() {
                       href={doc.gateway_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg transition-all"
+                      className="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3.5 py-1.5 rounded-xl transition-all shadow-xs"
                     >
                       View on IPFS
                     </a>
                     <button
                       onClick={() => handleCopyCid(doc.ipfs_cid)}
-                      className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1.5 rounded-lg border border-slate-600"
+                      className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-xl border border-slate-600 cursor-pointer font-semibold"
                     >
                       {copied === doc.ipfs_cid ? "✓ Copied" : "Copy CID"}
                     </button>
@@ -394,15 +402,15 @@ export default function CropPassportPage() {
         </div>
 
         {/* ── Supply-Chain Traceability Timeline ─────────────────────── */}
-        <div className="bg-slate-800/80 backdrop-blur-md rounded-2xl border border-slate-700/80 p-5 shadow-lg">
-          <h2 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-5 flex items-center gap-1.5">
-            <span>📦</span> Complete Supply-Chain Traceability Lifecycle
+        <div className="bg-slate-800/80 backdrop-blur-md rounded-3xl border border-slate-700/80 p-5 sm:p-6 shadow-xl space-y-4">
+          <h2 className="text-xs font-extrabold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+            <span>📦</span> Supply-Chain Traceability Timeline
           </h2>
 
           {timeline.length === 0 ? (
             <p className="text-xs text-slate-500 italic">No supply-chain events recorded yet.</p>
           ) : (
-            <div className="relative pl-2">
+            <div className="relative pl-2 pt-2">
               <div className="absolute left-6 top-3 bottom-3 w-0.5 bg-slate-700" />
               <div className="space-y-5">
                 {timeline.map((evt, idx) => {
@@ -428,7 +436,7 @@ export default function CropPassportPage() {
                         {icon}
                       </div>
 
-                      <div className="flex-1 bg-slate-900/50 border border-slate-700/60 rounded-xl p-3 space-y-1">
+                      <div className="flex-1 bg-slate-900/50 border border-slate-700/60 rounded-2xl p-3.5 space-y-1">
                         <div className="flex justify-between items-start gap-2 flex-wrap">
                           <p className="text-xs font-bold text-white">{evt.title}</p>
                           <span className="text-[10px] text-slate-400 font-mono">{ts}</span>
