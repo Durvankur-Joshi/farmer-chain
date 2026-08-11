@@ -43,12 +43,12 @@ class FPOBidSerializer(serializers.ModelSerializer):
         read_only_fields = ('fpo', 'quote', 'status', 'submitted_at', 'payment_status', 'transaction_hash')
 
     def validate_bid_amount(self, value):
-        if value <= 0:
+        if value is None or value <= 0:
             raise serializers.ValidationError("Bid amount must be greater than zero.")
         return value
 
     def validate_delivery_time_days(self, value):
-        if value <= 0:
+        if value is None or value <= 0:
             raise serializers.ValidationError("Delivery time must be greater than zero.")
         return value
 
@@ -84,9 +84,32 @@ class FPOQuoteSerializer(serializers.ModelSerializer):
         return bids_data
 
     def validate_quantity(self, value):
-        if value <= 0:
+        if value is None or value <= 0:
             raise serializers.ValidationError("Quantity must be greater than zero.")
         return value
+
+    def validate_price_per_unit(self, value):
+        if value is not None and value <= 0:
+            raise serializers.ValidationError("Price per unit must be greater than zero.")
+        return value
+
+    def validate_unit(self, value):
+        if not value or not str(value).strip():
+            raise serializers.ValidationError("Unit is required.")
+        valid_units = ['kg', 'quintal', 'caret', 'piece', 'acre', 'ton', 'litre', 'dozen']
+        val = str(value).strip().lower()
+        if val not in valid_units:
+            raise serializers.ValidationError(f"Invalid unit '{value}'. Supported units: {', '.join(valid_units)}.")
+        return val
+
+    def validate_category(self, value):
+        if not value or not str(value).strip():
+            raise serializers.ValidationError("Category is required.")
+        valid_categories = ['grains', 'vegetables', 'fruits', 'pulses', 'oilseeds', 'dairy']
+        val = str(value).strip().lower()
+        if val not in valid_categories:
+            raise serializers.ValidationError(f"Invalid category '{value}'. Supported categories: Grains, Vegetables, Fruits, Pulses, Oilseeds, Dairy.")
+        return val.capitalize()
 
     def validate_deadline(self, value):
         from django.utils import timezone

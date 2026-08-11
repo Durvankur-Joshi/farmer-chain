@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from "react";
+import axios from "axios";
 import { QRCodeCanvas } from "qrcode.react";
 import MintButton from "./MintButton";
 import DocumentUploader from "./DocumentUploader";
@@ -7,11 +8,16 @@ import AIVerification from "./AIVerification";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
 
-export default function CropPassportCard({ crop, onMintSuccess }) {
+export default function CropPassportCard({ crop, onMintSuccess, onDeleteSuccess }) {
   const isMinted = crop.status === "minted";
 
   const [showUploader, setShowUploader] = useState(false);
   const [docRefresh, setDocRefresh] = useState(0);
+
+  // Deletion modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   // QR Code
   const [showQR, setShowQR] = useState(false);
@@ -30,6 +36,28 @@ export default function CropPassportCard({ crop, onMintSuccess }) {
   const handleUploadSuccess = () => {
     setShowUploader(false);
     setDocRefresh((n) => n + 1);
+  };
+
+  const handleDelete = async () => {
+    setDeleteLoading(true);
+    setDeleteError(null);
+
+    try {
+      await axios.delete(`/api/farmer/crops/${crop.id}/`, {
+        withCredentials: true,
+      });
+      setShowDeleteModal(false);
+      onDeleteSuccess && onDeleteSuccess();
+    } catch (err) {
+      console.error("Error deleting crop passport:", err.response?.data || err);
+      const msg =
+        err.response?.data?.error ||
+        err.response?.data?.detail ||
+        "Failed to delete Crop Passport. Please ensure it is not linked to active quotes or escrow.";
+      setDeleteError(msg);
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   // Determine trust milestones based on actual existing data
@@ -65,6 +93,17 @@ export default function CropPassportCard({ crop, onMintSuccess }) {
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <StatusBadge status={crop.status} />
+          <button
+            type="button"
+            onClick={() => {
+              setDeleteError(null);
+              setShowDeleteModal(true);
+            }}
+            title="Delete this Crop Passport"
+            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all cursor-pointer border border-transparent hover:border-rose-200"
+          >
+            <span className="text-sm">🗑️</span>
+          </button>
         </div>
       </div>
 
@@ -241,6 +280,66 @@ export default function CropPassportCard({ crop, onMintSuccess }) {
       <div className="border-t border-slate-100 pt-4">
         <AIVerification cropId={crop.id} cropName={crop.crop_name} />
       </div>
+
+      {/* ── Delete Confirmation Modal ──────────────────────────────── */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-slate-200 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <span className="text-3xl">⚠️</span>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Delete Crop Passport #{crop.id}?
+                </h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  {crop.crop_name} ({crop.quantity} {crop.unit})
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Are you sure you want to delete this Crop Passport? This will permanently remove it from your active FarmerChain registry.
+            </p>
+
+            {isMinted && (
+              <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 text-xs text-purple-900 space-y-1">
+                <p className="font-bold flex items-center gap-1">
+                  <span>ℹ️</span>
+                  <span>On-Chain Record Notice</span>
+                </p>
+                <p className="text-[11px] text-purple-800">
+                  This passport has an ERC-721 NFT (Token #{crop.nft_token_id}) on Ethereum Sepolia. Deleting this local record will NOT destroy or alter the decentralized blockchain transaction history.
+                </p>
+              </div>
+            )}
+
+            {deleteError && (
+              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 text-xs font-semibold text-rose-800">
+                ❌ {deleteError}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleteLoading}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleteLoading}
+                className="px-4 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <span>{deleteLoading ? "Deleting…" : "🗑️ Confirm Delete"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

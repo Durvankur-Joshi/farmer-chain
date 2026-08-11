@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import { SUPPORTED_UNITS, calculateTotalEth } from "../../utils/pricing";
 
 export default function RetailerQuotes() {
   const [quotes, setQuotes] = useState([]);
@@ -55,10 +56,27 @@ export default function RetailerQuotes() {
     setFormMsg(null);
   };
 
+  const estimatedTotal = calculateTotalEth(form.price_per_unit, form.quantity);
+
   const submitQuote = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     setFormMsg(null);
+
+    const q = parseFloat(form.quantity);
+    const p = parseFloat(form.price_per_unit);
+
+    if (isNaN(q) || q <= 0) {
+      setFormMsg({ type: "error", text: "❌ Quantity must be a positive number greater than 0." });
+      setSubmitting(false);
+      return;
+    }
+
+    if (isNaN(p) || p <= 0) {
+      setFormMsg({ type: "error", text: "❌ Asking price must be a positive number greater than 0." });
+      setSubmitting(false);
+      return;
+    }
 
     try {
       await axios.post("/api/fpo/quotes/", form, { withCredentials: true });
@@ -134,41 +152,56 @@ export default function RetailerQuotes() {
             <input
               name="quantity"
               type="number"
-              min="0.01"
-              step="0.01"
+              min="0.0001"
+              step="any"
               placeholder="e.g. 500"
               value={form.quantity}
               onChange={handleChange}
-              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-blue-500 outline-none"
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-blue-500 outline-none font-mono"
               required
             />
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">Unit *</label>
-            <input
+            <select
               name="unit"
-              placeholder="e.g. quintal / kg / ton"
               value={form.unit}
               onChange={handleChange}
-              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-blue-500 outline-none"
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-blue-500 outline-none cursor-pointer"
               required
-            />
+            >
+              <option value="">Select Unit</option>
+              {SUPPORTED_UNITS.map((u) => (
+                <option key={u.value} value={u.value}>
+                  {u.label}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Asking Price per Unit (₹) *</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Asking Price (ETH / {form.unit || "unit"}) *
+            </label>
             <input
               name="price_per_unit"
               type="number"
-              min="0.01"
-              step="0.01"
-              placeholder="e.g. 2800"
+              min="0.000001"
+              step="any"
+              placeholder="e.g. 0.005"
               value={form.price_per_unit}
               onChange={handleChange}
-              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-blue-500 outline-none"
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-blue-500 outline-none font-mono font-bold"
               required
             />
           </div>
         </div>
+
+        {estimatedTotal && (
+          <div className="p-2.5 bg-blue-100/70 border border-blue-200 rounded-xl flex items-center justify-between text-xs">
+            <span className="font-medium text-blue-950">Calculated Total Lot Value:</span>
+            <span className="font-mono font-extrabold text-blue-800 text-sm">{estimatedTotal} ETH</span>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
@@ -261,7 +294,7 @@ export default function RetailerQuotes() {
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 font-bold uppercase block">Asking Price</span>
-                    <span className="font-bold text-blue-700 font-mono">₹{q.price_per_unit} / {q.unit}</span>
+                    <span className="font-bold text-blue-700 font-mono">{q.price_per_unit} ETH / {q.unit}</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 font-bold uppercase block">Deadline</span>
@@ -277,35 +310,44 @@ export default function RetailerQuotes() {
                     </h4>
                     {q.bids && q.bids.length > 0 ? (
                       <div className="space-y-2">
-                        {q.bids.map((b) => (
-                          <div
-                            key={b.id}
-                            className={`border rounded-xl p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs transition-all ${
-                              q.accepted_bid === b.id
-                                ? "bg-emerald-50/50 border-emerald-300"
-                                : "bg-slate-50/80 border-slate-200"
-                            }`}
-                          >
-                            <div className="space-y-0.5">
-                              <p className="font-bold text-slate-900">{b.retailer_name} <span className="font-normal text-slate-400">({b.retailer_email})</span></p>
-                              <p className="text-slate-600">Offered Price: <strong className="text-blue-700">₹{b.price}</strong> per {b.unit} · Quantity: <strong>{b.quantity} {b.unit}</strong></p>
-                              {b.note && <p className="text-slate-400 italic">"{b.note}"</p>}
-                            </div>
+                        {q.bids.map((b) => {
+                          const isAccepted = b.status === "accepted" || q.accepted_bid === b.id || q.accepted_bid?.id === b.id;
+                          const isClosed = (q.status === "awarded" || q.status === "accepted" || !!q.accepted_bid) && !isAccepted;
 
-                            {q.accepted_bid === b.id ? (
-                              <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-3 py-1 rounded-lg border border-emerald-300 shrink-0">
-                                ✓ Bid Accepted
-                              </span>
-                            ) : (
-                              <button
-                                onClick={() => acceptBid(b.id)}
-                                className="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3.5 py-1.5 rounded-lg transition-all cursor-pointer shrink-0"
-                              >
-                                Accept Bid
-                              </button>
-                            )}
-                          </div>
-                        ))}
+                          return (
+                            <div
+                              key={b.id}
+                              className={`border rounded-xl p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs transition-all ${
+                                isAccepted
+                                  ? "bg-emerald-50/50 border-emerald-300"
+                                  : "bg-slate-50/80 border-slate-200"
+                              }`}
+                            >
+                              <div className="space-y-0.5">
+                                <p className="font-bold text-slate-900">{b.retailer_name} <span className="font-normal text-slate-400">({b.retailer_email})</span></p>
+                                <p className="text-slate-600">Offered Price: <strong className="text-blue-700 font-mono">{b.bid_amount || b.price} ETH</strong> per {q.unit} · Total: <strong className="font-mono text-blue-800">{calculateTotalEth(b.bid_amount || b.price, q.quantity)} ETH</strong></p>
+                                {b.note && <p className="text-slate-400 italic">"{b.note}"</p>}
+                              </div>
+
+                              {isAccepted ? (
+                                <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-3 py-1 rounded-lg border border-emerald-300 shrink-0">
+                                  ✓ Bid Accepted
+                                </span>
+                              ) : isClosed ? (
+                                <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200 shrink-0">
+                                  Deal Closed
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => acceptBid(b.id)}
+                                  className="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3.5 py-1.5 rounded-lg transition-all cursor-pointer shrink-0"
+                                >
+                                  Accept Bid
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : (
                       <p className="text-xs text-slate-400 italic">No retailer bids received for this quote yet.</p>

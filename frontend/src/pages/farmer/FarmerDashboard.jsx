@@ -337,6 +337,7 @@ export default function FarmerDashboard() {
                   </button>
                 </div>
                 <QuoteForm
+                  onNavigateToPassports={() => setActivePage("crops")}
                   onSuccess={() => {
                     fetchHistory();
                     setActivePage("history");
@@ -423,6 +424,10 @@ export default function FarmerDashboard() {
                         key={crop.id}
                         crop={crop}
                         onMintSuccess={() => {
+                          fetchCrops();
+                          fetchHistory();
+                        }}
+                        onDeleteSuccess={() => {
                           fetchCrops();
                           fetchHistory();
                         }}

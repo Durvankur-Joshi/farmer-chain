@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import StatusBadge from "../common/StatusBadge";
+import { calculateTotalEth } from "../../utils/pricing";
 
 export default function QuoteBids({ quote, onBack, refreshHistory }) {
   const [acceptingId, setAcceptingId] = useState(null);
@@ -61,7 +62,7 @@ export default function QuoteBids({ quote, onBack, refreshHistory }) {
       {quote.bids && quote.bids.length > 0 ? (
         <div className="space-y-3">
           {quote.bids.map((bid, index) => {
-            const totalValue = (parseFloat(bid.bid_amount) * parseFloat(quote.quantity)).toFixed(4);
+            const totalValue = calculateTotalEth(bid.bid_amount, quote.quantity);
             const isAccepted = bid.status === "accepted";
             const isProcessing = acceptingId === bid.id;
 
@@ -100,15 +101,25 @@ export default function QuoteBids({ quote, onBack, refreshHistory }) {
                   <button
                     type="button"
                     onClick={() => acceptBid(bid.id)}
-                    disabled={isAccepted || isProcessing}
+                    disabled={isAccepted || isProcessing || quote.status !== 'open'}
                     className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer ${
                       isAccepted
                         ? "bg-emerald-100 text-emerald-800 cursor-not-allowed border border-emerald-300"
+                        : quote.status !== 'open'
+                        ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
                         : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20 disabled:opacity-50"
                     }`}
                   >
                     <span>{isAccepted ? "✓" : "🤝"}</span>
-                    <span>{isProcessing ? "Accepting…" : isAccepted ? "Bid Accepted" : "Accept FPO Bid"}</span>
+                    <span>
+                      {isProcessing
+                        ? "Accepting…"
+                        : isAccepted
+                        ? "Bid Accepted"
+                        : quote.status !== "open"
+                        ? "Quote Closed"
+                        : "Accept FPO Bid"}
+                    </span>
                   </button>
                 </div>
               </div>

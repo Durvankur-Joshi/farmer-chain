@@ -5,12 +5,14 @@ import { useNavigate } from "react-router-dom";
 import FarmerQuotes from "../../components/fpo/FarmerQuotes";
 import RetailerQuotes from "../../components/fpo/RetailerQuotes";
 import FpoEscrowPanel from "../../components/fpo/FpoEscrowPanel";
+import FpoRetailerEscrowPanel from "../../components/fpo/FpoRetailerEscrowPanel";
 import TrustReputationCard from "../../components/common/TrustReputationCard";
 import DidIdentityCard from "../../components/common/DidIdentityCard";
 import DashboardNavbar from "../../components/common/DashboardNavbar";
 
 export default function FpoDashboard() {
   const [activeTab, setActiveTab] = useState("farmer");
+  const [escrowSubTab, setEscrowSubTab] = useState("farmer");
   const navigate = useNavigate();
   const [didInfo, setDidInfo] = useState(null);
   const [farmerQuotesCount, setFarmerQuotesCount] = useState(0);
@@ -274,16 +276,48 @@ export default function FpoDashboard() {
           )}
 
           {activeTab === "escrow" && (
-            <div>
-              <div className="mb-5 pb-3 border-b border-slate-100">
-                <h2 className="text-base font-extrabold text-amber-900">
-                  🔐 FPO Escrow Smart Contract Management
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Deposit ETH into verified escrow contracts and release payments to farmers upon delivery confirmation
-                </p>
+            <div className="space-y-5">
+              <div className="pb-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-extrabold text-amber-900">
+                    🔐 Smart Contract Escrow Payments
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Trustless Sepolia smart-contract escrow payments for Farmer procurement and Retail commercial sales
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setEscrowSubTab("farmer")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      escrowSubTab === "farmer"
+                        ? "bg-white text-slate-900 shadow-2xs"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    🌾 Farmer Procurement
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEscrowSubTab("retailer")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      escrowSubTab === "retailer"
+                        ? "bg-white text-purple-900 shadow-2xs"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    🏢 Retail Wholesale Deals
+                  </button>
+                </div>
               </div>
-              <FpoEscrowPanel />
+
+              {escrowSubTab === "farmer" ? (
+                <FpoEscrowPanel />
+              ) : (
+                <FpoRetailerEscrowPanel />
+              )}
             </div>
           )}
         </div>

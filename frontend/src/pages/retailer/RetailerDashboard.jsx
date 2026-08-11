@@ -6,6 +6,9 @@ import TrustReputationCard from "../../components/common/TrustReputationCard";
 import DidIdentityCard from "../../components/common/DidIdentityCard";
 import DashboardNavbar from "../../components/common/DashboardNavbar";
 import StatusBadge from "../../components/common/StatusBadge";
+import { calculateTotalEth } from "../../utils/pricing";
+import MarketplaceFilterBar from "../../components/common/MarketplaceFilterBar";
+import RetailerEscrowPanel from "../../components/retailer/RetailerEscrowPanel";
 
 export default function RetailerDashboard() {
   const navigate = useNavigate();
@@ -20,6 +23,7 @@ export default function RetailerDashboard() {
   const [loadingMap, setLoadingMap] = useState({});
   const [bidStatusMap, setBidStatusMap] = useState({});
   const [didInfo, setDidInfo] = useState(null);
+  const [currentFilters, setCurrentFilters] = useState({});
 
   const retailerId = Cookies.get("retailer_id");
 
@@ -46,10 +50,16 @@ export default function RetailerDashboard() {
   }, []);
 
   // Fetch open FPO quotes
-  const fetchFpoQuotes = useCallback(async () => {
+  const fetchFpoQuotes = useCallback(async (params = {}) => {
     setQuotesLoading(true);
     try {
+      const cleanParams = {};
+      Object.keys(params).forEach((k) => {
+        if (params[k]) cleanParams[k] = params[k];
+      });
+
       const res = await axios.get("/api/retailer/quotes/fpo/open/", {
+        params: cleanParams,
         withCredentials: true,
       });
       setFpoQuotes(res.data || []);
@@ -95,11 +105,11 @@ export default function RetailerDashboard() {
     const days = deliveryTimes[quoteId];
 
     if (!amount || Number(amount) <= 0) {
-      alert("⚠️ Please enter a valid bid amount in ₹.");
+      alert("⚠️ Please enter a valid positive bid amount in ETH.");
       return;
     }
     if (!days || Number(days) <= 0) {
-      alert("⚠️ Please enter required delivery time in days.");
+      alert("⚠️ Please enter a valid delivery time in days (minimum 1 day).");
       return;
     }
 
@@ -185,7 +195,15 @@ export default function RetailerDashboard() {
                 className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all border border-slate-700 shadow-md flex items-center gap-1.5 cursor-pointer"
               >
                 <span>📑</span>
-                <span>My Submitted Bids ({myBids.length})</span>
+                <span>My Bids ({myBids.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("escrow")}
+                className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>🔐</span>
+                <span>Escrow Deals</span>
               </button>
             </div>
           </div>
@@ -293,6 +311,19 @@ export default function RetailerDashboard() {
               </span>
             )}
           </button>
+
+          <button
+            type="button"
+            className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === "escrow"
+                ? "bg-amber-600 text-white shadow-sm"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            }`}
+            onClick={() => setActiveTab("escrow")}
+          >
+            <span>🔐</span>
+            <span>Escrow Deals</span>
+          </button>
         </div>
 
         {/* ── Open FPO Quotes Tab ────────────────────────────────────── */}
@@ -312,133 +343,179 @@ export default function RetailerDashboard() {
               )}
             </div>
 
-            {quotesLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 animate-pulse space-y-2">
-                    <div className="h-4 bg-slate-200 rounded w-1/3"></div>
-                    <div className="h-3 bg-slate-200 rounded w-2/3"></div>
-                    <div className="h-8 bg-slate-200 rounded w-1/4 mt-2"></div>
-                  </div>
-                ))}
-              </div>
-            ) : fpoQuotes.length > 0 ? (
-              <div className="space-y-4">
-                {fpoQuotes.map((quote) => {
-                  const currentBid = bids[quote.id] || "";
-                  const totalEst = currentBid && quote.quantity ? (parseFloat(currentBid) * parseFloat(quote.quantity)).toFixed(2) : null;
-                  const statusMsg = bidStatusMap[quote.id];
-                  const isLoading = loadingMap[quote.id];
+            <div className="space-y-4">
+              <MarketplaceFilterBar
+                onFilterChange={(newFilters) => {
+                  setCurrentFilters(newFilters);
+                  fetchFpoQuotes(newFilters);
+                }}
+                showHarvestDate={false}
+                placeholder="Search FPO lots by product name, category, or notes…"
+              />
 
-                  return (
-                    <div
-                      key={quote.id}
-                      className="border border-slate-200/80 rounded-2xl p-5 hover:border-purple-300 hover:shadow-xs transition-all bg-white space-y-3"
-                    >
-                      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                        <div className="space-y-1.5 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-base font-extrabold text-slate-900">
-                              {quote.product_name}
-                            </span>
-                            <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
-                              {quote.category}
-                            </span>
-                            <span className="text-[11px] font-mono text-purple-600 font-semibold">
-                              FPO #{quote.fpo}
-                            </span>
-                          </div>
-
-                          {quote.description && (
-                            <p className="text-xs text-slate-600">
-                              {quote.description}
-                            </p>
-                          )}
-
-                          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 pt-1">
-                            <span className="bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 font-medium">
-                              <strong className="text-slate-700">Lot Quantity:</strong> {quote.quantity} {quote.unit}
-                            </span>
-                            <span className="bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 font-medium">
-                              <strong className="text-slate-700">Deadline:</strong> {quote.deadline}
-                            </span>
-                            {quote.price_per_unit && (
-                              <span className="bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 font-medium">
-                                <strong className="text-slate-700">Asking Price:</strong> ₹{quote.price_per_unit} / {quote.unit}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Bidding Controls */}
-                        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 pt-2 lg:pt-0 shrink-0">
-                          <div className="relative w-36">
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                              Offer (₹/{quote.unit})
-                            </label>
-                            <input
-                              type="number"
-                              placeholder="₹ per unit"
-                              value={bids[quote.id] || ""}
-                              onChange={(e) => handleBidChange(quote.id, e.target.value)}
-                              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all font-semibold"
-                            />
-                          </div>
-
-                          <div className="relative w-28">
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                              Delivery (Days)
-                            </label>
-                            <input
-                              type="number"
-                              placeholder="Days"
-                              value={deliveryTimes[quote.id] || ""}
-                              onChange={(e) => handleDeliveryChange(quote.id, e.target.value)}
-                              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all font-semibold"
-                            />
-                          </div>
-
-                          <div className="self-end">
-                            <button
-                              type="button"
-                              onClick={() => submitBid(quote.id)}
-                              disabled={isLoading}
-                              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 h-[38px]"
-                            >
-                              <span>💰</span>
-                              <span>{isLoading ? "Submitting…" : "Place Bid"}</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {totalEst && (
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                          <span>Estimated Total Procurement Value:</span>
-                          <span className="font-extrabold text-purple-700 font-mono text-sm">₹{totalEst}</span>
-                        </div>
-                      )}
-
-                      {statusMsg && (
-                        <div className={`p-2.5 rounded-xl text-xs font-medium ${
-                          statusMsg.type === "success" ? "bg-emerald-50 border border-emerald-200 text-emerald-800" : "bg-rose-50 border border-rose-200 text-rose-800"
-                        }`}>
-                          {statusMsg.text}
-                        </div>
-                      )}
+              {quotesLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 animate-pulse space-y-2">
+                      <div className="h-4 bg-slate-200 rounded w-1/3"></div>
+                      <div className="h-3 bg-slate-200 rounded w-2/3"></div>
+                      <div className="h-8 bg-slate-200 rounded w-1/4 mt-2"></div>
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-100">
-                <span className="text-4xl block mb-2">🏢</span>
-                <p className="text-sm font-bold text-slate-800">No Open FPO Quotes Available</p>
-                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                  FPOs have not published any open procurement lots at this time. Please check back shortly.
-                </p>
-              </div>
-            )}
+                  ))}
+                </div>
+              ) : fpoQuotes.length > 0 ? (
+                <div className="space-y-4">
+                  {fpoQuotes.map((quote) => {
+                    const currentBid = bids[quote.id] || "";
+                    const totalEst = calculateTotalEth(currentBid, quote.quantity);
+                    const statusMsg = bidStatusMap[quote.id];
+                    const isLoading = loadingMap[quote.id];
+
+                    return (
+                      <div
+                        key={quote.id}
+                        className="border border-slate-200/80 rounded-2xl p-5 hover:border-purple-300 hover:shadow-xs transition-all bg-white space-y-3"
+                      >
+                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                          <div className="space-y-1.5 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-base font-extrabold text-slate-900">
+                                {quote.product_name}
+                              </span>
+                              <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                                {quote.category}
+                              </span>
+                              <span className="text-[11px] font-mono text-purple-600 font-semibold">
+                                FPO #{quote.fpo}
+                              </span>
+                            </div>
+
+                            {quote.description && (
+                              <p className="text-xs text-slate-600">
+                                {quote.description}
+                              </p>
+                            )}
+
+                            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 pt-1">
+                              <span className="bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 font-medium">
+                                <strong className="text-slate-700">Lot Quantity:</strong> {quote.quantity} {quote.unit}
+                              </span>
+                              <span className="bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 font-medium">
+                                <strong className="text-slate-700">Deadline:</strong> {quote.deadline}
+                              </span>
+                              {quote.price_per_unit && (
+                                <span className="bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 font-medium">
+                                  <strong className="text-slate-700">Asking Price:</strong> {quote.price_per_unit} ETH / {quote.unit}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Bidding Controls */}
+                          <div className="flex flex-wrap sm:flex-nowrap items-start gap-2 pt-2 lg:pt-0 shrink-0">
+                            <div className="relative w-36">
+                              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                Offer (ETH / {quote.unit})
+                              </label>
+                              <input
+                                type="number"
+                                step="any"
+                                min="0.000001"
+                                placeholder="0.005"
+                                value={bids[quote.id] || ""}
+                                onChange={(e) => handleBidChange(quote.id, e.target.value)}
+                                className={`w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white outline-none transition-all font-mono font-bold ${
+                                  bids[quote.id] && Number(bids[quote.id]) <= 0
+                                    ? "border-rose-300 focus:border-rose-500 ring-1 ring-rose-400"
+                                    : "border-slate-200 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                                }`}
+                              />
+                              {bids[quote.id] && Number(bids[quote.id]) <= 0 && (
+                                <p className="text-[10px] text-rose-600 font-bold mt-1">
+                                  Must be &gt; 0 ETH
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="relative w-28">
+                              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                Delivery (Days)
+                              </label>
+                              <input
+                                type="number"
+                                min="1"
+                                placeholder="Days"
+                                value={deliveryTimes[quote.id] || ""}
+                                onChange={(e) => handleDeliveryChange(quote.id, e.target.value)}
+                                className={`w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white outline-none transition-all font-semibold ${
+                                  deliveryTimes[quote.id] && Number(deliveryTimes[quote.id]) < 1
+                                    ? "border-rose-300 focus:border-rose-500 ring-1 ring-rose-400"
+                                    : "border-slate-200 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                                }`}
+                              />
+                              {deliveryTimes[quote.id] && Number(deliveryTimes[quote.id]) < 1 && (
+                                <p className="text-[10px] text-rose-600 font-bold mt-1">
+                                  Min 1 day
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="self-start pt-5">
+                              <button
+                                type="button"
+                                onClick={() => submitBid(quote.id)}
+                                disabled={
+                                  isLoading ||
+                                  !bids[quote.id] ||
+                                  Number(bids[quote.id]) <= 0 ||
+                                  !deliveryTimes[quote.id] ||
+                                  Number(deliveryTimes[quote.id]) < 1
+                                }
+                                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed h-[38px]"
+                              >
+                                <span>💰</span>
+                                <span>{isLoading ? "Submitting…" : "Place Bid"}</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {totalEst && (
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                            <span>Estimated Total Procurement Value:</span>
+                            <span className="font-extrabold text-purple-700 font-mono text-sm">{totalEst} ETH</span>
+                          </div>
+                        )}
+
+                        {statusMsg && (
+                          <div className={`p-2.5 rounded-xl text-xs font-medium ${
+                            statusMsg.type === "success" ? "bg-emerald-50 border border-emerald-200 text-emerald-800" : "bg-rose-50 border border-rose-200 text-rose-800"
+                          }`}>
+                            {statusMsg.text}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : Object.values(currentFilters).some((v) => !!v) ? (
+                <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-200/80 space-y-2">
+                  <span className="text-4xl block">🔍</span>
+                  <p className="text-sm font-bold text-slate-800">No FPO Lots Found</p>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    No procurement lots matched your current filter criteria. Try adjusting or clearing your filters to see more listings.
+                  </p>
+                </div>
+              ) : (
+                <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-100">
+                  <span className="text-4xl block mb-2">🏢</span>
+                  <p className="text-sm font-bold text-slate-800">No Open FPO Quotes Available</p>
+                  <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                    FPOs have not published any open procurement lots at this time. Please check back shortly.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -490,15 +567,23 @@ export default function RetailerDashboard() {
                     <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50/70 p-3 rounded-xl border border-slate-100">
                       <div>
                         <span className="text-[10px] text-slate-400 font-bold uppercase block">Bid Rate</span>
-                        <span className="font-extrabold text-slate-800 font-mono">₹{bid.bid_amount} / {bid.quote.unit}</span>
+                        <span className="font-extrabold text-slate-800 font-mono">{bid.bid_amount} ETH / {bid.quote.unit}</span>
                       </div>
                       <div>
                         <span className="text-[10px] text-slate-400 font-bold uppercase block">Delivery Window</span>
                         <span className="font-semibold text-slate-700">{bid.delivery_time_days} days</span>
                       </div>
-                      <div className="col-span-2 pt-1 border-t border-slate-200/60">
-                        <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Lot Quantity</span>
-                        <span className="font-medium text-slate-700">{bid.quote.quantity} {bid.quote.unit}</span>
+                      <div className="col-span-2 pt-1 border-t border-slate-200/60 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Lot Quantity</span>
+                          <span className="font-medium text-slate-700">{bid.quote.quantity} {bid.quote.unit}</span>
+                        </div>
+                        {calculateTotalEth(bid.bid_amount, bid.quote.quantity) && (
+                          <div className="text-right">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Value</span>
+                            <span className="font-bold text-purple-700 font-mono">{calculateTotalEth(bid.bid_amount, bid.quote.quantity)} ETH</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -513,6 +598,21 @@ export default function RetailerDashboard() {
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Smart Contract Escrow Deals Tab ────────────────────────── */}
+        {activeTab === "escrow" && (
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+            <div className="mb-5 pb-3 border-b border-slate-100">
+              <h2 className="text-base font-extrabold text-amber-900">
+                🔐 Smart Contract Escrow Deals (FPO ↔ Retailer)
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Fund verified on-chain escrow agreements via MetaMask and release payment once bulk delivery is confirmed
+              </p>
+            </div>
+            <RetailerEscrowPanel />
           </div>
         )}
       </div>

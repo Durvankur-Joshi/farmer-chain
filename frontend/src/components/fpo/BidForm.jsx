@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
+import { calculateTotalEth } from "../../utils/pricing";
 
 export default function BidForm({ quote, onClose, onSuccess }) {
   const [bidAmount, setBidAmount] = useState("");
@@ -7,10 +8,28 @@ export default function BidForm({ quote, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const estimatedTotal = calculateTotalEth(bidAmount, quote.quantity);
+
   const submitBid = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+
+    const b = parseFloat(bidAmount);
+    const d = parseInt(deliveryDays, 10);
+
+    if (isNaN(b) || b <= 0) {
+      setError("Bid price must be a positive number greater than 0.");
+      setLoading(false);
+      return;
+    }
+
+    if (isNaN(d) || d <= 0) {
+      setError("Delivery window must be at least 1 day.");
+      setLoading(false);
+      return;
+    }
+
     try {
       await axios.post(
         `/api/fpo/quotes/farmer/${quote.id}/bids/`,
@@ -53,12 +72,12 @@ export default function BidForm({ quote, onClose, onSuccess }) {
             </label>
             <input
               type="number"
-              step="0.0001"
-              min="0.0001"
+              step="any"
+              min="0.000001"
               placeholder="e.g. 0.002"
               value={bidAmount}
               onChange={(e) => setBidAmount(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-blue-500 outline-none font-mono"
+              className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-blue-500 outline-none font-mono font-bold"
               required
             />
           </div>
@@ -78,6 +97,13 @@ export default function BidForm({ quote, onClose, onSuccess }) {
             />
           </div>
         </div>
+
+        {estimatedTotal && (
+          <div className="p-2.5 bg-blue-100/70 border border-blue-200 rounded-xl flex items-center justify-between text-xs">
+            <span className="font-medium text-blue-950">Calculated Total Lot Value:</span>
+            <span className="font-mono font-extrabold text-blue-800 text-sm">{estimatedTotal} ETH</span>
+          </div>
+        )}
 
         <div className="flex items-center gap-2.5 pt-1">
           <button

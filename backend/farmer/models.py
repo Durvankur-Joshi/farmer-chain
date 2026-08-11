@@ -47,6 +47,13 @@ class FarmerQuote(models.Model):
     ]
     
     farmer = models.ForeignKey(Farmer, on_delete=models.CASCADE, related_name='quotes')
+    crop_passport = models.ForeignKey(
+        'farmer.CropPassport',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='quotes'
+    )
     product_name = models.CharField(max_length=200)
     category = models.CharField(max_length=100)
     description = models.TextField()

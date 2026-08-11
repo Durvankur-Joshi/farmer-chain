@@ -64,9 +64,14 @@ class RetailerListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated, IsRetailer]
 
 class RetailerDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Retailer.objects.all()
     serializer_class = RetailerSerializer
     permission_classes = [IsAuthenticated, IsRetailer]
+
+    def get_queryset(self):
+        retailer = getattr(self.request.user, 'user_obj', None)
+        if retailer:
+            return Retailer.objects.filter(pk=retailer.pk)
+        return Retailer.objects.none()
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsRetailer])
@@ -89,7 +94,45 @@ class FPOOpenQuoteListView(generics.ListAPIView):
 
     def get_queryset(self):
         retailer = self.request.user.user_obj
-        return FPOQuote.objects.filter(status='open').exclude(bids__retailer=retailer)
+        qs = FPOQuote.objects.filter(status='open').exclude(bids__retailer=retailer)
+
+        q = self.request.query_params.get('search') or self.request.query_params.get('q')
+        if q:
+            q = q.strip()
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(product_name__icontains=q) |
+                Q(category__icontains=q) |
+                Q(description__icontains=q)
+            )
+
+        category = self.request.query_params.get('category')
+        if category and category.strip() and category.lower() != 'all':
+            qs = qs.filter(category__iexact=category.strip())
+
+        unit = self.request.query_params.get('unit')
+        if unit and unit.strip() and unit.lower() != 'all':
+            qs = qs.filter(unit__iexact=unit.strip())
+
+        min_qty = self.request.query_params.get('min_qty')
+        if min_qty:
+            try:
+                min_val = float(min_qty)
+                if min_val >= 0:
+                    qs = qs.filter(quantity__gte=min_val)
+            except (ValueError, TypeError):
+                pass
+
+        max_qty = self.request.query_params.get('max_qty')
+        if max_qty:
+            try:
+                max_val = float(max_qty)
+                if max_val >= 0:
+                    qs = qs.filter(quantity__lte=max_val)
+            except (ValueError, TypeError):
+                pass
+
+        return qs.order_by('-created_at')
 
 class RetailerBidCreateView(generics.CreateAPIView):
     serializer_class = RetailerBidSerializer

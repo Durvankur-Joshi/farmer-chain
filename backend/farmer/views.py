@@ -77,9 +77,14 @@ class FarmerListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated, IsFarmer]
 
 class FarmerDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Farmer.objects.all()
     serializer_class = FarmerSerializer
     permission_classes = [IsAuthenticated, IsFarmer]
+
+    def get_queryset(self):
+        farmer = getattr(self.request.user, 'user_obj', None)
+        if farmer:
+            return Farmer.objects.filter(pk=farmer.pk)
+        return Farmer.objects.none()
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsFarmer])
@@ -102,7 +107,58 @@ class FarmerQuoteListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated, IsFarmer]
 
     def get_queryset(self):
-        return FarmerQuote.objects.filter(farmer=self.request.user.user_obj)
+        farmer = self.request.user.user_obj
+        qs = FarmerQuote.objects.filter(farmer=farmer)
+
+        q = self.request.query_params.get('search') or self.request.query_params.get('q')
+        if q:
+            q = q.strip()
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(product_name__icontains=q) |
+                Q(category__icontains=q) |
+                Q(description__icontains=q)
+            )
+
+        category = self.request.query_params.get('category')
+        if category and category.strip() and category.lower() != 'all':
+            qs = qs.filter(category__iexact=category.strip())
+
+        unit = self.request.query_params.get('unit')
+        if unit and unit.strip() and unit.lower() != 'all':
+            qs = qs.filter(unit__iexact=unit.strip())
+
+        status_param = self.request.query_params.get('status')
+        if status_param and status_param.strip() and status_param.lower() != 'all':
+            qs = qs.filter(status=status_param.strip())
+
+        min_qty = self.request.query_params.get('min_qty')
+        if min_qty:
+            try:
+                min_val = float(min_qty)
+                if min_val >= 0:
+                    qs = qs.filter(quantity__gte=min_val)
+            except (ValueError, TypeError):
+                pass
+
+        max_qty = self.request.query_params.get('max_qty')
+        if max_qty:
+            try:
+                max_val = float(max_qty)
+                if max_val >= 0:
+                    qs = qs.filter(quantity__lte=max_val)
+            except (ValueError, TypeError):
+                pass
+
+        harvest_from = self.request.query_params.get('harvest_from')
+        if harvest_from:
+            qs = qs.filter(crop_passport__harvest_date__gte=harvest_from)
+
+        harvest_to = self.request.query_params.get('harvest_to')
+        if harvest_to:
+            qs = qs.filter(crop_passport__harvest_date__lte=harvest_to)
+
+        return qs.order_by('-created_at')
 
     def perform_create(self, serializer):
         serializer.save(farmer=self.request.user.user_obj)
@@ -110,7 +166,12 @@ class FarmerQuoteListCreateView(generics.ListCreateAPIView):
 class FarmerQuoteDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = FarmerQuoteSerializer
     permission_classes = [IsAuthenticated, IsFarmer]
-    queryset = FarmerQuote.objects.all()
+
+    def get_queryset(self):
+        farmer = getattr(self.request.user, 'user_obj', None)
+        if farmer:
+            return FarmerQuote.objects.filter(farmer=farmer)
+        return FarmerQuote.objects.none()
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated, IsFarmer])
@@ -236,10 +297,11 @@ class CropPassportListCreateView(generics.ListCreateAPIView):
         serializer.save(farmer=self.request.user.user_obj)
 
 
-class CropPassportDetailView(generics.RetrieveUpdateAPIView):
+class CropPassportDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
-    GET   /api/farmer/crops/<id>/  — retrieve one crop (owner only)
-    PATCH /api/farmer/crops/<id>/  — update crop (only before minting)
+    GET    /api/farmer/crops/<id>/  — retrieve one crop (owner only)
+    PATCH  /api/farmer/crops/<id>/  — update crop (only before minting)
+    DELETE /api/farmer/crops/<id>/  — delete crop passport (owner only, not active in quotes/escrow)
     """
     serializer_class = CropPassportSerializer
     permission_classes = [IsAuthenticated, IsFarmer]
@@ -266,6 +328,40 @@ class CropPassportDetailView(generics.RetrieveUpdateAPIView):
             )
         return super().update(request, *args, **kwargs)
 
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        # Check if linked to active quotes
+        active_quotes = instance.quotes.filter(status__in=['open', 'accepted', 'contract_created', 'awarded'])
+        if active_quotes.exists():
+            return Response(
+                {"error": f"Cannot delete Crop Passport because it is currently referenced by an active supply quote (Quote #{active_quotes.first().id}). Please close or cancel the quote first."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Check if linked to active escrow transactions
+        from escrow.models import EscrowTransaction
+        active_escrows = EscrowTransaction.objects.filter(
+            quote__crop_passport=instance
+        ).exclude(status__in=['released', 'refunded'])
+        if active_escrows.exists():
+            return Response(
+                {"error": f"Cannot delete Crop Passport because it is linked to an active escrow agreement (Escrow #{active_escrows.first().id})."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        was_minted = instance.is_minted
+        instance.delete()
+
+        msg = "Crop Passport successfully deleted from FarmerChain."
+        if was_minted:
+            msg += " Note: Historical on-chain NFT token records remain recorded on the blockchain ledger."
+
+        return Response(
+            {"message": msg, "is_minted": was_minted},
+            status=status.HTTP_200_OK,
+        )
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated, IsFarmer])
@@ -277,8 +373,7 @@ def prepare_mint_view(request, crop_id):
     server-side Pinata credentials, and returns the token_uri + wallet
     for the frontend to use when calling MetaMask.
 
-    The frontend NEVER sees the Pinata secret.
-    No private key is involved — the farmer signs via MetaMask.
+    Enforces mandatory fields, required IPFS image upload, and AI quality verification.
     """
     farmer = request.user.user_obj
     crop = get_object_or_404(CropPassport, pk=crop_id)
@@ -294,6 +389,35 @@ def prepare_mint_view(request, crop_id):
     if crop.is_minted:
         return Response(
             {"error": "This Crop Passport has already been minted as an NFT."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # ── 1. Validate mandatory fields ─────────────────────────────────
+    if not crop.crop_name or not crop.crop_category or not crop.quantity or crop.quantity <= 0 or not crop.unit or not crop.cultivation_date or not crop.harvest_date:
+        return Response(
+            {"error": "All mandatory crop fields (crop name, category, quantity > 0, unit, cultivation date, harvest date) must be complete before generating Crop Passport."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if crop.cultivation_date > crop.harvest_date:
+        return Response(
+            {"error": "Cultivation date cannot be after harvest date."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # ── 2. Validate IPFS Document / Crop Image upload ─────────────────
+    docs = crop.documents.all()
+    if not docs.exists():
+        return Response(
+            {"error": "A crop document/image must be uploaded to IPFS before generating the Crop Passport."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # ── 3. Validate AI Quality Verification ───────────────────────────
+    verifications = crop.ai_verifications.filter(verification_status='verified')
+    if not verifications.exists():
+        return Response(
+            {"error": "AI Quality Verification must be completed and verified before generating the Crop Passport."},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -939,15 +1063,16 @@ def crop_timeline_view(request, crop_id):
         })
 
     # 5–10. Quote → Bid → Escrow chain
-    # Link CropPassport to FarmerQuote via same farmer + matching product name
     from escrow.models import EscrowTransaction
-    quote = (
-        FarmerQuote.objects
-        .filter(farmer=crop.farmer, product_name__iexact=crop.crop_name)
-        .exclude(status='open')
-        .order_by('-created_at')
-        .first()
-    )
+    quote = crop.quotes.exclude(status='open').order_by('-created_at').first()
+    if not quote:
+        quote = (
+            FarmerQuote.objects
+            .filter(farmer=crop.farmer, product_name__iexact=crop.crop_name)
+            .exclude(status='open')
+            .order_by('-created_at')
+            .first()
+        )
 
     if quote:
         # 5. Quote Created

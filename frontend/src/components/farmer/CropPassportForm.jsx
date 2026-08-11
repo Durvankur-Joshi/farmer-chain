@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 
-const UNIT_OPTIONS = ["kg", "quintal", "ton", "litre", "piece", "dozen"];
+const UNIT_OPTIONS = ["kg", "quintal", "caret", "piece", "acre", "ton", "litre", "dozen"];
 const CATEGORY_OPTIONS = [
   "Cereal", "Pulse", "Oilseed", "Vegetable", "Fruit",
   "Spice", "Fibre", "Sugar", "Plantation", "Other",

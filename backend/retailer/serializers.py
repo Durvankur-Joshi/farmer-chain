@@ -55,11 +55,11 @@ class RetailerBidSerializer(serializers.ModelSerializer):
         read_only_fields = ('retailer', 'quote', 'status', 'submitted_at', 'payment_status', 'transaction_hash')
 
     def validate_bid_amount(self, value):
-        if value <= 0:
+        if value is None or value <= 0:
             raise serializers.ValidationError("Bid amount must be greater than zero.")
         return value
 
     def validate_delivery_time_days(self, value):
-        if value <= 0:
+        if value is None or value <= 0:
             raise serializers.ValidationError("Delivery time must be greater than zero.")
         return value

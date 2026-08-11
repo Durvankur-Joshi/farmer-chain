@@ -65,9 +65,14 @@ class FPOListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated, IsFPO]
 
 class FPODetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = FPO.objects.all()
     serializer_class = FPOSerializer
     permission_classes = [IsAuthenticated, IsFPO]
+
+    def get_queryset(self):
+        fpo = getattr(self.request.user, 'user_obj', None)
+        if fpo:
+            return FPO.objects.filter(pk=fpo.pk)
+        return FPO.objects.none()
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsFPO])
@@ -94,7 +99,58 @@ class FarmerOpenQuoteListView(generics.ListAPIView):
     def get_queryset(self):
         fpo = self.request.user.user_obj
         # Exclude quotes where FPO has already bid
-        return FarmerQuote.objects.filter(status='open').exclude(bids__fpo=fpo)
+        qs = FarmerQuote.objects.filter(status='open').exclude(bids__fpo=fpo)
+
+        # Keyword search (crop/product name, category, description)
+        q = self.request.query_params.get('search') or self.request.query_params.get('q')
+        if q:
+            q = q.strip()
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(product_name__icontains=q) |
+                Q(category__icontains=q) |
+                Q(description__icontains=q)
+            )
+
+        # Category filter
+        category = self.request.query_params.get('category')
+        if category and category.strip() and category.lower() != 'all':
+            qs = qs.filter(category__iexact=category.strip())
+
+        # Unit filter
+        unit = self.request.query_params.get('unit')
+        if unit and unit.strip() and unit.lower() != 'all':
+            qs = qs.filter(unit__iexact=unit.strip())
+
+        # Quantity range filter
+        min_qty = self.request.query_params.get('min_qty')
+        if min_qty:
+            try:
+                min_val = float(min_qty)
+                if min_val >= 0:
+                    qs = qs.filter(quantity__gte=min_val)
+            except (ValueError, TypeError):
+                pass
+
+        max_qty = self.request.query_params.get('max_qty')
+        if max_qty:
+            try:
+                max_val = float(max_qty)
+                if max_val >= 0:
+                    qs = qs.filter(quantity__lte=max_val)
+            except (ValueError, TypeError):
+                pass
+
+        # Harvest date filter (via CropPassport)
+        harvest_from = self.request.query_params.get('harvest_from')
+        if harvest_from:
+            qs = qs.filter(crop_passport__harvest_date__gte=harvest_from)
+
+        harvest_to = self.request.query_params.get('harvest_to')
+        if harvest_to:
+            qs = qs.filter(crop_passport__harvest_date__lte=harvest_to)
+
+        return qs.order_by('-created_at')
 
 class FPOBidCreateView(generics.CreateAPIView):
     serializer_class = FPOBidSerializer

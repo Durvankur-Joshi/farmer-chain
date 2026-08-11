@@ -29,11 +29,24 @@ class FarmerQuoteSerializer(serializers.ModelSerializer):
     farmer_name = serializers.CharField(source='farmer.name', read_only=True)
     farmer_email = serializers.CharField(source='farmer.email', read_only=True)
     bids = serializers.SerializerMethodField()
+    crop_passport = serializers.PrimaryKeyRelatedField(
+        queryset=CropPassport.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    crop_passport_details = serializers.SerializerMethodField()
+
+    product_name = serializers.CharField(max_length=200, required=False)
+    category = serializers.CharField(max_length=100, required=False)
+    quantity = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    unit = serializers.CharField(max_length=20, required=False)
+    description = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = FarmerQuote
         fields = [
-            'id', 'farmer', 'product_name', 'category', 'description', 
+            'id', 'farmer', 'crop_passport', 'crop_passport_details',
+            'product_name', 'category', 'description', 
             'quantity', 'unit', 'price_per_unit', 'status', 'deadline', 
             'created_at', 'accepted_bid', 'farmer_name', 'farmer_email',
             'bids', 'contract_address'
@@ -45,7 +58,6 @@ class FarmerQuoteSerializer(serializers.ModelSerializer):
         Custom method to get and serialize the bids for this quote.
         This avoids the circular import issue at startup.
         """
-        # Use a simple serializer to avoid circular imports
         bids_data = []
         for bid in obj.bids.all():
             bids_data.append({
@@ -58,9 +70,81 @@ class FarmerQuoteSerializer(serializers.ModelSerializer):
             })
         return bids_data
 
+    def get_crop_passport_details(self, obj):
+        if not obj.crop_passport:
+            return None
+        cp = obj.crop_passport
+        return {
+            'id': cp.id,
+            'crop_name': cp.crop_name,
+            'crop_category': cp.crop_category,
+            'status': cp.status,
+            'is_minted': cp.is_minted,
+            'harvest_date': str(cp.harvest_date),
+            'location': cp.location,
+            'nft_token_id': cp.nft_token_id,
+        }
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        farmer = getattr(request.user, 'user_obj', None) if request and hasattr(request, 'user') else None
+
+        crop_passport = attrs.get('crop_passport')
+
+        # If this is a new quote creation
+        if not self.instance:
+            if not crop_passport:
+                # Check if farmer has manual fields or no passport
+                if not attrs.get('product_name') or not attrs.get('quantity'):
+                    raise serializers.ValidationError({
+                        "crop_passport": "Create and complete a Crop Passport before creating a quote."
+                    })
+            else:
+                # Validate ownership
+                if farmer and crop_passport.farmer_id != farmer.pk:
+                    raise serializers.ValidationError({
+                        "crop_passport": "You do not own this Crop Passport."
+                    })
+
+                # Validate passport required information
+                if not crop_passport.crop_name or not crop_passport.quantity or crop_passport.quantity <= 0:
+                    raise serializers.ValidationError({
+                        "crop_passport": "The selected Crop Passport is incomplete or missing valid crop details."
+                    })
+
+                # Auto-populate quote fields from the selected crop passport
+                attrs['product_name'] = crop_passport.crop_name
+                attrs['category'] = crop_passport.crop_category or 'Grains'
+                attrs['quantity'] = crop_passport.quantity
+                attrs['unit'] = crop_passport.unit or 'kg'
+                if not attrs.get('description'):
+                    desc_parts = []
+                    if crop_passport.description:
+                        desc_parts.append(crop_passport.description)
+                    desc_parts.append(f"Harvest Date: {crop_passport.harvest_date}")
+                    if crop_passport.location:
+                        desc_parts.append(f"Origin: {crop_passport.location}")
+                    attrs['description'] = " · ".join(desc_parts)
+
+        return attrs
+
     def validate_quantity(self, value):
-        if value <= 0:
+        if value is not None and value <= 0:
             raise serializers.ValidationError("Quantity must be greater than zero.")
+        return value
+
+    def validate_price_per_unit(self, value):
+        if value is not None and value <= 0:
+            raise serializers.ValidationError("Price per unit must be greater than zero.")
+        return value
+
+    def validate_unit(self, value):
+        if value:
+            valid_units = ['kg', 'quintal', 'caret', 'piece', 'acre', 'ton', 'litre', 'dozen']
+            val = str(value).strip().lower()
+            if val not in valid_units:
+                raise serializers.ValidationError(f"Invalid unit '{value}'. Supported units: {', '.join(valid_units)}.")
+            return val
         return value
 
     def validate_deadline(self, value):
