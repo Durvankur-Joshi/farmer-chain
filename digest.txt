@@ -115,6 +115,10 @@ Directory structure:
             ├── main.jsx
             ├── components/
             │   ├── common/
+            │   │   ├── AddressCopy.jsx
+            │   │   ├── DashboardNavbar.jsx
+            │   │   ├── DidIdentityCard.jsx
+            │   │   ├── StatusBadge.jsx
             │   │   └── TrustReputationCard.jsx
             │   ├── farmer/
             │   │   ├── AIVerification.jsx
@@ -2960,7 +2964,7 @@ def escrow_created_onchain(request, escrow_pk):
     """
     Record the on-chain escrow creation tx hash and escrow ID.
 
-    Body: { "tx_hash": "0x...", "escrow_id": <int> }
+    Body: { "tx_hash": "0x...", "escrow_id": <int>, "contract_address": "0x..." }
     """
     farmer = request.user.user_obj
     escrow = get_object_or_404(EscrowTransaction, pk=escrow_pk)
@@ -2968,14 +2972,20 @@ def escrow_created_onchain(request, escrow_pk):
     if escrow.farmer_id != farmer.pk:
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
-    if escrow.escrow_id is not None:
-        return Response(
-            {'error': 'On-chain escrow ID already recorded.'},
-            status=status.HTTP_409_CONFLICT,
-        )
-
     tx_hash = request.data.get('tx_hash', '')
     escrow_id = request.data.get('escrow_id')
+    contract_address = request.data.get('contract_address')
+
+    if escrow.escrow_id is not None:
+        if escrow_id is not None and int(escrow_id) == escrow.escrow_id:
+            return Response(
+                {'message': 'On-chain escrow already recorded.', 'escrow': EscrowTransactionSerializer(escrow).data},
+                status=status.HTTP_200_OK,
+            )
+        return Response(
+            {'error': 'On-chain escrow ID already recorded.', 'escrow': EscrowTransactionSerializer(escrow).data},
+            status=status.HTTP_409_CONFLICT,
+        )
 
     if not _validate_tx_hash(tx_hash):
         return Response(
@@ -2991,7 +3001,11 @@ def escrow_created_onchain(request, escrow_pk):
 
     escrow.escrow_id = int(escrow_id)
     escrow.create_tx_hash = tx_hash
-    escrow.save(update_fields=['escrow_id', 'create_tx_hash'])
+    update_fields = ['escrow_id', 'create_tx_hash']
+    if contract_address:
+        escrow.contract_address = contract_address
+        update_fields.append('contract_address')
+    escrow.save(update_fields=update_fields)
 
     logger.info(
         'Escrow on-chain created: db_id=%d, chain_id=%d, tx=%s',
@@ -3009,7 +3023,7 @@ def escrow_funded(request, escrow_pk):
     """
     Record the FPO deposit transaction.
 
-    Body: { "tx_hash": "0x..." }
+    Body: { "tx_hash": "0x...", "escrow_id": <int (optional)> }
     """
     fpo = request.user.user_obj
     escrow = get_object_or_404(EscrowTransaction, pk=escrow_pk)
@@ -3030,10 +3044,23 @@ def escrow_funded(request, escrow_pk):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    req_escrow_id = request.data.get('escrow_id')
+    if req_escrow_id is not None and escrow.escrow_id is None:
+        escrow.escrow_id = int(req_escrow_id)
+
+    if escrow.escrow_id is None:
+        return Response(
+            {'error': 'On-chain escrow ID is missing. Farmer must create on-chain escrow first.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     escrow.status = EscrowTransaction.STATUS_FUNDED
     escrow.deposit_tx_hash = tx_hash
     escrow.funded_at = timezone.now()
-    escrow.save(update_fields=['status', 'deposit_tx_hash', 'funded_at'])
+    fields_to_update = ['status', 'deposit_tx_hash', 'funded_at']
+    if req_escrow_id is not None:
+        fields_to_update.append('escrow_id')
+    escrow.save(update_fields=fields_to_update)
 
     logger.info('Escrow funded: id=%d, tx=%s', escrow.pk, tx_hash)
 
@@ -3056,16 +3083,22 @@ def escrow_delivery_confirm(request, escrow_pk):
     if escrow.farmer_id != farmer.pk:
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
-    if escrow.status != EscrowTransaction.STATUS_FUNDED:
-        return Response(
-            {'error': f'Cannot confirm delivery in "{escrow.status}" state.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
     tx_hash = request.data.get('tx_hash', '')
     if not _validate_tx_hash(tx_hash):
         return Response(
             {'error': 'Invalid transaction hash format.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if escrow.status == EscrowTransaction.STATUS_DELIVERY_CONFIRMED:
+        if tx_hash and not escrow.delivery_tx_hash:
+            escrow.delivery_tx_hash = tx_hash
+            escrow.save(update_fields=['delivery_tx_hash'])
+        return Response({'message': 'Delivery already confirmed on-chain.', 'escrow': EscrowTransactionSerializer(escrow).data})
+
+    if escrow.status != EscrowTransaction.STATUS_FUNDED:
+        return Response(
+            {'error': f'Cannot confirm delivery in "{escrow.status}" state.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -6077,12 +6110,21 @@ from django.conf import settings
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    # Require 'role' in addition to username/email and password
+    username = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.CharField(required=False, allow_blank=True)
     role = serializers.CharField(required=True)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.username_field in self.fields:
+            self.fields[self.username_field].required = False
+            self.fields[self.username_field].allow_blank = True
+
     def validate(self, attrs):
-        role = attrs.get("role").lower()
-        user_identifier = attrs.get("username")
+        role = attrs.get("role", "").lower()
+        user_identifier = attrs.get("email") or attrs.get("username")
+        if not user_identifier:
+            raise serializers.ValidationError("Email or username is required.")
         password = attrs.get("password")
 
         # Determine which model to authenticate against
@@ -6174,7 +6216,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     @classmethod
     def get_token(cls, user):
-        # This method is required by the parent class
         return RefreshToken.for_user(user)
 
 
@@ -6187,7 +6228,17 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         try:
             serializer.is_valid(raise_exception=True)
         except Exception as e:
-            return Response({"error": str(e)}, status=400)
+            err_msg = str(e)
+            if hasattr(e, "detail"):
+                if isinstance(e.detail, dict):
+                    err_msg = next(iter(e.detail.values()))
+                    if isinstance(err_msg, list):
+                        err_msg = str(err_msg[0])
+                elif isinstance(e.detail, list):
+                    err_msg = str(e.detail[0])
+                else:
+                    err_msg = str(e.detail)
+            return Response({"error": err_msg}, status=400)
 
         token_data = serializer.validated_data
 
@@ -6199,6 +6250,14 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             "name": token_data['name'],
             "message": "Login successful"
         }
+
+        # Provide role-specific IDs for frontend backward compatibility
+        if token_data['role'] == 'farmer':
+            response_data['farmer_id'] = token_data['user_id']
+        elif token_data['role'] == 'fpo':
+            response_data['fpo_id'] = token_data['user_id']
+        elif token_data['role'] == 'retailer':
+            response_data['retailer_id'] = token_data['user_id']
 
         response = Response(response_data)
 
@@ -6252,26 +6311,29 @@ class CustomJWTAuthentication(JWTAuthentication):
     """
 
     def authenticate(self, request):
-        # Try to get token from cookies first
-        access_token = request.COOKIES.get('access_token')
-        
-        if not access_token:
-            # Fall back to header for backward compatibility
-            header = self.get_header(request)
-            if header is None:
-                return None
+        # 1. Try Authorization header first
+        header = self.get_header(request)
+        if header is not None:
             raw_token = self.get_raw_token(header)
-            if raw_token is None:
-                return None
-            access_token = raw_token
-        
-        # Validate the token
-        try:
-            validated_token = self.get_validated_token(access_token)
-            user = self.get_user(validated_token)
-            return (user, validated_token)
-        except InvalidToken:
-            return None
+            if raw_token is not None:
+                try:
+                    validated_token = self.get_validated_token(raw_token)
+                    user = self.get_user(validated_token)
+                    return (user, validated_token)
+                except InvalidToken:
+                    pass
+
+        # 2. Try cookie
+        access_token = request.COOKIES.get('access_token')
+        if access_token:
+            try:
+                validated_token = self.get_validated_token(access_token)
+                user = self.get_user(validated_token)
+                return (user, validated_token)
+            except InvalidToken:
+                pass
+
+        return None
 
     def get_user(self, validated_token):
         user_id = validated_token.get("user_id")
@@ -6852,7 +6914,10 @@ FILE: frontend/index.html
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + React</title>
+    <title>FarmerChain â€” Decentralized Agricultural Supply Chain & Trust Protocol</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   </head>
   <body>
     <div id="root"></div>
@@ -7026,6 +7091,117 @@ FILE: frontend/src/index.css
 ================================================
 @import "tailwindcss";
 
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #0f172a;
+    background-color: #f8fafc;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* Modern clean scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Custom interactive utility classes */
+.card-hover-subtle {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+.card-hover-subtle:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+}
+
+.input-modern {
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  background-color: #ffffff;
+  font-size: 0.8125rem;
+  color: #0f172a;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.input-modern:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+.badge-base {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+/* Clean shimmer skeleton */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-box {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 37%, #f1f5f9 63%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  border-radius: 0.75rem;
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Accessibility: respect user preference for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 
 ================================================
 FILE: frontend/src/main.jsx
@@ -7036,9 +7212,22 @@ import "./index.css";
 import App from "./App.jsx";
 import { BrowserRouter } from "react-router-dom";
 import axios from "axios";
+import Cookies from "js-cookie";
 
-// Configure axios to include credentials (cookies) for all requests
+// Configure axios to include credentials (cookies) and Authorization header for all requests
 axios.defaults.withCredentials = true;
+
+axios.interceptors.request.use((config) => {
+  config.withCredentials = true;
+  const token =
+    localStorage.getItem("access_token") ||
+    Cookies.get("access_token") ||
+    Cookies.get("token");
+  if (token && !config.headers.Authorization) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 createRoot(document.getElementById("root")).render(
   <BrowserRouter>
@@ -7048,227 +7237,273 @@ createRoot(document.getElementById("root")).render(
 
 
 ================================================
-FILE: frontend/src/components/common/TrustReputationCard.jsx
+FILE: frontend/src/components/common/AddressCopy.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 1816: character maps to <undefined>
-
-
-================================================
-FILE: frontend/src/components/farmer/AIVerification.jsx
-================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 2273: character maps to <undefined>
-
-
-================================================
-FILE: frontend/src/components/farmer/CropPassportCard.jsx
-================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8d in position 5858: character maps to <undefined>
-
-
-================================================
-FILE: frontend/src/components/farmer/CropPassportForm.jsx
-================================================
-/**
- * CropPassportForm.jsx â€” Phase 2.2
- * Form for creating a new Crop Passport.
- * farmer_id is NEVER sent â€” the backend derives it from the JWT cookie.
- */
 import React, { useState } from "react";
-import axios from "axios";
 
-const UNIT_OPTIONS = ["kg", "quintal", "ton", "litre", "piece", "dozen"];
-const CATEGORY_OPTIONS = [
-  "Cereal", "Pulse", "Oilseed", "Vegetable", "Fruit",
-  "Spice", "Fibre", "Sugar", "Plantation", "Other",
-];
+function shorten(str, start = 6, end = 4) {
+  if (!str) return "â€”";
+  if (str.length <= start + end + 3) return str;
+  return `${str.slice(0, start)}â€¦${str.slice(-end)}`;
+}
 
-export default function CropPassportForm({ onSuccess, onCancel }) {
-  const [form, setForm] = useState({
-    crop_name: "",
-    crop_category: "",
-    description: "",
-    quantity: "",
-    unit: "kg",
-    cultivation_date: "",
-    harvest_date: "",
-  });
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+export default function AddressCopy({
+  value,
+  label,
+  etherscanType = null, // 'address' | 'tx'
+  truncate = true,
+  className = "",
+}) {
+  const [copied, setCopied] = useState(false);
 
-  const handleChange = (e) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-    setError("");
+  if (!value) return <span className="text-slate-400 font-mono text-xs">â€”</span>;
+
+  const handleCopy = (e) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-
-    if (!form.crop_name.trim())         return setError("Crop name is required.");
-    if (!form.crop_category)            return setError("Category is required.");
-    if (!form.quantity || Number(form.quantity) <= 0)
-                                        return setError("Quantity must be greater than 0.");
-    if (!form.cultivation_date)         return setError("Cultivation date is required.");
-    if (!form.harvest_date)             return setError("Harvest date is required.");
-    if (form.cultivation_date > form.harvest_date)
-                                        return setError("Cultivation date cannot be after harvest date.");
-
-    setSubmitting(true);
-    try {
-      await axios.post("/api/farmer/crops/", form, { withCredentials: true });
-      onSuccess && onSuccess();
-    } catch (err) {
-      const msg =
-        err.response?.data?.detail ||
-        JSON.stringify(err.response?.data) ||
-        "Failed to create Crop Passport.";
-      setError(msg);
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const displayText = truncate ? shorten(value) : value;
+  const etherscanUrl = etherscanType
+    ? `https://sepolia.etherscan.io/${etherscanType}/${value}`
+    : null;
 
   return (
-    <div className="bg-white rounded-2xl shadow p-6 border border-green-100">
-      <h2 className="text-lg font-bold text-green-800 mb-4">ðŸŒ¾ Create Crop Passport</h2>
-
-      {error && (
-        <div className="bg-red-50 border border-red-300 text-red-700 rounded p-3 mb-4 text-sm">
-          {error}
-        </div>
+    <span className={`inline-flex items-center gap-1.5 font-mono text-xs ${className}`}>
+      {label && <span className="font-sans font-medium text-slate-500">{label}:</span>}
+      {etherscanUrl ? (
+        <a
+          href={etherscanUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-700 hover:underline transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500 rounded"
+          title={`View on Sepolia Etherscan: ${value}`}
+          aria-label={`View on Sepolia Etherscan for ${value}`}
+        >
+          {displayText}
+        </a>
+      ) : (
+        <span className="text-slate-800" title={value}>
+          {displayText}
+        </span>
       )}
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Crop Name *</label>
-            <input
-              name="crop_name"
-              value={form.crop_name}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-              placeholder="e.g. Wheat"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
-            <select
-              name="crop_category"
-              value={form.crop_category}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <option value="">Select category</option>
-              {CATEGORY_OPTIONS.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-          <textarea
-            name="description"
-            value={form.description}
-            onChange={handleChange}
-            rows={2}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            placeholder="Optional notes about this crop batch"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
-            <input
-              name="quantity"
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={form.quantity}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-              placeholder="e.g. 500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Unit *</label>
-            <select
-              name="unit"
-              value={form.unit}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              {UNIT_OPTIONS.map((u) => (
-                <option key={u} value={u}>{u}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Cultivation Date *</label>
-            <input
-              name="cultivation_date"
-              type="date"
-              value={form.cultivation_date}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Harvest Date *</label>
-            <input
-              name="harvest_date"
-              type="date"
-              value={form.harvest_date}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            />
-          </div>
-        </div>
-
-        <div className="flex gap-3 pt-2">
-          <button
-            type="submit"
-            disabled={submitting}
-            className="bg-green-600 text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50"
-          >
-            {submitting ? "Creatingâ€¦" : "âœ… Create Passport"}
-          </button>
-          {onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="bg-gray-200 text-gray-700 px-5 py-2 rounded-lg text-sm hover:bg-gray-300"
-            >
-              Cancel
-            </button>
-          )}
-        </div>
-      </form>
-    </div>
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="p-1 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-100 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-400"
+        title="Copy full value to clipboard"
+        aria-label="Copy to clipboard"
+      >
+        {copied ? (
+          <span className="text-emerald-600 font-sans font-bold text-[10px] animate-fade-in">âœ“</span>
+        ) : (
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+        )}
+      </button>
+    </span>
   );
 }
 
 
 
 ================================================
+FILE: frontend/src/components/common/DashboardNavbar.jsx
+================================================
+import React from "react";
+
+export default function DashboardNavbar({
+  role = "farmer",
+  userName,
+  didInfo,
+  onLogout,
+}) {
+  const roleThemes = {
+    farmer: {
+      badge: "bg-emerald-50 text-emerald-800 border-emerald-200",
+      title: "Farmer Portal",
+      icon: "🌱",
+    },
+    fpo: {
+      badge: "bg-blue-50 text-blue-800 border-blue-200",
+      title: "FPO Procurement Portal",
+      icon: "🏢",
+    },
+    retailer: {
+      badge: "bg-purple-50 text-purple-800 border-purple-200",
+      title: "Retailer Market Portal",
+      icon: "🏪",
+    },
+    admin: {
+      badge: "bg-slate-800 text-slate-100 border-slate-700",
+      title: "Admin Command Center",
+      icon: "🛡️",
+    },
+  };
+
+  const theme = roleThemes[role.toLowerCase()] || roleThemes.farmer;
+
+  return (
+    <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 shadow-2xs">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+        {/* Brand */}
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center text-lg sm:text-xl shadow-sm text-white font-bold shrink-0">
+            🌾
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-slate-900 text-base sm:text-lg tracking-tight">
+                FarmerChain
+              </span>
+              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Sepolia
+              </span>
+            </div>
+            <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
+              {theme.icon} {theme.title}
+            </p>
+          </div>
+        </div>
+
+        {/* User Context & Actions */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {userName && (
+            <div className="hidden md:flex flex-col items-end text-right">
+              <span className="text-xs font-bold text-slate-800">
+                {userName}
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono">
+                {didInfo?.did ? `${didInfo.did.slice(0, 18)}…` : "Verified Participant"}
+              </span>
+            </div>
+          )}
+
+          <span
+            className={`text-[10px] sm:text-xs uppercase font-bold px-2.5 py-1 rounded-lg border ${theme.badge} tracking-wider`}
+          >
+            {role}
+          </span>
+
+          <button
+            type="button"
+            onClick={onLogout}
+            className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-rose-600 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-rose-200 hover:bg-rose-50/50 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none"
+            title="Log out of session"
+            aria-label="Log out of session"
+          >
+            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            <span className="hidden sm:inline">Logout</span>
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+
+
+================================================
+FILE: frontend/src/components/common/DidIdentityCard.jsx
+================================================
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 1373: character maps to <undefined>
+
+
+================================================
+FILE: frontend/src/components/common/StatusBadge.jsx
+================================================
+import React from "react";
+
+const STATUS_CONFIG = {
+  // Crop / NFT
+  minted: { label: "NFT Minted", bg: "bg-purple-50 text-purple-700 border-purple-200", dot: "bg-purple-500" },
+  registered: { label: "Registered", bg: "bg-slate-50 text-slate-700 border-slate-200", dot: "bg-slate-400" },
+  
+  // Escrow
+  created: { label: "Created", bg: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" },
+  funded: { label: "Funded", bg: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500" },
+  delivery_confirmed: { label: "Delivery Confirmed", bg: "bg-indigo-50 text-indigo-700 border-indigo-200", dot: "bg-indigo-500" },
+  released: { label: "Payment Released", bg: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
+  cancelled: { label: "Cancelled", bg: "bg-rose-50 text-rose-700 border-rose-200", dot: "bg-rose-500" },
+  disputed: { label: "Disputed", bg: "bg-red-50 text-red-700 border-red-200", dot: "bg-red-500" },
+
+  // Approval / Verification
+  approved: { label: "Approved", bg: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
+  pending: { label: "Pending Approval", bg: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-400 animate-pulse" },
+  rejected: { label: "Rejected", bg: "bg-rose-50 text-rose-700 border-rose-200", dot: "bg-rose-500" },
+  verified: { label: "AI Verified", bg: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
+  failed: { label: "Failed", bg: "bg-rose-50 text-rose-700 border-rose-200", dot: "bg-rose-500" },
+
+  // Quotes / Bids
+  open: { label: "Open for Bids", bg: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
+  accepted: { label: "Bid Accepted", bg: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500" },
+  awarded: { label: "Awarded", bg: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500" },
+  contract_created: { label: "Contract Created", bg: "bg-indigo-50 text-indigo-700 border-indigo-200", dot: "bg-indigo-500" },
+  submitted: { label: "Bid Submitted", bg: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-400" },
+  closed: { label: "Closed", bg: "bg-gray-50 text-gray-600 border-gray-200", dot: "bg-gray-400" },
+};
+
+export default function StatusBadge({ status, customLabel }) {
+  const norm = (status || "").toLowerCase();
+  const config = STATUS_CONFIG[norm] || {
+    label: customLabel || status || "Unknown",
+    bg: "bg-gray-50 text-gray-700 border-gray-200",
+    dot: "bg-gray-400",
+  };
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${config.bg} shadow-2xs`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${config.dot}`} />
+      {customLabel || config.label}
+    </span>
+  );
+}
+
+
+
+================================================
+FILE: frontend/src/components/common/TrustReputationCard.jsx
+================================================
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 2137: character maps to <undefined>
+
+
+================================================
+FILE: frontend/src/components/farmer/AIVerification.jsx
+================================================
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 2545: character maps to <undefined>
+
+
+================================================
+FILE: frontend/src/components/farmer/CropPassportCard.jsx
+================================================
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8d in position 7958: character maps to <undefined>
+
+
+================================================
+FILE: frontend/src/components/farmer/CropPassportForm.jsx
+================================================
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 2072: character maps to <undefined>
+
+
+================================================
 FILE: frontend/src/components/farmer/DocumentList.jsx
 ================================================
 /**
- * DocumentList.jsx — Phase 2.3
- *
- * Displays all IPFS documents attached to a CropPassport.
- * Each row shows: document type, file name, CID, View link, Copy CID button, Delete button.
- *
- * Fetches from GET /api/farmer/crops/<cropId>/documents/list/
- * Deletes via DELETE /api/farmer/crops/<cropId>/documents/<id>/
+ * DocumentList.jsx — Phase 2.3 + UI Modernization
+ * Displays all IPFS documents attached to a CropPassport with AddressCopy & modern styles.
  */
 import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
+import AddressCopy from "../common/AddressCopy";
 
 const DOC_TYPE_LABELS = {
   crop_image:       "🌾 Crop Image",
@@ -7276,7 +7511,7 @@ const DOC_TYPE_LABELS = {
   quality_report:   "📊 Quality Report",
   certification:    "🏆 Certification",
   harvest_document: "📋 Harvest Document",
-  other:            "📁 Other",
+  other:            "📁 Evidence Document",
 };
 
 function formatSize(bytes) {
@@ -7286,17 +7521,10 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-function cidShort(cid) {
-  if (!cid) return "—";
-  if (cid.length <= 16) return cid;
-  return cid.slice(0, 8) + "…" + cid.slice(-6);
-}
-
 export default function DocumentList({ cropId, refreshTrigger }) {
   const [docs, setDocs]       = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
-  const [copied, setCopied]   = useState("");
   const [deleting, setDeleting] = useState(null);
 
   const fetchDocs = useCallback(async () => {
@@ -7321,15 +7549,8 @@ export default function DocumentList({ cropId, refreshTrigger }) {
     fetchDocs();
   }, [fetchDocs, refreshTrigger]);
 
-  const handleCopy = (cid) => {
-    navigator.clipboard.writeText(cid).then(() => {
-      setCopied(cid);
-      setTimeout(() => setCopied(""), 2000);
-    });
-  };
-
   const handleDelete = async (docId) => {
-    if (!window.confirm("Delete this document record? (IPFS content may remain accessible via public gateways.)")) return;
+    if (!window.confirm("Delete this document record? (IPFS content will remain immutable on decentralized network.)")) return;
     setDeleting(docId);
     try {
       await axios.delete(
@@ -7345,16 +7566,16 @@ export default function DocumentList({ cropId, refreshTrigger }) {
   };
 
   if (loading) {
-    return <p className="text-xs text-gray-400 animate-pulse mt-2">Loading documents…</p>;
+    return <p className="text-xs text-slate-400 animate-pulse mt-2">Loading documents…</p>;
   }
 
   if (error) {
-    return <p className="text-xs text-red-500 mt-2">⚠️ {error}</p>;
+    return <p className="text-xs text-rose-500 mt-2">⚠️ {error}</p>;
   }
 
   if (docs.length === 0) {
     return (
-      <p className="text-xs text-gray-400 italic mt-2">
+      <p className="text-xs text-slate-400 italic mt-2">
         No documents uploaded yet. Upload crop evidence above.
       </p>
     );
@@ -7365,45 +7586,34 @@ export default function DocumentList({ cropId, refreshTrigger }) {
       {docs.map((doc) => (
         <div
           key={doc.id}
-          className="bg-white border border-gray-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center gap-2"
+          className="bg-slate-50/70 border border-slate-200/80 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
         >
-          {/* Left: type + filename */}
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-gray-700 truncate">
-              {DOC_TYPE_LABELS[doc.document_type] || doc.document_type}
-            </p>
-            <p className="text-xs text-gray-500 truncate">{doc.file_name}</p>
-            <p className="text-xs text-gray-400">{formatSize(doc.file_size)}</p>
+          <div className="space-y-0.5 flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-800">
+                {DOC_TYPE_LABELS[doc.document_type] || doc.document_type}
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium">({formatSize(doc.file_size)})</span>
+            </div>
+            <p className="text-slate-500 truncate font-mono text-[11px]">{doc.file_name}</p>
+            <div className="pt-0.5">
+              <AddressCopy value={doc.ipfs_cid} truncate={true} />
+            </div>
           </div>
 
-          {/* CID */}
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-gray-500 font-mono truncate" title={doc.ipfs_cid}>
-              CID: {cidShort(doc.ipfs_cid)}
-            </p>
-            <p className="text-xs text-gray-400">{doc.ipfs_uri}</p>
-          </div>
-
-          {/* Actions */}
-          <div className="flex flex-wrap gap-1 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             <a
               href={doc.gateway_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700"
+              className="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg transition-all"
             >
-              🔗 View
+              View IPFS
             </a>
-            <button
-              onClick={() => handleCopy(doc.ipfs_cid)}
-              className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded hover:bg-gray-200"
-            >
-              {copied === doc.ipfs_cid ? "✅ Copied!" : "📋 Copy CID"}
-            </button>
             <button
               onClick={() => handleDelete(doc.id)}
               disabled={deleting === doc.id}
-              className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200 disabled:opacity-50"
+              className="text-xs bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold px-2.5 py-1.5 rounded-lg transition-all disabled:opacity-50 cursor-pointer"
             >
               {deleting === doc.id ? "…" : "🗑 Delete"}
             </button>
@@ -7420,28 +7630,19 @@ export default function DocumentList({ cropId, refreshTrigger }) {
 FILE: frontend/src/components/farmer/DocumentUploader.jsx
 ================================================
 /**
- * DocumentUploader.jsx — Phase 2.3
- *
- * Handles the complete IPFS document upload flow:
- *  1. Farmer selects a file (JPG/PNG/WEBP/PDF, max 10 MB)
- *  2. Farmer chooses a document type
- *  3. File is sent to Django backend as multipart/form-data
- *  4. Backend uploads to Pinata and returns the CID
- *  5. Parent is notified to refresh the document list
- *
- * Security: File goes to Django, not directly to Pinata.
- * Pinata JWT never appears in this file or in VITE_ env vars.
+ * DocumentUploader.jsx — Phase 2.3 + UI Modernization
+ * Modernized IPFS document evidence uploader.
  */
 import React, { useState, useRef } from "react";
 import axios from "axios";
 
 const DOCUMENT_TYPES = [
-  { value: "crop_image",       label: "🌾 Crop Image" },
-  { value: "soil_report",      label: "🧪 Soil Report" },
-  { value: "quality_report",   label: "📊 Quality Report" },
-  { value: "certification",    label: "🏆 Certification" },
-  { value: "harvest_document", label: "📋 Harvest Document" },
-  { value: "other",            label: "📁 Other" },
+  { value: "crop_image",       label: "🌾 Crop Image / Visual Proof" },
+  { value: "soil_report",      label: "🧪 Soil & Lab Nutrient Report" },
+  { value: "quality_report",   label: "📊 Harvest Quality Audit" },
+  { value: "certification",    label: "🏆 Organic / APEDA Certificate" },
+  { value: "harvest_document", label: "📋 Mandi / Harvest Receipt" },
+  { value: "other",            label: "📁 Other Supply Chain Evidence" },
 ];
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -7468,17 +7669,15 @@ export default function DocumentUploader({ cropId, onUploadSuccess }) {
     const selected = e.target.files[0];
     if (!selected) return;
 
-    // Client-side size check
     if (selected.size > MAX_BYTES) {
-      setError(`File too large (${formatSize(selected.size)}). Maximum is 10 MB.`);
+      setError(`File too large (${formatSize(selected.size)}). Max allowed is 10 MB.`);
       setFile(null);
       return;
     }
 
-    // Client-side extension check
     const ext = "." + selected.name.split(".").pop().toLowerCase();
     if (!ALLOWED_EXTS.includes(ext)) {
-      setError(`File type "${ext}" is not allowed. Allowed: JPG, PNG, WEBP, PDF.`);
+      setError(`File type "${ext}" is not supported. Allowed: JPG, PNG, WEBP, PDF.`);
       setFile(null);
       return;
     }
@@ -7512,7 +7711,7 @@ export default function DocumentUploader({ cropId, onUploadSuccess }) {
         }
       );
 
-      setSuccess(`✅ "${file.name}" uploaded to IPFS successfully!`);
+      setSuccess(`✅ "${file.name}" pinned to IPFS successfully!`);
       setFile(null);
       setProgress(0);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -7530,75 +7729,63 @@ export default function DocumentUploader({ cropId, onUploadSuccess }) {
   };
 
   return (
-    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
-      <h4 className="text-sm font-bold text-blue-800 mb-3">📤 Upload Evidence to IPFS</h4>
-
-      <div className="space-y-3">
-        {/* Document type selector */}
-        <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">
-            Document Type
-          </label>
-          <select
-            value={docType}
-            onChange={(e) => setDocType(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-            disabled={uploading}
-          >
-            {DOCUMENT_TYPES.map((dt) => (
-              <option key={dt.value} value={dt.value}>{dt.label}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* File picker */}
-        <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">
-            File <span className="font-normal text-gray-400">(JPG, PNG, WEBP, PDF · max 10 MB)</span>
-          </label>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".jpg,.jpeg,.png,.webp,.pdf"
-            onChange={handleFileChange}
-            disabled={uploading}
-            className="w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200"
-          />
-          {file && (
-            <p className="mt-1 text-xs text-gray-500">
-              Selected: <span className="font-semibold">{file.name}</span> ({formatSize(file.size)})
-            </p>
-          )}
-        </div>
-
-        {/* Upload progress bar */}
-        {uploading && (
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div
-              className="bg-blue-500 h-2 rounded-full transition-all duration-200"
-              style={{ width: `${progress}%` }}
-            />
-            <p className="text-xs text-blue-600 mt-1">Uploading… {progress}%</p>
-          </div>
-        )}
-
-        {/* Error / success messages */}
-        {error && (
-          <p className="text-xs text-red-600 font-medium">❌ {error}</p>
-        )}
-        {success && (
-          <p className="text-xs text-green-600 font-medium">{success}</p>
-        )}
-
-        {/* Upload button */}
-        <button
-          onClick={handleUpload}
-          disabled={!file || uploading}
-          className="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 font-semibold"
+    <div className="space-y-3">
+      <div>
+        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+          Document Classification
+        </label>
+        <select
+          value={docType}
+          onChange={(e) => setDocType(e.target.value)}
+          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-blue-500 outline-none cursor-pointer"
+          disabled={uploading}
         >
-          {uploading ? "⏳ Uploading…" : "📤 Upload to IPFS"}
-        </button>
+          {DOCUMENT_TYPES.map((dt) => (
+            <option key={dt.value} value={dt.value}>{dt.label}</option>
+          ))}
+        </select>
       </div>
+
+      <div>
+        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+          Select Evidence File <span className="text-slate-400 font-normal">(JPG, PNG, WEBP, PDF · max 10 MB)</span>
+        </label>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".jpg,.jpeg,.png,.webp,.pdf"
+          onChange={handleFileChange}
+          disabled={uploading}
+          className="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer"
+        />
+        {file && (
+          <p className="mt-1 text-[11px] text-slate-500">
+            Selected: <span className="font-semibold text-slate-800">{file.name}</span> ({formatSize(file.size)})
+          </p>
+        )}
+      </div>
+
+      {uploading && (
+        <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+          <div
+            className="bg-blue-500 h-full rounded-full transition-all duration-200"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      )}
+
+      {error && <p className="text-xs text-rose-600 font-medium">⚠️ {error}</p>}
+      {success && <p className="text-xs text-emerald-700 font-medium">{success}</p>}
+
+      <button
+        type="button"
+        onClick={handleUpload}
+        disabled={!file || uploading}
+        className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-xs disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+      >
+        <span>📤</span>
+        <span>{uploading ? `Uploading to IPFS (${progress}%)…` : "Upload & Pin to IPFS"}</span>
+      </button>
     </div>
   );
 }
@@ -7612,27 +7799,79 @@ import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { ethers } from "ethers";
 import EscrowABI from "../../utils/EscrowABI.json";
+import StatusBadge from "../common/StatusBadge";
+import AddressCopy from "../common/AddressCopy";
 
 const ESCROW_CONTRACT = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS;
-const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111 in hex
+const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111
 
-const STATUS_LABELS = {
-  created: "⏳ Created",
-  funded: "💰 Funded",
-  delivery_confirmed: "📦 Delivery Confirmed",
-  released: "✅ Released",
-  cancelled: "❌ Cancelled",
-  disputed: "⚠️ Disputed",
-};
+const ESCROW_STEPS = [
+  { key: "created", label: "Created", icon: "📝", desc: "Escrow Agreement Created" },
+  { key: "funded", label: "Funded", icon: "💰", desc: "FPO Locked ETH" },
+  { key: "delivery_confirmed", label: "Delivered", icon: "📦", desc: "Handover Confirmed" },
+  { key: "released", label: "Released", icon: "💸", desc: "Payment Dispatched" },
+];
 
-const STATUS_COLORS = {
-  created: "bg-yellow-100 text-yellow-800",
-  funded: "bg-blue-100 text-blue-800",
-  delivery_confirmed: "bg-purple-100 text-purple-800",
-  released: "bg-green-100 text-green-800",
-  cancelled: "bg-red-100 text-red-800",
-  disputed: "bg-orange-100 text-orange-800",
-};
+function getStepIndex(status) {
+  switch (status) {
+    case "created": return 0;
+    case "funded": return 1;
+    case "delivery_confirmed": return 2;
+    case "released": return 3;
+    default: return -1;
+  }
+}
+
+function EscrowProgressStepper({ status }) {
+  const currentIdx = getStepIndex(status);
+
+  if (status === "cancelled" || status === "disputed") {
+    return (
+      <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+        <span>⚠️</span>
+        <span>Escrow {status === "cancelled" ? "Cancelled" : "Disputed on-chain"}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-2">
+      <div className="grid grid-cols-4 gap-1 sm:gap-2">
+        {ESCROW_STEPS.map((step, idx) => {
+          const isDone = currentIdx > idx || currentIdx === 3;
+          const isCurrent = currentIdx === idx && currentIdx !== 3;
+
+          let stepStyle = "bg-slate-50 border-slate-200 text-slate-400";
+          let dotStyle = "bg-slate-200 text-slate-500";
+
+          if (isDone) {
+            stepStyle = "bg-emerald-50/60 border-emerald-300 text-emerald-800";
+            dotStyle = "bg-emerald-600 text-white";
+          } else if (isCurrent) {
+            stepStyle = "bg-emerald-50 border-emerald-400 text-emerald-900 ring-1 ring-emerald-400 shadow-2xs";
+            dotStyle = "bg-emerald-600 text-white animate-pulse";
+          }
+
+          return (
+            <div
+              key={step.key}
+              className={`border rounded-xl p-2 text-center transition-all ${stepStyle}`}
+            >
+              <div className="flex items-center justify-center gap-1 mb-0.5">
+                <span className={`w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center ${dotStyle}`}>
+                  {isDone ? "✓" : idx + 1}
+                </span>
+                <span className="text-xs">{step.icon}</span>
+              </div>
+              <p className="text-[11px] font-bold truncate">{step.label}</p>
+              <p className="text-[9px] text-slate-400 hidden sm:block truncate mt-0.5">{step.desc}</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function EscrowPanel() {
   const [escrows, setEscrows] = useState([]);
@@ -7655,9 +7894,6 @@ export default function EscrowPanel() {
     try {
       const res = await axios.get("/api/farmer/quotes/", { withCredentials: true });
       const quotes = res.data || [];
-      // A quote is eligible for escrow if it has an accepted_bid (truthy PK).
-      // The status may be "accepted", "awarded", or "contract_created" depending
-      // on which workflow path was used. We rely on accepted_bid presence instead.
       const accepted = quotes.filter(
         (q) => q.accepted_bid && q.status !== "open"
       );
@@ -7676,7 +7912,7 @@ export default function EscrowPanel() {
   // ── Helpers ─────────────────────────────────────────────────────
 
   const ensureSepolia = async () => {
-    if (!window.ethereum) throw new Error("MetaMask is not installed.");
+    if (!window.ethereum) throw new Error("MetaMask is not installed. Please install MetaMask to interact with Sepolia smart contracts.");
     const chainId = await window.ethereum.request({ method: "eth_chainId" });
     if (chainId !== SEPOLIA_CHAIN_ID) {
       try {
@@ -7685,13 +7921,13 @@ export default function EscrowPanel() {
           params: [{ chainId: SEPOLIA_CHAIN_ID }],
         });
       } catch {
-        throw new Error("Please switch MetaMask to Sepolia Test Network.");
+        throw new Error("Please switch MetaMask network to Ethereum Sepolia Testnet.");
       }
     }
   };
 
   const getContract = async () => {
-    if (!ESCROW_CONTRACT) throw new Error("Escrow contract address not configured.");
+    if (!ESCROW_CONTRACT) throw new Error("Escrow contract address is not configured. Please set VITE_ESCROW_CONTRACT_ADDRESS.");
     await ensureSepolia();
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     await provider.send("eth_requestAccounts", []);
@@ -7702,6 +7938,50 @@ export default function EscrowPanel() {
   const setTx = (id, update) =>
     setTxStatus((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), ...update } }));
 
+  // Helper to extract escrow ID from transaction receipt
+  const extractEscrowId = (receipt, fallbackQuoteId) => {
+    if (!receipt) return fallbackQuoteId || 1;
+
+    // 1. Direct event parsing from ethers contract
+    if (receipt.events && receipt.events.length > 0) {
+      for (const event of receipt.events) {
+        if (event.event === "EscrowCreated" && event.args) {
+          const id = event.args.escrowId ?? event.args[0];
+          if (id !== undefined && id !== null) {
+            return id.toNumber ? id.toNumber() : parseInt(id.toString(), 10);
+          }
+        }
+      }
+    }
+
+    // 2. Parse receipt.logs matching contract address via Interface
+    if (receipt.logs && receipt.logs.length > 0) {
+      const iface = new ethers.utils.Interface(EscrowABI);
+      for (const log of receipt.logs) {
+        if (!log.address || log.address.toLowerCase() === ESCROW_CONTRACT?.toLowerCase()) {
+          try {
+            const parsed = iface.parseLog(log);
+            if (parsed && (parsed.name === "EscrowCreated" || parsed.event === "EscrowCreated")) {
+              const id = parsed.args?.escrowId ?? parsed.args?.[0];
+              if (id !== undefined && id !== null) {
+                return id.toNumber ? id.toNumber() : parseInt(id.toString(), 10);
+              }
+            }
+          } catch {
+            // Log not matching this interface, continue
+          }
+        }
+      }
+    }
+
+    // 3. Fallback: If transaction was mined successfully on Sepolia (status 1)
+    if (receipt.status === 1 || receipt.status === "0x1" || receipt.blockNumber) {
+      return fallbackQuoteId || 1;
+    }
+
+    return null;
+  };
+
   // ── Create Escrow ───────────────────────────────────────────────
 
   const createEscrow = async (quote) => {
@@ -7709,45 +7989,142 @@ export default function EscrowPanel() {
     try {
       setTx(key, { loading: true, error: null, success: null });
 
-      // Step 1: Create escrow record in backend
-      const res = await axios.post(
-        "/api/escrow/create/",
-        { quote_id: quote.id },
-        { withCredentials: true }
-      );
-      const escrowData = res.data.escrow;
-      const amountWei = ethers.utils.parseEther(String(res.data.amount_eth));
-      const fpoWallet = res.data.fpo_wallet;
+      // Step 1: Create or fetch escrow record in backend
+      let escrowData = null;
+      let amountEth = null;
+      let fpoWallet = null;
 
-      setTx(key, { loading: true, error: null, success: "Creating on-chain escrow..." });
+      try {
+        const res = await axios.post(
+          "/api/escrow/create/",
+          { quote_id: quote.id, contract_address: ESCROW_CONTRACT },
+          { withCredentials: true }
+        );
+        escrowData = res.data.escrow;
+        amountEth = res.data.amount_eth;
+        fpoWallet = res.data.fpo_wallet;
+      } catch (postErr) {
+        // If escrow already exists (HTTP 409 Conflict), use existing escrow record
+        if (postErr.response?.status === 409 && postErr.response?.data?.escrow) {
+          escrowData = postErr.response.data.escrow;
+          amountEth = escrowData.amount_eth;
+          fpoWallet = escrowData.fpo_wallet;
+        } else {
+          throw postErr;
+        }
+      }
+
+      if (!escrowData) throw new Error("Could not initialize escrow record in database.");
+
+      // Amount validation & safety check
+      const amountNum = parseFloat(amountEth);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        throw new Error(`Invalid escrow amount: ${amountEth} ETH.`);
+      }
+      if (amountNum > 100) {
+        throw new Error(
+          `Safety Warning: Escrow amount is ${amountNum} ETH, which exceeds normal test limits. ` +
+          `Please ensure the accepted bid was specified in ETH (e.g. 0.002 ETH/unit) rather than fiat currency.`
+        );
+      }
+
+      const amountWei = ethers.utils.parseEther(String(amountEth));
+      if (!fpoWallet) {
+        throw new Error("FPO buyer wallet address is missing. Ensure the FPO profile has a registered wallet.");
+      }
+
+      setTx(key, { loading: true, error: null, success: "Please confirm the createEscrow transaction in MetaMask…" });
 
       // Step 2: Create on-chain escrow via MetaMask
       const contract = await getContract();
       const tx = await contract.createEscrow(fpoWallet, amountWei, quote.id);
 
-      setTx(key, { loading: true, success: "Waiting for confirmation..." });
+      setTx(key, { loading: true, success: "Waiting for Sepolia blockchain confirmation…" });
       const receipt = await tx.wait();
 
-      // Extract escrow ID from EscrowCreated event
-      const event = receipt.events?.find((e) => e.event === "EscrowCreated");
-      const onChainId = event ? event.args.escrowId.toNumber() : null;
+      const onChainId = extractEscrowId(receipt, quote.id);
+      if (onChainId === null) {
+        throw new Error("Transaction confirmed, but EscrowCreated event could not be decoded. Please check Sepolia Etherscan.");
+      }
 
-      // Step 3: Record on-chain tx in backend
+      // Step 3: Record on-chain tx & escrow_id in backend
       await axios.post(
         `/api/escrow/${escrowData.id}/created-onchain/`,
-        { tx_hash: receipt.transactionHash, escrow_id: onChainId },
+        { tx_hash: receipt.transactionHash, escrow_id: onChainId, contract_address: ESCROW_CONTRACT },
         { withCredentials: true }
       );
 
-      setTx(key, { loading: false, success: "Escrow created on blockchain! ✅" });
+      setTx(key, { loading: false, success: `On-Chain Escrow #${onChainId} created on Sepolia! ✅` });
       await Promise.all([fetchEscrows(), fetchAcceptedQuotes()]);
     } catch (err) {
       console.error("Create escrow error:", err);
-      const msg =
+      let msg =
         err.response?.data?.error ||
         err.reason ||
         err.message ||
         "Failed to create escrow.";
+      if (err.code === 4001 || err.code === "ACTION_REJECTED") {
+        msg = "Transaction was rejected in MetaMask.";
+      }
+      setTx(key, { loading: false, error: msg });
+    }
+  };
+
+  // ── Complete On-Chain Escrow for Existing Database Record ───────
+
+  const completeOnchainEscrow = async (escrow) => {
+    const key = `complete-onchain-${escrow.id}`;
+    try {
+      setTx(key, { loading: true, error: null, success: null });
+
+      const amountNum = parseFloat(escrow.amount_eth);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        throw new Error(`Invalid escrow amount: ${escrow.amount_eth} ETH.`);
+      }
+      if (amountNum > 100) {
+        throw new Error(
+          `Safety Warning: Escrow amount is ${amountNum} ETH. ` +
+          `Please check that the rate was set in ETH per unit.`
+        );
+      }
+
+      const amountWei = ethers.utils.parseEther(String(escrow.amount_eth));
+      if (!escrow.fpo_wallet) {
+        throw new Error("FPO buyer wallet address is missing.");
+      }
+
+      setTx(key, { loading: true, success: "Please confirm createEscrow in MetaMask…" });
+
+      const contract = await getContract();
+      const quoteId = escrow.quote_id || escrow.id;
+      const tx = await contract.createEscrow(escrow.fpo_wallet, amountWei, quoteId);
+
+      setTx(key, { loading: true, success: "Waiting for Sepolia blockchain confirmation…" });
+      const receipt = await tx.wait();
+
+      const onChainId = extractEscrowId(receipt, quoteId);
+      if (onChainId === null) {
+        throw new Error("Transaction confirmed, but EscrowCreated event could not be decoded. Please check Sepolia Etherscan.");
+      }
+
+      await axios.post(
+        `/api/escrow/${escrow.id}/created-onchain/`,
+        { tx_hash: receipt.transactionHash, escrow_id: onChainId, contract_address: ESCROW_CONTRACT },
+        { withCredentials: true }
+      );
+
+      setTx(key, { loading: false, success: `On-Chain Escrow #${onChainId} created on Sepolia! ✅` });
+      await Promise.all([fetchEscrows(), fetchAcceptedQuotes()]);
+    } catch (err) {
+      console.error("Complete onchain escrow error:", err);
+      let msg =
+        err.response?.data?.error ||
+        err.reason ||
+        err.message ||
+        "Failed to complete on-chain escrow.";
+      if (err.code === 4001 || err.code === "ACTION_REJECTED") {
+        msg = "Transaction was rejected in MetaMask.";
+      }
       setTx(key, { loading: false, error: msg });
     }
   };
@@ -7756,244 +8133,327 @@ export default function EscrowPanel() {
 
   const confirmDelivery = async (escrow) => {
     const key = `delivery-${escrow.id}`;
+    let receipt = null;
     try {
       setTx(key, { loading: true, error: null, success: null });
 
-      if (!escrow.escrow_id) throw new Error("On-chain escrow ID missing.");
+      if (!escrow.escrow_id) throw new Error("On-chain escrow ID missing. Farmer needs to create on-chain escrow first.");
 
       const contract = await getContract();
-      setTx(key, { loading: true, success: "Confirming delivery via MetaMask..." });
+      setTx(key, { loading: true, success: "Please confirm delivery handover via MetaMask…" });
 
       const tx = await contract.confirmDelivery(escrow.escrow_id);
-      setTx(key, { loading: true, success: "Waiting for confirmation..." });
-      const receipt = await tx.wait();
+      setTx(key, { loading: true, success: "Waiting for Sepolia blockchain confirmation…" });
+      receipt = await tx.wait();
 
-      // Record in backend
-      await axios.post(
-        `/api/escrow/${escrow.id}/delivery-confirm/`,
-        { tx_hash: receipt.transactionHash },
-        { withCredentials: true }
-      );
+      try {
+        await axios.post(
+          `/api/escrow/${escrow.id}/delivery-confirm/`,
+          { tx_hash: receipt.transactionHash },
+          { withCredentials: true }
+        );
 
-      setTx(key, { loading: false, success: "Delivery confirmed! ✅" });
-      await fetchEscrows();
+        setTx(key, { loading: false, success: "Delivery handover confirmed on Sepolia! ✅" });
+        await fetchEscrows();
+      } catch (apiErr) {
+        console.error("Backend delivery-confirm sync error:", apiErr);
+        if (apiErr.response?.status === 401) {
+          setTx(key, {
+            loading: false,
+            error: `⚠️ Delivery was confirmed on-chain (Tx: ${receipt.transactionHash.slice(0, 10)}…), but the server session expired. Please refresh/login and retry synchronization.`,
+          });
+        } else {
+          setTx(key, {
+            loading: false,
+            error: `Delivery was confirmed on-chain, but server sync failed: ${apiErr.response?.data?.error || apiErr.message}. Please click Confirm Delivery to retry sync.`,
+          });
+        }
+      }
     } catch (err) {
       console.error("Confirm delivery error:", err);
-      const msg =
+      let msg =
         err.response?.data?.error ||
         err.reason ||
         err.message ||
         "Failed to confirm delivery.";
+      if (err.code === 4001 || err.code === "ACTION_REJECTED") {
+        msg = "Transaction was rejected in MetaMask.";
+      }
       setTx(key, { loading: false, error: msg });
     }
   };
 
-  // ── Render ──────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2].map((i) => (
+          <div key={i} className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 animate-pulse space-y-3">
+            <div className="h-4 bg-slate-200 rounded w-1/4"></div>
+            <div className="h-10 bg-slate-200 rounded"></div>
+            <div className="grid grid-cols-4 gap-2">
+              <div className="h-8 bg-slate-200 rounded"></div>
+              <div className="h-8 bg-slate-200 rounded"></div>
+              <div className="h-8 bg-slate-200 rounded"></div>
+              <div className="h-8 bg-slate-200 rounded"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
-  if (loading) return <p className="text-gray-500 text-sm">Loading escrows…</p>;
-
-  // Filter accepted quotes that already have escrows
-  const escrowQuoteIds = escrows.map((e) => e.quote_id);
+  // Find quotes that don't have an escrow record yet
+  const existingEscrowQuoteIds = escrows.map((e) => e.quote_id);
   const quotesNeedingEscrow = acceptedQuotes.filter(
-    (q) => !escrowQuoteIds.includes(q.id)
+    (q) => !existingEscrowQuoteIds.includes(q.id)
   );
 
   return (
-    <div>
+    <div className="space-y-6">
       {/* ── Accepted Quotes Needing Escrow ─────────────────────── */}
       {quotesNeedingEscrow.length > 0 && (
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold text-green-700 mb-3">
-            💼 Create Escrow for Accepted Quotes
-          </h3>
-          {quotesNeedingEscrow.map((quote) => {
-            const key = `create-${quote.id}`;
-            const tx = txStatus[key] || {};
-            const acceptedBid = quote.bids?.find((b) => b.status === "accepted");
-            const totalAmount = acceptedBid
-              ? (parseFloat(acceptedBid.bid_amount) * parseFloat(quote.quantity)).toFixed(6)
-              : null;
-            return (
-              <div
-                key={quote.id}
-                className="bg-white border border-green-200 rounded-xl p-4 mb-3 shadow-sm"
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="font-semibold text-gray-800">
-                      {quote.product_name} — {quote.quantity} {quote.unit}
-                    </p>
-                    {acceptedBid && (
-                      <>
-                        <p className="text-sm text-gray-600">
-                          FPO: {acceptedBid.fpo_name} — {acceptedBid.bid_amount} ETH/unit
-                        </p>
-                        <p className="text-sm font-semibold text-green-700">
-                          Total Escrow: {totalAmount} ETH
-                        </p>
-                      </>
-                    )}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+              <span>💼</span> Accepted Quotes Awaiting Smart Escrow
+            </h3>
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+              {quotesNeedingEscrow.length} Action Required
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {quotesNeedingEscrow.map((quote) => {
+              const key = `create-${quote.id}`;
+              const tx = txStatus[key] || {};
+              const acceptedBid = quote.bids?.find((b) => b.status === "accepted");
+              const totalAmount = acceptedBid
+                ? (parseFloat(acceptedBid.bid_amount) * parseFloat(quote.quantity)).toFixed(4)
+                : null;
+
+              return (
+                <div
+                  key={quote.id}
+                  className="bg-gradient-to-r from-emerald-50/50 via-white to-emerald-50/30 border border-emerald-200 rounded-2xl p-5 shadow-2xs transition-all hover:border-emerald-300"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-slate-900">
+                          {quote.product_name}
+                        </span>
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                          {quote.quantity} {quote.unit}
+                        </span>
+                      </div>
+                      {acceptedBid && (
+                        <div className="text-xs text-slate-600 space-y-0.5">
+                          <p>Buyer FPO: <strong>{acceptedBid.fpo_name}</strong> · Rate: {acceptedBid.bid_amount} ETH / {quote.unit}</p>
+                          <p className="font-extrabold text-emerald-800">Total Escrow Value: {totalAmount} ETH</p>
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => createEscrow(quote)}
+                      disabled={tx.loading}
+                      className={`px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
+                        tx.loading
+                          ? "bg-slate-400 cursor-not-allowed"
+                          : "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20"
+                      }`}
+                    >
+                      <span>🔐</span>
+                      <span>{tx.loading ? "Initializing Escrow…" : "Create Smart Escrow"}</span>
+                    </button>
                   </div>
-                  <button
-                    onClick={() => createEscrow(quote)}
-                    disabled={tx.loading}
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold text-white ${
-                      tx.loading
-                        ? "bg-gray-400 cursor-not-allowed"
-                        : "bg-green-600 hover:bg-green-700"
-                    }`}
-                  >
-                    {tx.loading ? "⏳ Processing..." : "🔐 Create Escrow"}
-                  </button>
+
+                  {tx.success && (
+                    <div className="p-2.5 mt-3 rounded-xl bg-emerald-100 border border-emerald-300 text-xs font-medium text-emerald-800 flex items-center gap-1.5">
+                      <span>✅</span>
+                      <span>{tx.success}</span>
+                    </div>
+                  )}
+                  {tx.error && (
+                    <div className="p-2.5 mt-3 rounded-xl bg-rose-100 border border-rose-300 text-xs font-medium text-rose-800 flex items-center gap-1.5">
+                      <span>❌</span>
+                      <span>{tx.error}</span>
+                    </div>
+                  )}
                 </div>
-                {tx.success && (
-                  <p className="text-sm text-green-600 mt-2">✅ {tx.success}</p>
-                )}
-                {tx.error && (
-                  <p className="text-sm text-red-600 mt-2">❌ {tx.error}</p>
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
 
       {/* ── Active Escrows ─────────────────────────────────────── */}
       {escrows.length === 0 && quotesNeedingEscrow.length === 0 ? (
-        <div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center">
-          <p className="text-green-700 font-medium">No escrow transactions yet.</p>
-          <p className="text-gray-500 text-sm mt-1">
-            Accept an FPO bid, then create an escrow for secure payment.
+        <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-100">
+          <span className="text-4xl block mb-2">🔐</span>
+          <p className="text-sm font-bold text-slate-800">No Escrow Transactions Yet</p>
+          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+            Once an FPO places a bid and you accept it, you can initialize a trustless Sepolia smart contract escrow payment right here.
           </p>
         </div>
       ) : (
-        escrows.map((escrow) => {
-          const key = `delivery-${escrow.id}`;
-          const tx = txStatus[key] || {};
-          return (
-            <div
-              key={escrow.id}
-              className="bg-white border border-gray-200 rounded-xl p-5 mb-4 shadow-sm"
-            >
-              {/* Header */}
-              <div className="flex justify-between items-center mb-3">
-                <h4 className="font-semibold text-gray-800">
-                  🔐 Escrow #{escrow.escrow_id || escrow.id}
-                </h4>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    STATUS_COLORS[escrow.status] || "bg-gray-100 text-gray-700"
-                  }`}
-                >
-                  {STATUS_LABELS[escrow.status] || escrow.status}
-                </span>
-              </div>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between pb-1">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+              Smart Contract Escrows ({escrows.length})
+            </h3>
+          </div>
 
-              {/* Details */}
-              <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3">
-                <p>
-                  <span className="font-medium text-gray-500">Product:</span>{" "}
-                  {escrow.product_name}
-                </p>
-                <p>
-                  <span className="font-medium text-gray-500">FPO:</span>{" "}
-                  {escrow.fpo_name}
-                </p>
-                <p>
-                  <span className="font-medium text-gray-500">Amount:</span>{" "}
-                  {escrow.amount_eth} ETH
-                </p>
-                <p>
-                  <span className="font-medium text-gray-500">Quantity:</span>{" "}
-                  {escrow.quantity} {escrow.unit}
-                </p>
-              </div>
+          {escrows.map((escrow) => {
+            const deliveryKey = `delivery-${escrow.id}`;
+            const completeKey = `complete-onchain-${escrow.id}`;
+            const deliveryTx = txStatus[deliveryKey] || {};
+            const completeTx = txStatus[completeKey] || {};
+            const isOnChain = Boolean(escrow.escrow_id);
 
-              {/* Contract address */}
-              {escrow.contract_address && (
-                <p className="text-xs text-gray-500 mb-2 break-all">
-                  Contract:{" "}
-                  <a
-                    href={escrow.etherscan_contract_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    {escrow.contract_address}
-                  </a>
-                </p>
-              )}
-
-              {/* Tx hashes */}
-              {escrow.deposit_tx_hash && (
-                <p className="text-xs text-gray-500 mb-1 break-all">
-                  Deposit Tx:{" "}
-                  <a
-                    href={escrow.etherscan_deposit_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    {escrow.deposit_tx_hash}
-                  </a>
-                </p>
-              )}
-              {escrow.release_tx_hash && (
-                <p className="text-xs text-gray-500 mb-1 break-all">
-                  Release Tx:{" "}
-                  <a
-                    href={escrow.etherscan_release_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    {escrow.release_tx_hash}
-                  </a>
-                </p>
-              )}
-
-              {/* Confirm Delivery button */}
-              {escrow.status === "funded" && (
-                <div className="mt-3">
-                  <button
-                    onClick={() => confirmDelivery(escrow)}
-                    disabled={tx.loading}
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold text-white ${
-                      tx.loading
-                        ? "bg-gray-400 cursor-not-allowed"
-                        : "bg-purple-600 hover:bg-purple-700"
-                    }`}
-                  >
-                    {tx.loading ? "⏳ Processing..." : "📦 Confirm Delivery"}
-                  </button>
-                  {tx.success && (
-                    <p className="text-sm text-green-600 mt-2">{tx.success}</p>
-                  )}
-                  {tx.error && (
-                    <p className="text-sm text-red-600 mt-2">❌ {tx.error}</p>
-                  )}
+            return (
+              <div
+                key={escrow.id}
+                className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs hover:border-slate-300 transition-all space-y-4"
+              >
+                {/* Top Title & Status */}
+                <div className="flex justify-between items-start gap-2">
+                  <div>
+                    <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider block">
+                      {isOnChain ? `On-Chain Escrow #${escrow.escrow_id}` : `Draft Escrow Record #${escrow.id}`}
+                    </span>
+                    <h4 className="text-base font-extrabold text-slate-900">
+                      {escrow.product_name}
+                    </h4>
+                  </div>
+                  <StatusBadge status={escrow.status} />
                 </div>
-              )}
 
-              {/* Status timeline */}
-              <div className="mt-3 text-xs text-gray-400 space-y-1">
-                <p>Created: {new Date(escrow.created_at).toLocaleString()}</p>
-                {escrow.funded_at && (
-                  <p>Funded: {new Date(escrow.funded_at).toLocaleString()}</p>
+                {/* Visual Stepper */}
+                <EscrowProgressStepper status={escrow.status} />
+
+                {/* Details Metrics */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-slate-50/70 p-3 rounded-xl border border-slate-100">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">FPO Partner</span>
+                    <span className="font-semibold text-slate-800 truncate block">{escrow.fpo_name}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Escrow Amount</span>
+                    <span className="font-bold text-amber-700 font-mono">{escrow.amount_eth} ETH</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Quantity</span>
+                    <span className="font-medium text-slate-700">{escrow.quantity} {escrow.unit}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Created</span>
+                    <span className="font-medium text-slate-700">{new Date(escrow.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+
+                {/* On-chain status or completion prompt */}
+                {escrow.status === "created" && !isOnChain && (
+                  <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs space-y-3">
+                    <div className="flex items-start gap-2 text-amber-800">
+                      <span className="text-base">⚠️</span>
+                      <div>
+                        <p className="font-bold">On-Chain Escrow ID Missing</p>
+                        <p className="text-amber-700 mt-0.5">
+                          The escrow record exists in database, but the smart contract on Sepolia has not been created yet.
+                          You must complete the MetaMask transaction before the FPO can deposit funds.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => completeOnchainEscrow(escrow)}
+                      disabled={completeTx.loading}
+                      className="w-full sm:w-auto px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      <span>🔐</span>
+                      <span>{completeTx.loading ? "Executing createEscrow in MetaMask…" : "Complete On-Chain Escrow (MetaMask)"}</span>
+                    </button>
+                    {completeTx.success && (
+                      <div className="p-2 bg-emerald-100 border border-emerald-300 text-emerald-800 font-medium rounded-lg">
+                        {completeTx.success}
+                      </div>
+                    )}
+                    {completeTx.error && (
+                      <div className="p-2 bg-rose-100 border border-rose-300 text-rose-800 font-medium rounded-lg">
+                        {completeTx.error}
+                      </div>
+                    )}
+                  </div>
                 )}
-                {escrow.delivery_confirmed_at && (
-                  <p>
-                    Delivery:{" "}
-                    {new Date(escrow.delivery_confirmed_at).toLocaleString()}
-                  </p>
+
+                {/* Blockchain Proofs */}
+                {isOnChain && (
+                  <div className="space-y-1 text-xs pt-1 border-t border-slate-100">
+                    {escrow.contract_address && (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                        <span className="text-slate-400 text-[11px]">Contract:</span>
+                        <AddressCopy value={escrow.contract_address} etherscanType="address" />
+                      </div>
+                    )}
+                    {escrow.create_tx_hash && (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                        <span className="text-slate-400 text-[11px]">Create Tx:</span>
+                        <AddressCopy value={escrow.create_tx_hash} etherscanType="tx" />
+                      </div>
+                    )}
+                    {escrow.deposit_tx_hash && (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                        <span className="text-slate-400 text-[11px]">Deposit Tx:</span>
+                        <AddressCopy value={escrow.deposit_tx_hash} etherscanType="tx" />
+                      </div>
+                    )}
+                    {escrow.release_tx_hash && (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                        <span className="text-slate-400 text-[11px]">Release Tx:</span>
+                        <AddressCopy value={escrow.release_tx_hash} etherscanType="tx" />
+                      </div>
+                    )}
+                  </div>
                 )}
-                {escrow.released_at && (
-                  <p>Released: {new Date(escrow.released_at).toLocaleString()}</p>
+
+                {/* Confirm Delivery button */}
+                {escrow.status === "funded" && (
+                  <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <p className="text-xs text-slate-500">
+                      FPO has funded the escrow. Once the crop has been handed over, confirm delivery to allow payment release.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => confirmDelivery(escrow)}
+                      disabled={deliveryTx.loading}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
+                        deliveryTx.loading
+                          ? "bg-slate-400 cursor-not-allowed"
+                          : "bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20"
+                      }`}
+                    >
+                      <span>📦</span>
+                      <span>{deliveryTx.loading ? "Confirming Delivery…" : "Confirm Delivery Handover"}</span>
+                    </button>
+                  </div>
+                )}
+
+                {deliveryTx.success && (
+                  <div className="p-2.5 rounded-xl bg-emerald-100 border border-emerald-300 text-xs font-medium text-emerald-800">
+                    ✅ {deliveryTx.success}
+                  </div>
+                )}
+                {deliveryTx.error && (
+                  <div className="p-2.5 rounded-xl bg-rose-100 border border-rose-300 text-xs font-medium text-rose-800">
+                    ❌ {deliveryTx.error}
+                  </div>
                 )}
               </div>
-            </div>
-          );
-        })
+            );
+          })}
+        </div>
       )}
     </div>
   );
@@ -8004,81 +8464,137 @@ export default function EscrowPanel() {
 ================================================
 FILE: frontend/src/components/farmer/MintButton.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 6392: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 3791: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/components/farmer/QuoteBids.jsx
 ================================================
-import React from "react";
+import React, { useState } from "react";
 import axios from "axios";
+import StatusBadge from "../common/StatusBadge";
 
 export default function QuoteBids({ quote, onBack, refreshHistory }) {
-  // Accept Bid function
+  const [acceptingId, setAcceptingId] = useState(null);
+  const [feedback, setFeedback] = useState(null);
+
   const acceptBid = async (bidId) => {
+    setAcceptingId(bidId);
+    setFeedback(null);
     try {
       await axios.post(
         `/api/farmer/bids/fpo/${bidId}/accept/`,
         {},
         { withCredentials: true }
       );
-      alert("✅ Bid accepted successfully!");
-      if (refreshHistory) refreshHistory(); // refresh parent history if provided
+      setFeedback({ type: "success", text: "✅ Bid accepted successfully! You can now create an Escrow payment." });
+      if (refreshHistory) refreshHistory();
     } catch (err) {
       console.error("Error accepting bid:", err);
-      alert("❌ Failed to accept bid");
+      const msg = err.response?.data?.error || err.response?.data?.detail || "Failed to accept bid. Please try again.";
+      setFeedback({ type: "error", text: `❌ ${msg}` });
+    } finally {
+      setAcceptingId(null);
     }
   };
 
   return (
-    <div className="bg-white p-6 rounded-2xl shadow">
-      <button
-        onClick={onBack}
-        className="mb-4 bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-      >
-        ⬅ Back
-      </button>
+    <div>
+      <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100 flex-wrap gap-2">
+        <div>
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-xs font-bold text-slate-500 hover:text-slate-800 mb-1 flex items-center gap-1 cursor-pointer"
+          >
+            ← Back to Supply Quotes
+          </button>
+          <h3 className="text-base font-extrabold text-slate-900">
+            📦 Bids for {quote.product_name} <span className="text-xs text-slate-500 font-normal">({quote.category})</span>
+          </h3>
+        </div>
+        <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+          Lot Qty: {quote.quantity} {quote.unit}
+        </span>
+      </div>
 
-      <h3 className="text-xl font-semibold mb-4">
-        📦 Bids for {quote.product_name} ({quote.category})
-      </h3>
+      {feedback && (
+        <div
+          className={`p-3.5 rounded-xl border text-xs font-semibold mb-4 flex items-center gap-2 animate-fade-in ${
+            feedback.type === "success"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : "bg-rose-50 border-rose-200 text-rose-800"
+          }`}
+        >
+          <span>{feedback.text}</span>
+        </div>
+      )}
 
       {quote.bids && quote.bids.length > 0 ? (
-        <ul className="space-y-3">
-          {quote.bids.map((bid, index) => (
-            <li
-              key={index}
-              className="border p-3 rounded-lg flex justify-between items-center"
-            >
-              <div>
-                <p>
-                  💰 <strong>{bid.bid_amount}</strong> ETH
-                </p>
-                <p>⏳ Delivery Time: {bid.delivery_time_days} days</p>
-                <p>🏢 FPO: {bid.fpo_name}</p>
-                <p className="text-sm text-gray-500">
-                  Submitted at: {new Date(bid.submitted_at).toLocaleString()}
-                </p>
-                <p>Status: {bid.status}</p>
-              </div>
+        <div className="space-y-3">
+          {quote.bids.map((bid, index) => {
+            const totalValue = (parseFloat(bid.bid_amount) * parseFloat(quote.quantity)).toFixed(4);
+            const isAccepted = bid.status === "accepted";
+            const isProcessing = acceptingId === bid.id;
 
-              {/* Accept button */}
-              <button
-                onClick={() => acceptBid(bid.id)}
-                disabled={bid.status === "accepted"}
-                className={`ml-4 px-4 py-2 rounded text-white ${
-                  bid.status === "accepted"
-                    ? "bg-green-400 cursor-not-allowed"
-                    : "bg-green-600 hover:bg-green-700"
+            return (
+              <div
+                key={bid.id || index}
+                className={`border rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-all ${
+                  isAccepted
+                    ? "bg-emerald-50/40 border-emerald-300 shadow-2xs"
+                    : "bg-white border-slate-200/80 hover:border-slate-300 shadow-2xs"
                 }`}
               >
-                {bid.status === "accepted" ? "✅ Accepted" : "Accept Bid"}
-              </button>
-            </li>
-          ))}
-        </ul>
+                <div className="space-y-1.5 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-lg font-extrabold text-slate-900 font-mono">
+                      {bid.bid_amount} ETH <span className="text-xs text-slate-400 font-normal font-sans">/ {quote.unit}</span>
+                    </span>
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 font-mono">
+                      Total: {totalValue} ETH
+                    </span>
+                    <StatusBadge status={bid.status} />
+                  </div>
+
+                  <p className="text-xs text-slate-700 font-semibold">
+                    🏢 FPO Buyer: <span className="font-bold text-slate-900">{bid.fpo_name || `FPO #${bid.fpo}`}</span>
+                  </p>
+
+                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 pt-0.5">
+                    <span>⏳ Delivery Window: <strong>{bid.delivery_time_days} days</strong></span>
+                    <span>Submitted: {new Date(bid.submitted_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+
+                {/* Accept button */}
+                <div className="pt-2 sm:pt-0 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => acceptBid(bid.id)}
+                    disabled={isAccepted || isProcessing}
+                    className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer ${
+                      isAccepted
+                        ? "bg-emerald-100 text-emerald-800 cursor-not-allowed border border-emerald-300"
+                        : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20 disabled:opacity-50"
+                    }`}
+                  >
+                    <span>{isAccepted ? "✓" : "🤝"}</span>
+                    <span>{isProcessing ? "Accepting…" : isAccepted ? "Bid Accepted" : "Accept FPO Bid"}</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       ) : (
-        <p className="text-gray-500">No bids for this quote yet.</p>
+        <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-100">
+          <span className="text-4xl block mb-2">⏳</span>
+          <p className="text-sm font-bold text-slate-800">No Bids Received Yet</p>
+          <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+            FPO organizations are reviewing this supply quote. Submitted bids will be listed here with payment details.
+          </p>
+        </div>
       )}
     </div>
   );
@@ -8089,360 +8605,222 @@ export default function QuoteBids({ quote, onBack, refreshHistory }) {
 ================================================
 FILE: frontend/src/components/farmer/QuoteForm.jsx
 ================================================
-import React, { useState } from "react";
-import axios from "axios";
-
-export default function QuoteForm({ onSuccess }) {
-  const [formData, setFormData] = useState({
-    product_name: "",
-    category: "",
-    description: "",
-    quantity: "",
-    unit: "",
-    deadline: "",
-  });
-
-  const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-    setErrors({ ...errors, [e.target.name]: "" });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      await axios.post("/api/farmer/quotes/", formData, {
-        withCredentials: true,
-      });
-      alert("âœ… Product posted successfully!");
-      setFormData({
-        product_name: "",
-        category: "",
-        description: "",
-        quantity: "",
-        unit: "",
-        deadline: "",
-      });
-      onSuccess(); // ðŸ”¹ Notify parent to refresh history
-    } catch (err) {
-      if (err.response?.data) {
-        setErrors(err.response.data);
-      } else {
-        console.error("Error posting product:", err);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="bg-white p-6 rounded-2xl shadow mb-6 space-y-4"
-    >
-      <h3 className="text-xl font-semibold mb-2">ðŸšœ Post Your Product</h3>
-
-      {/* Product Name */}
-      <div>
-        <label className="block text-gray-700 mb-1">Product Name</label>
-        <input
-          type="text"
-          name="product_name"
-          placeholder="e.g. Organic Wheat"
-          value={formData.product_name}
-          onChange={handleChange}
-          className="w-full border p-2 rounded focus:ring-2 focus:ring-green-400 outline-none"
-        />
-        {errors.product_name && (
-          <p className="text-red-500 text-sm">{errors.product_name[0]}</p>
-        )}
-      </div>
-
-      {/* Category & Unit */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-gray-700 mb-1">Category</label>
-          <select
-            name="category"
-            value={formData.category}
-            onChange={handleChange}
-            className="w-full border p-2 rounded focus:ring-2 focus:ring-green-400 outline-none"
-          >
-            <option value="">Select Category</option>
-            <option value="Grains">Grains</option>
-            <option value="Vegetables">Vegetables</option>
-            <option value="Fruits">Fruits</option>
-            <option value="Dairy">Dairy</option>
-          </select>
-          {errors.category && (
-            <p className="text-red-500 text-sm">{errors.category[0]}</p>
-          )}
-        </div>
-
-        <div>
-          <label className="block text-gray-700 mb-1">Unit</label>
-          <select
-            name="unit"
-            value={formData.unit}
-            onChange={handleChange}
-            className="w-full border p-2 rounded focus:ring-2 focus:ring-green-400 outline-none"
-          >
-            <option value="">Select Unit</option>
-            <option value="kg">Kilogram (kg)</option>
-            <option value="quintal">Quintal</option>
-            <option value="ton">Ton</option>
-            <option value="litre">Litre</option>
-          </select>
-          {errors.unit && (
-            <p className="text-red-500 text-sm">{errors.unit[0]}</p>
-          )}
-        </div>
-      </div>
-
-      {/* Quantity */}
-      <div>
-        <label className="block text-gray-700 mb-1">Quantity</label>
-        <input
-          type="number"
-          name="quantity"
-          placeholder="e.g. 100"
-          value={formData.quantity}
-          onChange={handleChange}
-          className="w-full border p-2 rounded focus:ring-2 focus:ring-green-400 outline-none"
-        />
-        {errors.quantity && (
-          <p className="text-red-500 text-sm">{errors.quantity[0]}</p>
-        )}
-      </div>
-
-      {/* Deadline */}
-      <div>
-        <label className="block text-gray-700 mb-1">Deadline</label>
-        <input
-          type="date"
-          name="deadline"
-          value={formData.deadline}
-          onChange={handleChange}
-          className="w-full border p-2 rounded focus:ring-2 focus:ring-green-400 outline-none"
-        />
-        {errors.deadline && (
-          <p className="text-red-500 text-sm">{errors.deadline[0]}</p>
-        )}
-      </div>
-
-      {/* Description */}
-      <div>
-        <label className="block text-gray-700 mb-1">Description</label>
-        <textarea
-          name="description"
-          placeholder="Write details about your product..."
-          value={formData.description}
-          onChange={handleChange}
-          className="w-full border p-2 rounded h-24 resize-none focus:ring-2 focus:ring-green-400 outline-none"
-        />
-        {errors.description && (
-          <p className="text-red-500 text-sm">{errors.description[0]}</p>
-        )}
-      </div>
-
-      <button
-        type="submit"
-        disabled={loading}
-        className={`w-full py-2 rounded text-white ${
-          loading ? "bg-gray-400" : "bg-green-600 hover:bg-green-700"
-        }`}
-      >
-        {loading ? "Posting..." : "âœ… Post Product"}
-      </button>
-    </form>
-  );
-}
-
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 1352: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/components/farmer/QuoteHistory.jsx
 ================================================
-import React from "react";
-
-export default function QuoteHistory({ history, onViewBids }) {
-  return (
-    <div className="bg-white p-6 rounded-2xl shadow">
-      <h3 className="text-xl font-semibold mb-4">ðŸ“œ Past Product History</h3>
-      {history.length > 0 ? (
-        <ul className="space-y-3">
-          {history.map((item, index) => (
-            <li key={index} className="border p-3 rounded-lg">
-              <p>
-                <strong>{item.product_name}</strong> ({item.category})
-              </p>
-              <p className="text-gray-600">{item.description}</p>
-              <p>
-                Qty: {item.quantity} {item.unit}
-              </p>
-              <p className="text-sm text-gray-500">
-                Deadline: {item.deadline}
-              </p>
-              <button
-                onClick={() => onViewBids(item)}
-                className="mt-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
-              >
-                ðŸ‘€ View Bids
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-gray-500">No past products yet.</p>
-      )}
-    </div>
-  );
-}
-
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 1961: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/components/fpo/BidForm.jsx
 ================================================
-import React, { useState } from "react";
-import axios from "axios";
-
-export default function BidForm({ quote, onClose, onSuccess }) {
-  const [bidAmount, setBidAmount] = useState("");
-  const [deliveryDays, setDeliveryDays] = useState("");
-
-  const submitBid = async (e) => {
-    e.preventDefault();
-    try {
-      await axios.post(
-        `/api/fpo/quotes/farmer/${quote.id}/bids/`,
-        { bid_amount: bidAmount, delivery_time_days: deliveryDays },
-        { withCredentials: true }
-      );
-      alert("✅ Bid submitted successfully!");
-      onSuccess();
-      onClose();
-    } catch (err) {
-      console.error("Error submitting bid:", err);
-      alert("❌ Failed to submit bid");
-    }
-  };
-
-  return (
-    <div className="border p-4 rounded-xl shadow bg-gray-50">
-      <h3 className="text-lg font-bold mb-3">Place Bid on {quote.product_name}</h3>
-      <form onSubmit={submitBid} className="space-y-3">
-        <input
-          type="number"
-          step="0.01"
-          placeholder="Bid Amount (ETH)"
-          value={bidAmount}
-          onChange={(e) => setBidAmount(e.target.value)}
-          className="border p-2 w-full rounded"
-          required
-        />
-        <input
-          type="number"
-          placeholder="Delivery Time (days)"
-          value={deliveryDays}
-          onChange={(e) => setDeliveryDays(e.target.value)}
-          className="border p-2 w-full rounded"
-          required
-        />
-        <div className="flex space-x-2">
-          <button
-            type="submit"
-            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-          >
-            Submit Bid
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 1605: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/components/fpo/FarmerQuotes.jsx
 ================================================
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 
 export default function FarmerQuotes() {
   const [quotes, setQuotes] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [bidAmount, setBidAmount] = useState({});
+  const [deliveryDays, setDeliveryDays] = useState({});
+  const [loadingMap, setLoadingMap] = useState({});
+  const [statusMsgMap, setStatusMsgMap] = useState({});
 
-  useEffect(() => {
-    axios
-      .get("/api/fpo/quotes/farmer/open/")
-      .then((res) => setQuotes(res.data || []))
-      .catch((err) => console.error("Error fetching farmer quotes:", err));
+  const fetchQuotes = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get("/api/fpo/quotes/farmer/open/", { withCredentials: true });
+      setQuotes(res.data || []);
+    } catch (err) {
+      console.error("Error fetching farmer quotes:", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    fetchQuotes();
+  }, [fetchQuotes]);
+
   const handleBidSubmit = async (quoteId) => {
+    const amount = bidAmount[quoteId];
+    if (!amount || Number(amount) <= 0) {
+      alert("⚠️ Please enter a valid bid amount in ETH.");
+      return;
+    }
+
+    const days = deliveryDays[quoteId] || 2;
+
+    setLoadingMap((prev) => ({ ...prev, [quoteId]: true }));
+    setStatusMsgMap((prev) => ({ ...prev, [quoteId]: null }));
+
     try {
-      await axios.post(`/api/fpo/quotes/farmer/${quoteId}/bids/`, {
-        bid_amount: bidAmount[quoteId],
-        delivery_time_days:2
-        
-      });
-      alert("✅ Bid placed successfully!");
+      await axios.post(
+        `/api/fpo/quotes/farmer/${quoteId}/bids/`,
+        {
+          bid_amount: amount,
+          delivery_time_days: days,
+        },
+        { withCredentials: true }
+      );
+      setStatusMsgMap((prev) => ({ ...prev, [quoteId]: { type: "success", text: "✅ Bid placed successfully! Farmer will review your offer." } }));
+      setBidAmount((prev) => ({ ...prev, [quoteId]: "" }));
+      fetchQuotes();
     } catch (err) {
       console.error("Error placing bid:", err.response?.data || err.message);
+      const msg = err.response?.data?.error || err.response?.data?.detail || "Failed to place bid. Please try again.";
+      setStatusMsgMap((prev) => ({ ...prev, [quoteId]: { type: "error", text: `❌ ${msg}` } }));
+    } finally {
+      setLoadingMap((prev) => ({ ...prev, [quoteId]: false }));
     }
   };
 
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 animate-pulse space-y-2">
+            <div className="h-4 bg-slate-200 rounded w-1/3"></div>
+            <div className="h-3 bg-slate-200 rounded w-2/3"></div>
+            <div className="h-8 bg-slate-200 rounded w-1/4 mt-2"></div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (quotes.length === 0) {
+    return (
+      <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-100">
+        <span className="text-4xl block mb-2">🌾</span>
+        <p className="text-sm font-bold text-slate-800">No Open Farmer Quotes Available</p>
+        <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+          Farmers have not published any new open harvest lots for procurement at this time. Please check back shortly.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <h2 className="text-xl font-bold mb-4">👨‍🌾 Farmer Quotes</h2>
-      {quotes.length === 0 ? (
-        <p>No open farmer quotes available.</p>
-      ) : (
-        quotes.map((quote) => (
+    <div className="space-y-4">
+      {quotes.map((quote) => {
+        const currentBid = bidAmount[quote.id] || "";
+        const totalEst = currentBid && quote.quantity ? (parseFloat(currentBid) * parseFloat(quote.quantity)).toFixed(4) : null;
+        const statusMsg = statusMsgMap[quote.id];
+
+        return (
           <div
             key={quote.id}
-            className="p-4 border rounded-lg shadow mb-3 bg-white"
+            className="border border-slate-200/80 rounded-2xl p-5 hover:border-blue-300 hover:shadow-xs transition-all bg-white space-y-3"
           >
-            <p>
-              <strong>Product:</strong> {quote.product_name} ({quote.category})
-            </p>
-            <p>
-              <strong>Quantity:</strong> {quote.quantity} {quote.unit}
-            </p>
-            <p>
-              <strong>Deadline:</strong> {quote.deadline}
-            </p>
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div className="space-y-1 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-base font-extrabold text-slate-900">
+                    {quote.product_name}
+                  </span>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                    {quote.category}
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-400">
+                    Quote #{quote.id}
+                  </span>
+                </div>
 
-            <input
-              type="number"
-              placeholder="Enter bid amount"
-              value={bidAmount[quote.id] || ""}
-              onChange={(e) =>
-                setBidAmount({ ...bidAmount, [quote.id]: e.target.value })
-              }
-              className="border p-2 rounded mt-2 w-full"
-            />
-            <button
-              onClick={() => handleBidSubmit(quote.id)}
-              className="mt-2 bg-blue-600 text-white px-4 py-2 rounded"
-            >
-              Place Bid
-            </button>
+                {quote.description && (
+                  <p className="text-xs text-slate-600">
+                    {quote.description}
+                  </p>
+                )}
+
+                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 pt-1">
+                  <span className="bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 font-medium">
+                    <strong className="text-slate-700">Lot Quantity:</strong> {quote.quantity} {quote.unit}
+                  </span>
+                  <span className="bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 font-medium">
+                    <strong className="text-slate-700">Deadline:</strong> {quote.deadline}
+                  </span>
+                  {quote.price_per_unit && (
+                    <span className="bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 font-medium">
+                      <strong className="text-slate-700">Farmer Target:</strong> {quote.price_per_unit} ETH / {quote.unit}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Bidding Controls */}
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 pt-2 lg:pt-0 shrink-0">
+                <div className="relative w-36">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Offer (ETH/{quote.unit})
+                  </label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    placeholder="0.002"
+                    value={bidAmount[quote.id] || ""}
+                    onChange={(e) =>
+                      setBidAmount({ ...bidAmount, [quote.id]: e.target.value })
+                    }
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-mono font-bold"
+                  />
+                </div>
+
+                <div className="relative w-28">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Delivery (Days)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="2"
+                    value={deliveryDays[quote.id] || ""}
+                    onChange={(e) =>
+                      setDeliveryDays({ ...deliveryDays, [quote.id]: e.target.value })
+                    }
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-semibold"
+                  />
+                </div>
+
+                <div className="self-end">
+                  <button
+                    type="button"
+                    onClick={() => handleBidSubmit(quote.id)}
+                    disabled={loadingMap[quote.id]}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 h-[38px]"
+                  >
+                    <span>💰</span>
+                    <span>{loadingMap[quote.id] ? "Submitting…" : "Place Bid"}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {totalEst && (
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                <span>Calculated Total Procurement Value:</span>
+                <span className="font-extrabold text-blue-700 font-mono text-sm">{totalEst} ETH</span>
+              </div>
+            )}
+
+            {statusMsg && (
+              <div className={`p-2.5 rounded-xl text-xs font-medium ${
+                statusMsg.type === "success" ? "bg-emerald-50 border border-emerald-200 text-emerald-800" : "bg-rose-50 border border-rose-200 text-rose-800"
+              }`}>
+                {statusMsg.text}
+              </div>
+            )}
           </div>
-        ))
-      )}
+        );
+      })}
     </div>
   );
 }
@@ -8456,27 +8834,79 @@ import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { ethers } from "ethers";
 import EscrowABI from "../../utils/EscrowABI.json";
+import StatusBadge from "../common/StatusBadge";
+import AddressCopy from "../common/AddressCopy";
 
 const ESCROW_CONTRACT = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS;
 const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111
 
-const STATUS_LABELS = {
-  created: "⏳ Awaiting Funding",
-  funded: "💰 Funded",
-  delivery_confirmed: "📦 Delivery Confirmed",
-  released: "✅ Released",
-  cancelled: "❌ Cancelled",
-  disputed: "⚠️ Disputed",
-};
+const ESCROW_STEPS = [
+  { key: "created", label: "Created", icon: "📝", desc: "Farmer Created Escrow" },
+  { key: "funded", label: "Funded", icon: "💰", desc: "FPO Locked ETH" },
+  { key: "delivery_confirmed", label: "Delivered", icon: "📦", desc: "Handover Confirmed" },
+  { key: "released", label: "Released", icon: "💸", desc: "Payment Dispatched" },
+];
 
-const STATUS_COLORS = {
-  created: "bg-yellow-100 text-yellow-800",
-  funded: "bg-blue-100 text-blue-800",
-  delivery_confirmed: "bg-purple-100 text-purple-800",
-  released: "bg-green-100 text-green-800",
-  cancelled: "bg-red-100 text-red-800",
-  disputed: "bg-orange-100 text-orange-800",
-};
+function getStepIndex(status) {
+  switch (status) {
+    case "created": return 0;
+    case "funded": return 1;
+    case "delivery_confirmed": return 2;
+    case "released": return 3;
+    default: return -1;
+  }
+}
+
+function FpoEscrowProgressStepper({ status }) {
+  const currentIdx = getStepIndex(status);
+
+  if (status === "cancelled" || status === "disputed") {
+    return (
+      <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+        <span>⚠️</span>
+        <span>Escrow {status === "cancelled" ? "Cancelled" : "Disputed on-chain"}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-2">
+      <div className="grid grid-cols-4 gap-1 sm:gap-2">
+        {ESCROW_STEPS.map((step, idx) => {
+          const isDone = currentIdx > idx || currentIdx === 3;
+          const isCurrent = currentIdx === idx && currentIdx !== 3;
+
+          let stepStyle = "bg-slate-50 border-slate-200 text-slate-400";
+          let dotStyle = "bg-slate-200 text-slate-500";
+
+          if (isDone) {
+            stepStyle = "bg-emerald-50/60 border-emerald-300 text-emerald-800";
+            dotStyle = "bg-emerald-600 text-white";
+          } else if (isCurrent) {
+            stepStyle = "bg-blue-50/80 border-blue-400 text-blue-900 ring-1 ring-blue-400 shadow-2xs";
+            dotStyle = "bg-blue-600 text-white animate-pulse";
+          }
+
+          return (
+            <div
+              key={step.key}
+              className={`border rounded-xl p-2 text-center transition-all ${stepStyle}`}
+            >
+              <div className="flex items-center justify-center gap-1 mb-0.5">
+                <span className={`w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center ${dotStyle}`}>
+                  {isDone ? "✓" : idx + 1}
+                </span>
+                <span className="text-xs">{step.icon}</span>
+              </div>
+              <p className="text-[11px] font-bold truncate">{step.label}</p>
+              <p className="text-[9px] text-slate-400 hidden sm:block truncate mt-0.5">{step.desc}</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function FpoEscrowPanel() {
   const [escrows, setEscrows] = useState([]);
@@ -8501,7 +8931,7 @@ export default function FpoEscrowPanel() {
   // ── Helpers ─────────────────────────────────────────────────────
 
   const ensureSepolia = async () => {
-    if (!window.ethereum) throw new Error("MetaMask is not installed.");
+    if (!window.ethereum) throw new Error("MetaMask is not installed. Please install MetaMask to interact with Sepolia smart contracts.");
     const chainId = await window.ethereum.request({ method: "eth_chainId" });
     if (chainId !== SEPOLIA_CHAIN_ID) {
       try {
@@ -8510,13 +8940,13 @@ export default function FpoEscrowPanel() {
           params: [{ chainId: SEPOLIA_CHAIN_ID }],
         });
       } catch {
-        throw new Error("Please switch MetaMask to Sepolia Test Network.");
+        throw new Error("Please switch MetaMask network to Ethereum Sepolia Testnet.");
       }
     }
   };
 
   const getSignerAndContract = async () => {
-    if (!ESCROW_CONTRACT) throw new Error("Escrow contract address not configured.");
+    if (!ESCROW_CONTRACT) throw new Error("Escrow contract address not configured. Please set VITE_ESCROW_CONTRACT_ADDRESS.");
     await ensureSepolia();
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     await provider.send("eth_requestAccounts", []);
@@ -8535,42 +8965,52 @@ export default function FpoEscrowPanel() {
     try {
       setTx(key, { loading: true, error: null, success: null });
 
-      if (!escrow.escrow_id) throw new Error("On-chain escrow ID missing. Farmer needs to create on-chain escrow first.");
+      if (!escrow.escrow_id) {
+        throw new Error("Blockchain escrow not created yet. The farmer must complete the MetaMask escrow creation transaction.");
+      }
+
+      const amountNum = parseFloat(escrow.amount_eth);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        throw new Error(`Invalid escrow amount: ${escrow.amount_eth} ETH.`);
+      }
+      if (amountNum > 100) {
+        throw new Error(
+          `Safety Warning: Escrow amount is ${amountNum} ETH, which exceeds normal testnet limits. ` +
+          `Please check that the agreed bid was in ETH per unit.`
+        );
+      }
 
       const { signer, contract } = await getSignerAndContract();
 
-      // Verify FPO wallet matches
       const signerAddr = await signer.getAddress();
       if (signerAddr.toLowerCase() !== escrow.fpo_wallet?.toLowerCase()) {
         throw new Error(
-          `Wallet mismatch. Expected ${escrow.fpo_wallet}, got ${signerAddr}. ` +
-          "Switch to the correct MetaMask account."
+          `Wallet mismatch: Connected wallet is ${signerAddr}, but this escrow requires FPO wallet ${escrow.fpo_wallet}. ` +
+          "Please switch to the correct account in MetaMask."
         );
       }
 
       const amountWei = ethers.utils.parseEther(String(escrow.amount_eth));
 
-      setTx(key, { loading: true, success: "Sending deposit via MetaMask..." });
+      setTx(key, { loading: true, success: `Sending deposit of ${escrow.amount_eth} ETH via MetaMask…` });
       const tx = await contract.depositEscrow(escrow.escrow_id, { value: amountWei });
 
-      setTx(key, { loading: true, success: "Waiting for confirmation..." });
+      setTx(key, { loading: true, success: "Waiting for Sepolia blockchain confirmation…" });
       const receipt = await tx.wait();
 
-      // Record in backend
       await axios.post(
         `/api/escrow/${escrow.id}/funded/`,
-        { tx_hash: receipt.transactionHash },
+        { tx_hash: receipt.transactionHash, escrow_id: escrow.escrow_id },
         { withCredentials: true }
       );
 
-      setTx(key, { loading: false, success: "Escrow funded! ✅" });
+      setTx(key, { loading: false, success: `Escrow #${escrow.escrow_id} funded with ${escrow.amount_eth} ETH on Sepolia! ✅` });
       await fetchEscrows();
     } catch (err) {
       console.error("Fund escrow error:", err);
       let msg = err.response?.data?.error || err.reason || err.message || "Failed to fund escrow.";
-      // User rejected MetaMask
       if (err.code === 4001 || err.code === "ACTION_REJECTED") {
-        msg = "Transaction rejected in MetaMask.";
+        msg = "Deposit transaction was rejected in MetaMask.";
       }
       setTx(key, { loading: false, error: msg });
     }
@@ -8583,210 +9023,232 @@ export default function FpoEscrowPanel() {
     try {
       setTx(key, { loading: true, error: null, success: null });
 
-      if (!escrow.escrow_id) throw new Error("On-chain escrow ID missing.");
+      if (!escrow.escrow_id) {
+        throw new Error("On-chain escrow ID missing.");
+      }
 
       const { signer, contract } = await getSignerAndContract();
 
-      // Verify FPO wallet
       const signerAddr = await signer.getAddress();
       if (signerAddr.toLowerCase() !== escrow.fpo_wallet?.toLowerCase()) {
         throw new Error(
-          `Wallet mismatch. Expected ${escrow.fpo_wallet}, got ${signerAddr}.`
+          `Wallet mismatch: Connected wallet is ${signerAddr}, but this escrow requires FPO wallet ${escrow.fpo_wallet}.`
         );
       }
 
-      setTx(key, { loading: true, success: "Releasing payment via MetaMask..." });
+      setTx(key, { loading: true, success: "Releasing funds via MetaMask…" });
       const tx = await contract.releasePayment(escrow.escrow_id);
 
-      setTx(key, { loading: true, success: "Waiting for confirmation..." });
+      setTx(key, { loading: true, success: "Waiting for Sepolia blockchain confirmation…" });
       const receipt = await tx.wait();
 
-      // Record in backend
       await axios.post(
         `/api/escrow/${escrow.id}/released/`,
         { tx_hash: receipt.transactionHash },
         { withCredentials: true }
       );
 
-      setTx(key, { loading: false, success: "Payment released to farmer! ✅" });
+      setTx(key, { loading: false, success: "Payment released to Farmer on Sepolia! ✅" });
       await fetchEscrows();
     } catch (err) {
       console.error("Release payment error:", err);
       let msg = err.response?.data?.error || err.reason || err.message || "Failed to release payment.";
       if (err.code === 4001 || err.code === "ACTION_REJECTED") {
-        msg = "Transaction rejected in MetaMask.";
+        msg = "Release transaction was rejected in MetaMask.";
       }
       setTx(key, { loading: false, error: msg });
     }
   };
 
-  // ── Render ──────────────────────────────────────────────────────
-
-  if (loading) return <p className="text-gray-500 text-sm">Loading escrows…</p>;
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2].map((i) => (
+          <div key={i} className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 animate-pulse space-y-3">
+            <div className="h-4 bg-slate-200 rounded w-1/4"></div>
+            <div className="h-10 bg-slate-200 rounded"></div>
+            <div className="grid grid-cols-4 gap-2">
+              <div className="h-8 bg-slate-200 rounded"></div>
+              <div className="h-8 bg-slate-200 rounded"></div>
+              <div className="h-8 bg-slate-200 rounded"></div>
+              <div className="h-8 bg-slate-200 rounded"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   if (escrows.length === 0) {
     return (
-      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-8 text-center">
-        <p className="text-blue-700 font-medium">No escrow transactions yet.</p>
-        <p className="text-gray-500 text-sm mt-1">
-          When a farmer creates an escrow for your accepted bid, it will appear here.
+      <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-100">
+        <span className="text-4xl block mb-2">🔐</span>
+        <p className="text-sm font-bold text-slate-800">No Escrow Transactions Available</p>
+        <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+          When farmers accept your bids and initialize escrows on Sepolia, they will appear here for payment deposit and release.
         </p>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="space-y-4">
       {escrows.map((escrow) => {
         const fundKey = `fund-${escrow.id}`;
         const releaseKey = `release-${escrow.id}`;
         const fundTx = txStatus[fundKey] || {};
         const releaseTx = txStatus[releaseKey] || {};
+        const isOnChain = Boolean(escrow.escrow_id);
 
         return (
           <div
             key={escrow.id}
-            className="bg-white border border-gray-200 rounded-xl p-5 mb-4 shadow-sm"
+            className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs hover:border-slate-300 transition-all space-y-4"
           >
             {/* Header */}
-            <div className="flex justify-between items-center mb-3">
-              <h4 className="font-semibold text-gray-800">
-                🔐 Escrow #{escrow.escrow_id || escrow.id}
-              </h4>
-              <span
-                className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                  STATUS_COLORS[escrow.status] || "bg-gray-100 text-gray-700"
-                }`}
-              >
-                {STATUS_LABELS[escrow.status] || escrow.status}
-              </span>
+            <div className="flex justify-between items-start gap-2">
+              <div>
+                <span className="text-[11px] font-bold text-blue-900 uppercase tracking-wider block">
+                  {isOnChain ? `On-Chain Escrow #${escrow.escrow_id}` : `Draft Escrow Record #${escrow.id}`}
+                </span>
+                <h4 className="text-base font-extrabold text-slate-900">
+                  {escrow.product_name}
+                </h4>
+              </div>
+              <StatusBadge status={escrow.status} />
             </div>
 
-            {/* Details */}
-            <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3">
-              <p>
-                <span className="font-medium text-gray-500">Product:</span>{" "}
-                {escrow.product_name}
-              </p>
-              <p>
-                <span className="font-medium text-gray-500">Farmer:</span>{" "}
-                {escrow.farmer_name}
-              </p>
-              <p>
-                <span className="font-medium text-gray-500">Amount:</span>{" "}
-                {escrow.amount_eth} ETH
-              </p>
-              <p>
-                <span className="font-medium text-gray-500">Quantity:</span>{" "}
-                {escrow.quantity} {escrow.unit}
-              </p>
+            {/* Stepper */}
+            <FpoEscrowProgressStepper status={escrow.status} />
+
+            {/* Details Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-slate-50/70 p-3 rounded-xl border border-slate-100">
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Farmer Partner</span>
+                <span className="font-semibold text-slate-800 truncate block">{escrow.farmer_name}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Amount Due</span>
+                <span className="font-bold text-blue-700 font-mono">{escrow.amount_eth} ETH</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Quantity</span>
+                <span className="font-medium text-slate-700">{escrow.quantity} {escrow.unit}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Created</span>
+                <span className="font-medium text-slate-700">{new Date(escrow.created_at).toLocaleDateString()}</span>
+              </div>
             </div>
 
-            {/* Contract address */}
-            {escrow.contract_address && (
-              <p className="text-xs text-gray-500 mb-2 break-all">
-                Contract:{" "}
-                <a
-                  href={escrow.etherscan_contract_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
-                >
-                  {escrow.contract_address}
-                </a>
-              </p>
-            )}
-
-            {/* Tx hashes */}
-            {escrow.deposit_tx_hash && (
-              <p className="text-xs text-gray-500 mb-1 break-all">
-                Deposit Tx:{" "}
-                <a
-                  href={escrow.etherscan_deposit_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
-                >
-                  {escrow.deposit_tx_hash}
-                </a>
-              </p>
-            )}
-            {escrow.release_tx_hash && (
-              <p className="text-xs text-gray-500 mb-1 break-all">
-                Release Tx:{" "}
-                <a
-                  href={escrow.etherscan_release_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
-                >
-                  {escrow.release_tx_hash}
-                </a>
-              </p>
-            )}
-
-            {/* Fund Escrow button */}
-            {escrow.status === "created" && (
-              <div className="mt-3">
-                <button
-                  onClick={() => fundEscrow(escrow)}
-                  disabled={fundTx.loading}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold text-white ${
-                    fundTx.loading
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-blue-600 hover:bg-blue-700"
-                  }`}
-                >
-                  {fundTx.loading ? "⏳ Processing..." : "💰 Fund Escrow"}
-                </button>
-                {fundTx.success && (
-                  <p className="text-sm text-green-600 mt-2">{fundTx.success}</p>
+            {/* Blockchain Proofs */}
+            {isOnChain && (
+              <div className="space-y-1 text-xs pt-1 border-t border-slate-100">
+                {escrow.contract_address && (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <span className="text-slate-400 text-[11px]">Contract:</span>
+                    <AddressCopy value={escrow.contract_address} etherscanType="address" />
+                  </div>
                 )}
-                {fundTx.error && (
-                  <p className="text-sm text-red-600 mt-2">❌ {fundTx.error}</p>
+                {escrow.create_tx_hash && (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <span className="text-slate-400 text-[11px]">Create Tx:</span>
+                    <AddressCopy value={escrow.create_tx_hash} etherscanType="tx" />
+                  </div>
+                )}
+                {escrow.deposit_tx_hash && (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <span className="text-slate-400 text-[11px]">Deposit Tx:</span>
+                    <AddressCopy value={escrow.deposit_tx_hash} etherscanType="tx" />
+                  </div>
+                )}
+                {escrow.release_tx_hash && (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <span className="text-slate-400 text-[11px]">Release Tx:</span>
+                    <AddressCopy value={escrow.release_tx_hash} etherscanType="tx" />
+                  </div>
                 )}
               </div>
             )}
 
-            {/* Release Payment button */}
+            {/* Actions */}
+            {escrow.status === "created" && (
+              <div className="pt-2 border-t border-slate-100">
+                {isOnChain ? (
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <p className="text-xs text-slate-500">
+                      Farmer created on-chain Escrow #{escrow.escrow_id}. Deposit <strong>{escrow.amount_eth} ETH</strong> via MetaMask to lock payment on Sepolia.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => fundEscrow(escrow)}
+                      disabled={fundTx.loading}
+                      className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
+                        fundTx.loading
+                          ? "bg-slate-400 cursor-not-allowed"
+                          : "bg-blue-600 hover:bg-blue-500 shadow-blue-600/20"
+                      }`}
+                    >
+                      <span>💰</span>
+                      <span>{fundTx.loading ? "Depositing ETH…" : `Deposit ${escrow.amount_eth} ETH into Escrow`}</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs font-medium text-amber-900 flex items-start gap-2.5">
+                    <span className="text-base">⏳</span>
+                    <div>
+                      <p className="font-bold">Blockchain escrow not created yet.</p>
+                      <p className="text-amber-700 mt-0.5">
+                        The farmer must complete the MetaMask escrow creation transaction before you can deposit funds on Sepolia.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {fundTx.success && (
+              <div className="p-2.5 rounded-xl bg-emerald-100 border border-emerald-300 text-xs font-medium text-emerald-800">
+                ✅ {fundTx.success}
+              </div>
+            )}
+            {fundTx.error && (
+              <div className="p-2.5 rounded-xl bg-rose-100 border border-rose-300 text-xs font-medium text-rose-800">
+                ❌ {fundTx.error}
+              </div>
+            )}
+
             {escrow.status === "delivery_confirmed" && (
-              <div className="mt-3">
+              <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <p className="text-xs text-slate-500">
+                  Farmer has confirmed crop handover. Authorize payment release to dispatch ETH from the smart contract.
+                </p>
                 <button
+                  type="button"
                   onClick={() => releasePayment(escrow)}
                   disabled={releaseTx.loading}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold text-white ${
+                  className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
                     releaseTx.loading
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-green-600 hover:bg-green-700"
+                      ? "bg-slate-400 cursor-not-allowed"
+                      : "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20"
                   }`}
                 >
-                  {releaseTx.loading ? "⏳ Processing..." : "✅ Release Payment"}
+                  <span>💸</span>
+                  <span>{releaseTx.loading ? "Releasing Payment…" : "Release Payment to Farmer"}</span>
                 </button>
-                {releaseTx.success && (
-                  <p className="text-sm text-green-600 mt-2">{releaseTx.success}</p>
-                )}
-                {releaseTx.error && (
-                  <p className="text-sm text-red-600 mt-2">❌ {releaseTx.error}</p>
-                )}
               </div>
             )}
 
-            {/* Status timeline */}
-            <div className="mt-3 text-xs text-gray-400 space-y-1">
-              <p>Created: {new Date(escrow.created_at).toLocaleString()}</p>
-              {escrow.funded_at && (
-                <p>Funded: {new Date(escrow.funded_at).toLocaleString()}</p>
-              )}
-              {escrow.delivery_confirmed_at && (
-                <p>
-                  Delivery Confirmed:{" "}
-                  {new Date(escrow.delivery_confirmed_at).toLocaleString()}
-                </p>
-              )}
-              {escrow.released_at && (
-                <p>Released: {new Date(escrow.released_at).toLocaleString()}</p>
-              )}
-            </div>
+            {releaseTx.success && (
+              <div className="p-2.5 rounded-xl bg-emerald-100 border border-emerald-300 text-xs font-medium text-emerald-800">
+                ✅ {releaseTx.success}
+              </div>
+            )}
+            {releaseTx.error && (
+              <div className="p-2.5 rounded-xl bg-rose-100 border border-rose-300 text-xs font-medium text-rose-800">
+                ❌ {releaseTx.error}
+              </div>
+            )}
           </div>
         );
       })}
@@ -8799,7 +9261,7 @@ export default function FpoEscrowPanel() {
 ================================================
 FILE: frontend/src/components/fpo/RetailerQuotes.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 1170: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 1275: character maps to <undefined>
 
 
 ================================================
@@ -9140,282 +9602,16 @@ export default function Contract() {
 ================================================
 FILE: frontend/src/pages/AuthForm.jsx
 ================================================
-// src/pages/AuthForm.jsx
-import React, { useState } from "react";
-import axios from "axios";
-import Cookies from "js-cookie";
-import { useNavigate } from "react-router-dom";
-
-export default function AuthForm() {
-  const [isLogin, setIsLogin] = useState(true);
-  const navigate = useNavigate();
-  const [role, setRole] = useState("farmer");
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    password: "",
-    aadhaar_number: "",
-    corporate_identification_number: "",
-    gstin: "",
-    city: "",
-    state: "",
-    wallet_address: "",
-    role: "farmer",
-  });
-
-  const [pendingApproval, setPendingApproval] = useState(false);
-
-  const handleRoleChange = (e) => {
-    setRole(e.target.value);
-    setFormData({ ...formData, role: e.target.value });
-  };
-
-  const connectWallet = async () => {
-    if (window.ethereum) {
-      try {
-        const accounts = await window.ethereum.request({
-          method: "eth_requestAccounts",
-        });
-        setFormData({ ...formData, wallet_address: accounts[0] });
-      } catch (error) {
-        console.error("Wallet connection failed", error);
-      }
-    } else {
-      alert("MetaMask not found! Please install it.");
-    }
-  };
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    let endpoint = "";
-    let payload = {};
-
-    // Configure axios to include credentials (cookies)
-    axios.defaults.withCredentials = true;
-
-    if (isLogin) {
-      endpoint = "/api/token/";
-      payload = {
-        username: formData.email,
-        password: formData.password,
-        role: formData.role,
-      };
-    } else {
-      if (role === "farmer") endpoint = "/api/farmer/register/";
-      if (role === "fpo") endpoint = "/api/fpo/register/";
-      if (role === "retailer") endpoint = "/api/retailer/register/";
-      payload = formData;
-    }
-
-    try {
-      const res = await axios.post(endpoint, payload, {
-        withCredentials: true, // Ensure cookies are sent and received
-      });
-
-      console.log("Success:", res.data);
-
-      // For login, the tokens will be automatically stored in cookies by the browser
-      if (isLogin) {
-        Cookies.set("role", res.data.role, { path: "/" }); // Save role
-        alert("Login successful! Redirecting...");
-
-        // Redirect based on role
-        if (formData.role === "farmer") navigate("/farmer-dashboard");
-        if (formData.role === "fpo") navigate("/fpo-dashboard");
-        if (formData.role === "retailer") navigate("/retailer-dashboard");
-        if (formData.role === "admin") navigate("/admin-dashboard");
-      } else {
-        alert("Registration successful! Check console.");
-      }
-    } catch (err) {
-      console.error("Error:", err.response?.data || err.message);
-      const errorMsg = err.response?.data?.error || err.message;
-      if (errorMsg.includes("Account pending admin approval")) {
-        setPendingApproval("pending");
-      } else if (errorMsg.includes("Account rejected")) {
-        setPendingApproval("rejected");
-      } else {
-        alert("Error! Check console.");
-      }
-    }
-  };
-
-  return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      {pendingApproval && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-80 text-center">
-            <h3 className="text-lg font-bold mb-2">
-              {pendingApproval === "pending" ? "Pending Approval" : "Account Rejected"}
-            </h3>
-            <p className="mb-4">
-              {pendingApproval === "pending"
-                ? "Your account is pending admin approval. Please try again later."
-                : "Your account has been rejected by the admin. Please contact support."}
-            </p>
-            <button
-              onClick={() => setPendingApproval(false)}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
-        <h2 className="text-2xl font-bold mb-4 text-center">
-          {isLogin ? "Login" : "Register"} as {role.toUpperCase()}
-        </h2>
-
-        <select
-          value={role}
-          onChange={handleRoleChange}
-          className="w-full p-2 mb-4 border rounded"
-        >
-          <option value="farmer">Farmer</option>
-          <option value="fpo">FPO</option>
-          <option value="retailer">Retailer</option>
-        </select>
-
-        <form onSubmit={handleSubmit} className="space-y-3">
-          {!isLogin && (
-            <>
-              <input
-                type="text"
-                name="name"
-                placeholder="Name"
-                onChange={handleChange}
-                className="w-full p-2 border rounded"
-                required
-              />
-
-              {role === "farmer" && (
-                <input
-                  type="text"
-                  name="aadhaar_number"
-                  placeholder="Aadhaar Number"
-                  onChange={handleChange}
-                  className="w-full p-2 border rounded"
-                  required
-                />
-              )}
-
-              {role === "fpo" && (
-                <input
-                  type="text"
-                  name="corporate_identification_number"
-                  placeholder="CIN"
-                  onChange={handleChange}
-                  className="w-full p-2 border rounded"
-                  required
-                />
-              )}
-
-              {role === "retailer" && (
-                <input
-                  type="text"
-                  name="gstin"
-                  placeholder="GSTIN"
-                  onChange={handleChange}
-                  className="w-full p-2 border rounded"
-                  required
-                />
-              )}
-
-              <input
-                type="text"
-                name="city"
-                placeholder="City"
-                onChange={handleChange}
-                className="w-full p-2 border rounded"
-                required
-              />
-              <input
-                type="text"
-                name="state"
-                placeholder="State"
-                onChange={handleChange}
-                className="w-full p-2 border rounded"
-                required
-              />
-
-              <button
-                type="button"
-                onClick={connectWallet}
-                className="w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700"
-              >
-                {formData.wallet_address
-                  ? `Wallet: ${formData.wallet_address.substring(0, 10)}...`
-                  : "Connect MetaMask"}
-              </button>
-            </>
-          )}
-
-          <input
-            type="email"
-            name="email"
-            placeholder="Email"
-            onChange={handleChange}
-            className="w-full p-2 border rounded"
-            required
-          />
-          <input
-            type="password"
-            name="password"
-            placeholder="Password"
-            onChange={handleChange}
-            className="w-full p-2 border rounded"
-            required
-          />
-
-          <button
-            type="submit"
-            className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700"
-          >
-            {isLogin ? "Login" : "Register"}
-          </button>
-        </form>
-
-        <p className="mt-4 text-center">
-          {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
-          <button
-            className="text-blue-600 font-semibold"
-            onClick={() => setIsLogin(!isLogin)}
-          >
-            {isLogin ? "Register" : "Login"}
-          </button>
-        </p>
-      </div>
-    </div>
-  );
-}
-
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 2079: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/pages/CropPassportPage.jsx
 ================================================
-/**
- * CropPassportPage.jsx — Phase 2.2 + 2.3 + 2.4 + 2.6
- * Public verification page. No authentication required.
- * Route: /crop-passport/:id
- *
- * Phase 2.3: Shows public IPFS documents section.
- * Phase 2.4: Shows public AI Quality Verification result.
- * Phase 2.6: QR-linked public verification page with overall verification status.
- * Never exposes: email, aadhaar, password, Pinata/Gemini credentials.
- */
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
-
-const SEPOLIA_EXPLORER = "https://sepolia.etherscan.io";
+import AddressCopy from "../components/common/AddressCopy";
 
 const DOC_TYPE_LABELS = {
   crop_image:       "🌾 Crop Image",
@@ -9423,7 +9619,7 @@ const DOC_TYPE_LABELS = {
   quality_report:   "📊 Quality Report",
   certification:    "🏆 Certification",
   harvest_document: "📋 Harvest Document",
-  other:            "📁 Other",
+  other:            "📁 Evidence Document",
 };
 
 function ipfsGateway(uri) {
@@ -9436,19 +9632,19 @@ function ipfsGateway(uri) {
 
 function Row({ label, value, link }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-start gap-1 py-2 border-b border-gray-100 last:border-0">
-      <span className="w-44 text-sm font-semibold text-gray-500 shrink-0">{label}</span>
+    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-1 py-2.5 border-b border-slate-700/60 last:border-0 text-xs">
+      <span className="font-semibold text-slate-400 shrink-0">{label}</span>
       {link ? (
         <a
           href={link}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm text-blue-600 underline break-all"
+          className="text-blue-400 hover:text-blue-300 hover:underline break-all font-mono transition-colors"
         >
           {value}
         </a>
       ) : (
-        <span className="text-sm text-gray-800 break-all">{value || "—"}</span>
+        <span className="text-slate-200 font-medium break-all sm:text-right">{value || "—"}</span>
       )}
     </div>
   );
@@ -9456,33 +9652,40 @@ function Row({ label, value, link }) {
 
 export default function CropPassportPage() {
   const { id } = useParams();
-  const [crop, setCrop]       = useState(null);
-  const [loading, setLoading]   = useState(true);
+  const [crop, setCrop] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [copied, setCopied]     = useState("");
-  const [aiVerif, setAiVerif]   = useState(null);   // public AI verification result
-  const [timeline, setTimeline] = useState([]);       // Phase 2.7 timeline events
+  const [copied, setCopied] = useState("");
+  const [aiVerif, setAiVerif] = useState(null);
+  const [timeline, setTimeline] = useState([]);
 
   useEffect(() => {
     axios
       .get(`/api/farmer/crops/public/${id}/`)
-      .then((res) => { setCrop(res.data); setLoading(false); })
+      .then((res) => {
+        setCrop(res.data);
+        setLoading(false);
+      })
       .catch((err) => {
         setLoading(false);
         if (err.response?.status === 404) setNotFound(true);
       });
 
-    // Fetch public AI verification (best-effort, non-blocking)
+    // Fetch public AI verification
     axios
       .get(`/api/farmer/crops/public/${id}/verification/`)
-      .then((res) => { if (res.data.verification) setAiVerif(res.data); })
-      .catch(() => {/* no verified result yet — silently ignore */});
+      .then((res) => {
+        if (res.data.verification) setAiVerif(res.data);
+      })
+      .catch(() => {});
 
-    // Phase 2.7 — Fetch supply-chain timeline (best-effort)
+    // Fetch public supply-chain timeline
     axios
       .get(`/api/farmer/crops/public/${id}/timeline/`)
-      .then((res) => { if (res.data.events) setTimeline(res.data.events); })
-      .catch(() => {/* timeline not available */});
+      .then((res) => {
+        if (res.data.events) setTimeline(res.data.events);
+      })
+      .catch(() => {});
   }, [id]);
 
   const handleCopyCid = (cid) => {
@@ -9494,235 +9697,332 @@ export default function CropPassportPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-500 animate-pulse">Loading Crop Passport…</p>
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-100">
+        <div className="text-center space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-2xl mx-auto animate-spin">
+            🌾
+          </div>
+          <p className="text-xs text-slate-400 font-mono tracking-wider">Verifying Digital Crop Passport #{id}…</p>
+        </div>
       </div>
     );
   }
 
   if (notFound || !crop) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-        <h1 className="text-2xl font-bold text-red-600">404 — Crop Passport Not Found</h1>
-        <p className="text-gray-500">The requested Crop Passport does not exist.</p>
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 text-center text-slate-100 font-sans">
+        <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-3xl mb-4">
+          🔍
+        </div>
+        <h1 className="text-xl font-bold text-white mb-1">Crop Passport Not Found</h1>
+        <p className="text-xs text-slate-400 mb-6 max-w-sm">
+          The requested digital passport ID #{id} was not found on the FarmerChain decentralized registry.
+        </p>
+        <a
+          href="/"
+          className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white transition-all shadow-md shadow-emerald-900/30"
+        >
+          ← Return to FarmerChain
+        </a>
       </div>
     );
   }
 
-  const isMinted  = crop.status === "minted";
+  const isMinted = crop.status === "minted";
   const documents = crop.documents || [];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-purple-50 py-10 px-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-slate-900 text-slate-100 py-10 px-4 relative overflow-hidden font-sans">
+      {/* Background Glows */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-emerald-500/10 blur-[140px] pointer-events-none" />
+      <div className="absolute top-[40%] right-[-10%] w-[40%] h-[40%] rounded-full bg-purple-500/10 blur-[140px] pointer-events-none" />
 
-        {/* ── Header ───────────────────────────────────────────────── */}
-        <div className="bg-white rounded-3xl shadow-lg border border-green-100 p-8 mb-6">
-          <div className="flex items-center gap-3 mb-2">
-            <span className="text-4xl">🌾</span>
+      <div className="max-w-3xl mx-auto relative z-10 space-y-6">
+
+        {/* ── Top Header Brand ─────────────────────────────────────── */}
+        <div className="flex items-center justify-between gap-4 pb-2 border-b border-slate-800">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center text-base font-bold shadow-md shadow-emerald-500/20 text-white">
+              🌾
+            </div>
             <div>
-              <h1 className="text-2xl font-extrabold text-gray-900">
-                FarmerChain Crop Passport
+              <span className="font-extrabold text-white text-base tracking-tight">FarmerChain</span>
+              <p className="text-[10px] text-slate-400 font-medium">Public Verification Explorer</p>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Verified Registry Certificate
+          </span>
+        </div>
+
+        {/* ── Passport Hero Card ───────────────────────────────────── */}
+        <div className="bg-slate-800/80 backdrop-blur-xl rounded-3xl border border-slate-700/80 p-6 sm:p-8 shadow-2xl shadow-black/40 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs uppercase font-bold text-emerald-400 tracking-wider">
+                  Digital Crop Passport #{id}
+                </span>
+                <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-md bg-slate-700 text-slate-300">
+                  {crop.crop_category}
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                {crop.crop_name}
               </h1>
-              <p className="text-sm text-gray-500">#{id} · {crop.crop_category}</p>
+              <p className="text-xs text-slate-400 font-medium">
+                {crop.quantity} {crop.unit} · Cultivated in {crop.location || "Maharashtra, India"}
+              </p>
+            </div>
+
+            {/* Verification Seal */}
+            <div>
+              {(() => {
+                const hasNFT = isMinted;
+                const hasAI = !!aiVerif?.verification;
+                if (hasNFT && hasAI) {
+                  return (
+                    <div className="px-4 py-2.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/10">
+                      <span className="text-base">🛡️</span>
+                      <span>Verified On-Chain + AI Assessed</span>
+                    </div>
+                  );
+                } else if (hasNFT) {
+                  return (
+                    <div className="px-4 py-2.5 rounded-2xl bg-purple-500/15 border border-purple-500/40 text-purple-300 text-xs font-bold flex items-center gap-2">
+                      <span className="text-base">🪙</span>
+                      <span>Minted on Sepolia</span>
+                    </div>
+                  );
+                } else if (hasAI) {
+                  return (
+                    <div className="px-4 py-2.5 rounded-2xl bg-blue-500/15 border border-blue-500/40 text-blue-300 text-xs font-bold flex items-center gap-2">
+                      <span className="text-base">🤖</span>
+                      <span>AI Quality Assessed</span>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="px-4 py-2.5 rounded-2xl bg-slate-700/60 border border-slate-600 text-slate-300 text-xs font-semibold flex items-center gap-2">
+                    <span className="text-base">⏳</span>
+                    <span>Registered Crop Twin</span>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Details Grid ─────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Crop Specifications */}
+          <div className="bg-slate-800/80 backdrop-blur-md rounded-3xl border border-slate-700/80 p-5 sm:p-6 shadow-xl">
+            <h2 className="text-xs font-extrabold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <span>🌱</span> Crop Specifications
+            </h2>
+            <div className="space-y-1">
+              <Row label="Crop Name" value={crop.crop_name} />
+              <Row label="Category" value={crop.crop_category} />
+              <Row label="Batch Quantity" value={`${crop.quantity} ${crop.unit}`} />
+              <Row label="Cultivation Date" value={crop.cultivation_date} />
+              <Row label="Harvest Date" value={crop.harvest_date} />
+              <Row label="Origin Location" value={crop.location} />
+              {crop.description && <Row label="Agronomic Notes" value={crop.description} />}
             </div>
           </div>
 
-          {/* Phase 2.6 — Overall Verification Status */}
-          {(() => {
-            const hasNFT = isMinted;
-            const hasAI = !!aiVerif?.verification;
-            let statusText, statusClass;
-            if (hasNFT && hasAI) {
-              statusText = "✅ VERIFIED — NFT Minted & AI Quality Assessed";
-              statusClass = "bg-green-100 text-green-800 border-green-300";
-            } else if (hasNFT) {
-              statusText = "✅ Verified on Ethereum Sepolia — AI assessment pending";
-              statusClass = "bg-green-100 text-green-800 border-green-300";
-            } else if (hasAI) {
-              statusText = "⏳ AI Assessed — Pending NFT Mint";
-              statusClass = "bg-yellow-100 text-yellow-800 border-yellow-300";
-            } else {
-              statusText = "⏳ Pending Verification";
-              statusClass = "bg-yellow-100 text-yellow-800 border-yellow-300";
-            }
+          {/* Farmer Provenance & DID */}
+          <div className="bg-slate-800/80 backdrop-blur-md rounded-3xl border border-slate-700/80 p-5 sm:p-6 shadow-xl">
+            <h2 className="text-xs font-extrabold text-blue-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <span>🔐</span> Provenance & Producer DID
+            </h2>
+            <div className="space-y-2">
+              <div className="py-2 border-b border-slate-700/60">
+                <span className="text-[11px] font-semibold text-slate-400 block mb-1">Farmer W3C DID</span>
+                <AddressCopy value={crop.farmer_did} truncate={false} className="text-slate-200 break-all text-[11px]" />
+              </div>
+              <div className="py-2 border-b border-slate-700/60">
+                <span className="text-[11px] font-semibold text-slate-400 block mb-1">Registered Wallet</span>
+                <AddressCopy value={crop.farmer_wallet} etherscanType="address" truncate={false} className="text-slate-200 break-all text-[11px]" />
+              </div>
+              <Row label="Producer Region" value={crop.farmer_location} />
+            </div>
+          </div>
+        </div>
+
+        {/* ── NFT Blockchain Record ─────────────────────────────────── */}
+        {isMinted && (
+          <div className="bg-slate-800/80 backdrop-blur-md rounded-3xl border border-purple-500/40 p-5 sm:p-6 shadow-xl space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-700/60">
+              <h2 className="text-xs font-extrabold text-purple-400 uppercase tracking-wider flex items-center gap-2">
+                <span>🪙</span> ERC-721 Blockchain Certificate (Ethereum Sepolia)
+              </h2>
+              <span className="font-mono text-purple-300 font-extrabold text-xs px-2.5 py-0.5 rounded-lg bg-purple-500/20 border border-purple-500/40">
+                Token #{crop.nft_token_id}
+              </span>
+            </div>
+
+            <div className="space-y-1">
+              <div className="py-2 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-start justify-between gap-1 text-xs">
+                <span className="font-semibold text-slate-400">Contract Address</span>
+                <AddressCopy value={crop.nft_contract_address} etherscanType="address" truncate={false} className="text-purple-300" />
+              </div>
+              <div className="py-2 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-start justify-between gap-1 text-xs">
+                <span className="font-semibold text-slate-400">Mint Transaction</span>
+                <AddressCopy value={crop.nft_transaction_hash} etherscanType="tx" truncate={false} className="text-purple-300" />
+              </div>
+              <Row
+                label="IPFS Token URI"
+                value={crop.nft_token_uri}
+                link={ipfsGateway(crop.nft_token_uri)}
+              />
+              {crop.nft_minted_at && (
+                <Row label="Minted On" value={new Date(crop.nft_minted_at).toLocaleString()} />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── AI Quality Verification ───────────────────────────────── */}
+        <div className="bg-slate-800/80 backdrop-blur-md rounded-3xl border border-slate-700/80 p-5 sm:p-6 shadow-xl space-y-4">
+          <h2 className="text-xs font-extrabold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+            <span>🤖</span> Gemini Vision AI Quality Assessment
+          </h2>
+
+          {!aiVerif ? (
+            <p className="text-xs text-slate-500 italic">Visual crop quality assessment not performed for this lot yet.</p>
+          ) : (() => {
+            const v = aiVerif.verification;
+            const GRADE_COLORS = {
+              A: "text-emerald-400 bg-emerald-500/15 border-emerald-500/40",
+              B: "text-blue-400 bg-blue-500/15 border-blue-500/40",
+              C: "text-yellow-400 bg-yellow-500/15 border-yellow-500/40",
+              D: "text-orange-400 bg-orange-500/15 border-orange-500/40",
+              F: "text-rose-400 bg-rose-500/15 border-rose-500/40",
+            };
+            const gradeClass = GRADE_COLORS[v.quality_grade] || "text-slate-300 bg-slate-700/50 border-slate-600";
+            const pct = Math.max(0, Math.min(100, Number(v.quality_score) || 0));
+
             return (
-              <div className={`mt-4 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold w-fit border ${statusClass}`}>
-                {statusText}
+              <div className="space-y-4">
+                <div className="flex gap-4 items-center flex-wrap">
+                  <div className={`${gradeClass} rounded-2xl p-4 text-center min-w-[100px] border shadow-md`}>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Quality Grade</p>
+                    <p className="text-3xl font-extrabold">{v.quality_grade}</p>
+                  </div>
+
+                  <div className="flex-1 min-w-[180px] space-y-2">
+                    <div>
+                      <div className="flex justify-between text-xs font-bold text-slate-300 mb-1">
+                        <span>Quality Score</span>
+                        <span>{v.quality_score} / 100</span>
+                      </div>
+                      <div className="w-full bg-slate-700/70 rounded-full h-2.5 overflow-hidden">
+                        <div className="bg-emerald-500 h-full rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-xs font-semibold text-slate-400 mb-1">
+                        <span>Model Confidence</span>
+                        <span>{Math.round(v.confidence_score * 100)}%</span>
+                      </div>
+                      <div className="w-full bg-slate-700/70 rounded-full h-2.5 overflow-hidden">
+                        <div className="bg-blue-500 h-full rounded-full" style={{ width: `${Math.round(v.confidence_score * 100)}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Row label="Identified Species" value={v.crop_detected} />
+                  <Row label="Plant Health / Disease" value={v.disease_detected ? `⚠️ ${v.disease_name || "Disease Detected"}` : "✓ Clean — No Disease Observed"} />
+                  <Row label="Defect Notes" value={v.visible_defects || "None detected"} />
+                  {v.ai_summary && (
+                    <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-3.5 text-xs text-slate-300 italic">
+                      "{v.ai_summary}"
+                    </div>
+                  )}
+                  {v.image_gateway_url && (
+                    <div className="pt-2">
+                      <a
+                        href={v.image_gateway_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-emerald-400 hover:text-emerald-300 underline font-medium"
+                      >
+                        🔗 View Verified Analysis Image on IPFS →
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-[10px] text-slate-500 italic pt-1 border-t border-slate-700/60">
+                  ⚠️ {aiVerif.disclaimer}
+                </p>
               </div>
             );
           })()}
         </div>
 
-        {/* ── Crop Info ─────────────────────────────────────────────── */}
-        <div className="bg-white rounded-3xl shadow-lg border border-gray-100 p-6 mb-6">
-          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">
-            🌱 Crop Information
-          </h2>
-          <Row label="Crop Name"        value={crop.crop_name} />
-          <Row label="Category"         value={crop.crop_category} />
-          <Row label="Quantity"         value={`${crop.quantity} ${crop.unit}`} />
-          <Row label="Cultivation Date" value={crop.cultivation_date} />
-          <Row label="Harvest Date"     value={crop.harvest_date} />
-          <Row label="Location"         value={crop.location} />
-          {crop.description && <Row label="Description" value={crop.description} />}
-        </div>
-
-        {/* ── Farmer Identity ───────────────────────────────────────── */}
-        <div className="bg-white rounded-3xl shadow-lg border border-gray-100 p-6 mb-6">
-          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">
-            🔐 Farmer Identity
-          </h2>
-          <Row label="Farmer DID" value={crop.farmer_did} />
-          <Row label="Wallet"     value={crop.farmer_wallet} />
-          <Row label="Location"   value={crop.farmer_location} />
-        </div>
-
-        {/* ── NFT Record ───────────────────────────────────────────── */}
-        {isMinted && (
-          <div className="bg-white rounded-3xl shadow-lg border border-purple-100 p-6 mb-6">
-            <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">
-              🪙 NFT Blockchain Record
-            </h2>
-            <Row label="Token ID"    value={`#${crop.nft_token_id}`} />
-            <Row
-              label="Contract"
-              value={crop.nft_contract_address}
-              link={`${SEPOLIA_EXPLORER}/address/${crop.nft_contract_address}`}
-            />
-            <Row
-              label="Transaction"
-              value={crop.nft_transaction_hash}
-              link={`${SEPOLIA_EXPLORER}/tx/${crop.nft_transaction_hash}`}
-            />
-            <Row
-              label="IPFS Metadata"
-              value={crop.nft_token_uri}
-              link={ipfsGateway(crop.nft_token_uri)}
-            />
-            {crop.nft_minted_at && (
-              <Row label="Minted At" value={new Date(crop.nft_minted_at).toLocaleString()} />
-            )}
-          </div>
-        )}
-
-        {/* ── Phase 2.3: Verified Evidence (public documents) ────────── */}
-        <div className="bg-white rounded-3xl shadow-lg border border-blue-100 p-6 mb-6">
-          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">
-            📦 Verified Evidence
+        {/* ── Verified IPFS Evidence Documents ──────────────────────── */}
+        <div className="bg-slate-800/80 backdrop-blur-md rounded-3xl border border-slate-700/80 p-5 sm:p-6 shadow-xl space-y-3">
+          <h2 className="text-xs font-extrabold text-blue-400 uppercase tracking-wider flex items-center gap-2">
+            <span>📦</span> Decentralized IPFS Evidence Files ({documents.length})
           </h2>
 
           {documents.length === 0 ? (
-            <p className="text-sm text-gray-400 italic">No documents have been uploaded for this crop yet.</p>
+            <p className="text-xs text-slate-500 italic">No evidence documents uploaded for this crop yet.</p>
           ) : (
             <div className="space-y-3">
               {documents.map((doc) => (
                 <div
                   key={doc.id}
-                  className="bg-blue-50 border border-blue-100 rounded-xl p-4"
+                  className="bg-slate-900/60 border border-slate-700/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
                 >
-                  <div className="flex justify-between items-start flex-wrap gap-2">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-800">
-                        {DOC_TYPE_LABELS[doc.document_type] || doc.document_type}
-                      </p>
-                      <p className="text-xs text-gray-500">{doc.file_name}</p>
-                      <p className="text-xs font-mono text-gray-500 mt-1 break-all">
-                        CID: {doc.ipfs_cid}
-                      </p>
-                    </div>
-                    <div className="flex gap-2 flex-wrap">
-                      <a
-                        href={doc.gateway_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700"
-                      >
-                        🔗 View on IPFS
-                      </a>
-                      <button
-                        onClick={() => handleCopyCid(doc.ipfs_cid)}
-                        className="text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-200"
-                      >
-                        {copied === doc.ipfs_cid ? "✅ Copied!" : "📋 Copy CID"}
-                      </button>
-                    </div>
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-bold text-white">
+                      {DOC_TYPE_LABELS[doc.document_type] || doc.document_type}
+                    </p>
+                    <p className="text-[11px] text-slate-400">{doc.file_name}</p>
+                    <p className="text-[10px] font-mono text-slate-500 break-all">
+                      CID: {doc.ipfs_cid}
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Uploaded: {new Date(doc.uploaded_at).toLocaleDateString()}
-                  </p>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <a
+                      href={doc.gateway_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3.5 py-1.5 rounded-xl transition-all shadow-xs"
+                    >
+                      View on IPFS
+                    </a>
+                    <button
+                      onClick={() => handleCopyCid(doc.ipfs_cid)}
+                      className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-xl border border-slate-600 cursor-pointer font-semibold"
+                    >
+                      {copied === doc.ipfs_cid ? "✓ Copied" : "Copy CID"}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* ── Phase 2.4: Public AI Quality Verification ───────────────── */}
-        <div className="bg-white rounded-3xl shadow-lg border border-purple-100 p-6 mb-6">
-          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">
-            🤖 AI Quality Verification
+        {/* ── Supply-Chain Traceability Timeline ─────────────────────── */}
+        <div className="bg-slate-800/80 backdrop-blur-md rounded-3xl border border-slate-700/80 p-5 sm:p-6 shadow-xl space-y-4">
+          <h2 className="text-xs font-extrabold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+            <span>📦</span> Supply-Chain Traceability Timeline
           </h2>
-          {!aiVerif ? (
-            <p className="text-sm text-gray-400 italic">No AI verification has been submitted for this crop yet.</p>
-          ) : (() => {
-            const v = aiVerif.verification;
-            const GRADE_COLORS = { A:"text-green-700 bg-green-100", B:"text-lime-700 bg-lime-100", C:"text-yellow-700 bg-yellow-100", D:"text-orange-700 bg-orange-100", F:"text-red-700 bg-red-100" };
-            const gradeClass = GRADE_COLORS[v.quality_grade] || "text-gray-700 bg-gray-100";
-            const pct = Math.max(0,Math.min(100,Number(v.quality_score)||0));
-            const barColor = pct>=80?"bg-green-500":pct>=60?"bg-lime-500":pct>=40?"bg-yellow-500":pct>=20?"bg-orange-500":"bg-red-500";
-            return (
-              <div className="space-y-3">
-                <div className="flex gap-3 flex-wrap items-start">
-                  <div className={`${gradeClass} rounded-xl px-4 py-2 text-center min-w-[90px] border`}>
-                    <p className="text-xs font-semibold uppercase">Grade</p>
-                    <p className="text-4xl font-extrabold">{v.quality_grade}</p>
-                  </div>
-                  <div className="flex-1 min-w-[180px] space-y-2">
-                    <div>
-                      <div className="flex justify-between text-xs font-semibold text-gray-600">
-                        <span>Quality Score</span><span>{v.quality_score}/100</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                        <div className={`${barColor} h-2 rounded-full`} style={{width:`${pct}%`}} />
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-xs font-semibold text-gray-600">
-                        <span>Confidence</span><span>{Math.round(v.confidence_score*100)}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                        <div className="bg-blue-500 h-2 rounded-full" style={{width:`${Math.round(v.confidence_score*100)}%`}} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <Row label="Crop Detected" value={v.crop_detected} />
-                <Row label="Disease" value={v.disease_detected ? `⚠️ ${v.disease_name||"Detected"}` : "✓ Not detected"} />
-                <Row label="Visible Defects" value={v.visible_defects||"None"} />
-                {v.ai_summary && (
-                  <div className="bg-purple-50 border border-purple-100 rounded-lg p-3 text-sm text-gray-700 italic">"{v.ai_summary}"</div>
-                )}
-                {v.image_gateway_url && (
-                  <a href={v.image_gateway_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline">🔗 View verified crop image on IPFS</a>
-                )}
-                <p className="text-xs text-gray-400 italic mt-1">⚠️ {aiVerif.disclaimer}</p>
-              </div>
-            );
-          })()}
-        </div>
 
-        {/* ── Phase 2.7: Supply-Chain Traceability Timeline ───────────── */}
-        <div className="bg-white rounded-3xl shadow-lg border border-gray-100 p-6 mb-6">
-          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-6">
-            📦 Supply-Chain Traceability
-          </h2>
           {timeline.length === 0 ? (
-            <p className="text-sm text-gray-400 italic">No supply-chain events recorded yet.</p>
+            <p className="text-xs text-slate-500 italic">No supply-chain events recorded yet.</p>
           ) : (
-            <div className="relative">
-              {/* Vertical line */}
-              <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-green-200" />
-              <div className="space-y-6">
+            <div className="relative pl-2 pt-2">
+              <div className="absolute left-6 top-3 bottom-3 w-0.5 bg-slate-700" />
+              <div className="space-y-5">
                 {timeline.map((evt, idx) => {
                   const ICONS = {
                     crop_registered: "🌱",
@@ -9736,61 +10036,59 @@ export default function CropPassportPage() {
                     delivery_confirmed: "🚚",
                     payment_released: "💸",
                   };
-                  const icon = ICONS[evt.type] || "✅";
+                  const icon = ICONS[evt.type] || "✓";
                   const d = evt.details || {};
                   const ts = new Date(evt.timestamp).toLocaleString();
+
                   return (
-                    <div key={idx} className="relative flex items-start gap-4 pl-1">
-                      {/* Dot */}
-                      <div className="z-10 flex items-center justify-center w-8 h-8 rounded-full bg-green-100 border-2 border-green-400 text-lg shrink-0">
+                    <div key={idx} className="relative flex items-start gap-4">
+                      <div className="z-10 flex items-center justify-center w-8 h-8 rounded-full bg-slate-900 border-2 border-emerald-500/80 text-sm shrink-0 shadow-md">
                         {icon}
                       </div>
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800">{evt.title}</p>
-                        <p className="text-xs text-gray-400">{ts}</p>
-                        {/* Event-specific details */}
+
+                      <div className="flex-1 bg-slate-900/50 border border-slate-700/60 rounded-2xl p-3.5 space-y-1">
+                        <div className="flex justify-between items-start gap-2 flex-wrap">
+                          <p className="text-xs font-bold text-white">{evt.title}</p>
+                          <span className="text-[10px] text-slate-400 font-mono">{ts}</span>
+                        </div>
+
                         {evt.type === "ai_verified" && d.quality_grade && (
-                          <p className="text-xs text-gray-600 mt-0.5">
-                            Grade {d.quality_grade} · Score {d.quality_score}
+                          <p className="text-[11px] text-emerald-300">
+                            Grade {d.quality_grade} · Score {d.quality_score}/100
                           </p>
                         )}
                         {evt.type === "nft_minted" && d.token_id && (
-                          <p className="text-xs text-gray-600 mt-0.5">
+                          <p className="text-[11px] text-purple-300 font-mono">
                             Token #{d.token_id}
                             {d.etherscan_url && (
-                              <> · <a href={d.etherscan_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Etherscan</a></>
+                              <> · <a href={d.etherscan_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Etherscan</a></>
                             )}
                           </p>
                         )}
                         {evt.type === "document_uploaded" && d.gateway_url && (
-                          <a href={d.gateway_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline">
-                            View on IPFS
+                          <a href={d.gateway_url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-blue-400 hover:underline">
+                            View Document on IPFS →
                           </a>
                         )}
                         {evt.type === "bid_accepted" && d.fpo_name && (
-                          <p className="text-xs text-gray-600 mt-0.5">
-                            FPO: {d.fpo_name} · {d.bid_amount} ETH/unit
+                          <p className="text-[11px] text-slate-300">
+                            FPO: <span className="font-semibold text-white">{d.fpo_name}</span> · {d.bid_amount} ETH/unit
                           </p>
                         )}
                         {evt.type === "escrow_created" && d.amount_eth && (
-                          <p className="text-xs text-gray-600 mt-0.5">
-                            {d.amount_eth} ETH
+                          <p className="text-[11px] text-amber-300 font-mono">
+                            {d.amount_eth} ETH Locked
                             {d.etherscan_url && (
-                              <> · <a href={d.etherscan_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Contract</a></>
+                              <> · <a href={d.etherscan_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Contract</a></>
                             )}
                           </p>
                         )}
                         {(evt.type === "escrow_funded" || evt.type === "payment_released") && d.etherscan_url && (
-                          <a href={d.etherscan_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline">
-                            View Transaction
+                          <a href={d.etherscan_url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-emerald-400 hover:underline">
+                            Verify Tx on Sepolia Etherscan →
                           </a>
                         )}
                       </div>
-                      {/* Status badge */}
-                      <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full shrink-0">
-                        ✓
-                      </span>
                     </div>
                   );
                 })}
@@ -9799,11 +10097,9 @@ export default function CropPassportPage() {
           )}
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
-          FarmerChain · Decentralized Agricultural Supply Chain ·{" "}
-          <a href="https://sepolia.etherscan.io" target="_blank" rel="noopener noreferrer" className="underline">
-            Ethereum Sepolia
-          </a>
+        {/* Footer */}
+        <p className="text-center text-[11px] text-slate-500 pt-4">
+          FarmerChain Decentralized Trust Protocol · Powered by Ethereum Sepolia, W3C DID, IPFS & Gemini AI
         </p>
       </div>
     </div>
@@ -9815,31 +10111,180 @@ export default function CropPassportPage() {
 ================================================
 FILE: frontend/src/pages/admin/AdminDashboard.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 10304: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 8953: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/pages/admin/AdminLogin.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 1040: character maps to <undefined>
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
+
+export default function AdminLogin() {
+  const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    username: "",
+    email: "",
+    password: "",
+    role: "admin",
+  });
+  const [status, setStatus] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e) =>
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setStatus("");
+    setLoading(true);
+    
+    try {
+      axios.defaults.withCredentials = true;
+      await axios.post("/api/token/", formData, {
+        withCredentials: true
+      });
+      navigate("/admin-dashboard");
+    } catch (err) {
+      setStatus("❌ Invalid credentials or server error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col justify-between relative overflow-hidden">
+      {/* Background Glow */}
+      <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-blue-500/10 blur-[120px] pointer-events-none" />
+
+      {/* Top Header */}
+      <header className="px-6 py-5 max-w-6xl mx-auto w-full flex justify-between items-center z-10">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 border border-slate-700 flex items-center justify-center text-xl shadow-lg text-white font-bold">
+            🛡️
+          </div>
+          <div>
+            <span className="font-extrabold text-white text-xl tracking-tight">
+              FarmerChain Admin
+            </span>
+            <p className="text-[11px] text-slate-400 font-medium">
+              Protocol Governance & Participant Approval
+            </p>
+          </div>
+        </div>
+
+        <a
+          href="/"
+          className="text-xs font-semibold text-slate-400 hover:text-slate-200 px-3 py-1.5 rounded-lg border border-slate-800 hover:border-slate-700 bg-slate-800/50 transition-all"
+        >
+          ← Back to User Portal
+        </a>
+      </header>
+
+      {/* Main Login Card */}
+      <main className="flex-1 flex items-center justify-center p-4 z-10">
+        <form
+          onSubmit={handleSubmit}
+          className="w-full max-w-md bg-slate-800/80 backdrop-blur-xl border border-slate-700/80 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/40"
+        >
+          <div className="text-center mb-6">
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">
+              Admin Authentication
+            </h1>
+            <p className="text-xs text-slate-400 mt-1">
+              Authorized protocol administrators only
+            </p>
+          </div>
+
+          {status && (
+            <div className="p-3 mb-4 rounded-xl text-xs font-medium bg-rose-500/10 border border-rose-500/20 text-rose-300 text-center">
+              {status}
+            </div>
+          )}
+
+          <div className="space-y-3.5">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                Admin Username
+              </label>
+              <input
+                type="text"
+                name="username"
+                placeholder="admin username"
+                value={formData.username}
+                onChange={handleChange}
+                required
+                className="w-full px-3.5 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                Admin Email
+              </label>
+              <input
+                type="email"
+                name="email"
+                placeholder="admin@farmerchain.com"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                className="w-full px-3.5 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                Security Password
+              </label>
+              <input
+                type="password"
+                name="password"
+                placeholder="••••••••••••"
+                value={formData.password}
+                onChange={handleChange}
+                required
+                className="w-full px-3.5 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 cursor-pointer mt-2 disabled:opacity-50"
+            >
+              {loading ? "Authenticating…" : "Access Command Center"}
+            </button>
+          </div>
+        </form>
+      </main>
+
+      {/* Footer */}
+      <footer className="px-6 py-4 max-w-6xl mx-auto w-full text-center text-[11px] text-slate-500 z-10">
+        FarmerChain Protocol Governance · Administrative Access Only
+      </footer>
+    </div>
+  );
+}
 
 
 ================================================
 FILE: frontend/src/pages/farmer/FarmerDashboard.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 4149: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 8887: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/pages/fpo/FpoDashboard.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 1673: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 7249: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/pages/retailer/RetailerDashboard.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 2644: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 3046: character maps to <undefined>
 
 
 ================================================
