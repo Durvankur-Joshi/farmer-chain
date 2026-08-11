@@ -43,7 +43,7 @@ class RetailerBid(models.Model):
 
     retailer = models.ForeignKey(Retailer, on_delete=models.CASCADE, related_name='bids')
     quote = models.ForeignKey('fpo.FPOQuote', on_delete=models.CASCADE, related_name='bids')
-    bid_amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="Price per unit")
+    bid_amount = models.DecimalField(max_digits=18, decimal_places=8, help_text="Price per unit")
     delivery_time_days = models.PositiveIntegerField()
     comments = models.TextField(blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='submitted')

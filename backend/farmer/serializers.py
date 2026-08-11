@@ -31,16 +31,10 @@ class FarmerQuoteSerializer(serializers.ModelSerializer):
     bids = serializers.SerializerMethodField()
     crop_passport = serializers.PrimaryKeyRelatedField(
         queryset=CropPassport.objects.all(),
-        required=False,
-        allow_null=True
+        required=True,
+        error_messages={"required": "Select a completed Crop Passport before creating a quote."}
     )
     crop_passport_details = serializers.SerializerMethodField()
-
-    product_name = serializers.CharField(max_length=200, required=False)
-    category = serializers.CharField(max_length=100, required=False)
-    quantity = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
-    unit = serializers.CharField(max_length=20, required=False)
-    description = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = FarmerQuote
@@ -52,12 +46,17 @@ class FarmerQuoteSerializer(serializers.ModelSerializer):
             'bids', 'contract_address'
         ]
         read_only_fields = ('farmer', 'status', 'created_at', 'accepted_bid')
+        extra_kwargs = {
+            'product_name': {'required': False},
+            'category': {'required': False},
+            'description': {'required': False, 'allow_blank': True},
+            'quantity': {'required': False},
+            'unit': {'required': False},
+            'price_per_unit': {'required': True},
+            'deadline': {'required': True},
+        }
 
     def get_bids(self, obj):
-        """
-        Custom method to get and serialize the bids for this quote.
-        This avoids the circular import issue at startup.
-        """
         bids_data = []
         for bid in obj.bids.all():
             bids_data.append({
@@ -74,6 +73,7 @@ class FarmerQuoteSerializer(serializers.ModelSerializer):
         if not obj.crop_passport:
             return None
         cp = obj.crop_passport
+        ai = cp.latest_ai_verification
         return {
             'id': cp.id,
             'crop_name': cp.crop_name,
@@ -83,6 +83,15 @@ class FarmerQuoteSerializer(serializers.ModelSerializer):
             'harvest_date': str(cp.harvest_date),
             'location': cp.location,
             'nft_token_id': cp.nft_token_id,
+            'primary_image_url': cp.primary_image_url,
+            'ai_verification': {
+                'quality_grade': ai.quality_grade,
+                'quality_score': float(ai.quality_score) if ai.quality_score is not None else None,
+                'confidence_score': float(ai.confidence_score) if ai.confidence_score is not None else None,
+                'crop_detected': ai.crop_detected,
+                'verification_status': ai.verification_status,
+                'image_gateway_url': ai.image_gateway_url,
+            } if ai else None,
         }
 
     def validate(self, attrs):
@@ -94,39 +103,30 @@ class FarmerQuoteSerializer(serializers.ModelSerializer):
         # If this is a new quote creation
         if not self.instance:
             if not crop_passport:
-                # Check if farmer has manual fields or no passport
-                if not attrs.get('product_name') or not attrs.get('quantity'):
-                    raise serializers.ValidationError({
-                        "crop_passport": "Create and complete a Crop Passport before creating a quote."
-                    })
-            else:
-                # Validate ownership
-                if farmer and crop_passport.farmer_id != farmer.pk:
-                    raise serializers.ValidationError({
-                        "crop_passport": "You do not own this Crop Passport."
-                    })
+                raise serializers.ValidationError({
+                    "crop_passport": "Select a completed Crop Passport before creating a quote."
+                })
 
-                # Validate passport required information
-                if not crop_passport.crop_name or not crop_passport.quantity or crop_passport.quantity <= 0:
-                    raise serializers.ValidationError({
-                        "crop_passport": "The selected Crop Passport is incomplete or missing valid crop details."
-                    })
+            # Validate ownership
+            if farmer and crop_passport.farmer_id != farmer.pk:
+                raise serializers.ValidationError({
+                    "crop_passport": "You do not own this Crop Passport."
+                })
 
-                # Auto-populate quote fields from the selected crop passport
-                attrs['product_name'] = crop_passport.crop_name
-                attrs['category'] = crop_passport.crop_category or 'Grains'
-                attrs['quantity'] = crop_passport.quantity
-                attrs['unit'] = crop_passport.unit or 'kg'
-                if not attrs.get('description'):
-                    desc_parts = []
-                    if crop_passport.description:
-                        desc_parts.append(crop_passport.description)
-                    desc_parts.append(f"Harvest Date: {crop_passport.harvest_date}")
-                    if crop_passport.location:
-                        desc_parts.append(f"Origin: {crop_passport.location}")
-                    attrs['description'] = " · ".join(desc_parts)
+            # Validate passport required information
+            if not crop_passport.crop_name or not crop_passport.quantity or crop_passport.quantity <= 0:
+                raise serializers.ValidationError({
+                    "crop_passport": "Selected Crop Passport is incomplete or has invalid quantity."
+                })
 
-        return attrs
+            # Populate model fields automatically from the crop passport
+            attrs['product_name'] = crop_passport.crop_name
+            attrs['category'] = crop_passport.crop_category
+            attrs['description'] = crop_passport.description or ''
+            attrs['quantity'] = crop_passport.quantity
+            attrs['unit'] = crop_passport.unit
+
+        return super().validate(attrs)
 
     def validate_quantity(self, value):
         if value is not None and value <= 0:
@@ -169,6 +169,8 @@ class CropPassportSerializer(serializers.ModelSerializer):
     farmer_did = serializers.CharField(source='farmer.did', read_only=True)
     farmer_wallet = serializers.CharField(source='farmer.wallet_address', read_only=True)
     is_minted = serializers.BooleanField(read_only=True)
+    primary_image_url = serializers.ReadOnlyField()
+    latest_ai_verification = serializers.SerializerMethodField()
 
     class Meta:
         model = CropPassport
@@ -180,6 +182,7 @@ class CropPassportSerializer(serializers.ModelSerializer):
             'status', 'is_minted', 'created_at', 'updated_at',
             'nft_token_id', 'nft_contract_address',
             'nft_token_uri', 'nft_transaction_hash', 'nft_minted_at',
+            'primary_image_url', 'latest_ai_verification',
         ]
         read_only_fields = (
             'farmer', 'status', 'is_minted',
@@ -189,6 +192,25 @@ class CropPassportSerializer(serializers.ModelSerializer):
             'nft_token_id', 'nft_contract_address',
             'nft_token_uri', 'nft_transaction_hash', 'nft_minted_at',
         )
+
+    def get_latest_ai_verification(self, obj):
+        v = obj.latest_ai_verification
+        if not v:
+            return None
+        return {
+            'id': v.id,
+            'verification_status': v.verification_status,
+            'crop_detected': v.crop_detected,
+            'quality_grade': v.quality_grade,
+            'quality_score': float(v.quality_score) if v.quality_score is not None else None,
+            'confidence_score': float(v.confidence_score) if v.confidence_score is not None else None,
+            'image_cid': v.image_cid,
+            'image_gateway_url': v.image_gateway_url,
+            'disease_detected': v.disease_detected,
+            'disease_name': v.disease_name,
+            'visible_defects': v.visible_defects,
+            'ai_summary': v.ai_summary,
+        }
 
     def validate(self, data):
         cultivation = data.get('cultivation_date') or (self.instance.cultivation_date if self.instance else None)
@@ -213,6 +235,7 @@ class PublicCropPassportSerializer(serializers.ModelSerializer):
     farmer_did = serializers.CharField(source='farmer.did', read_only=True)
     farmer_wallet = serializers.CharField(source='farmer.wallet_address', read_only=True)
     farmer_location = serializers.SerializerMethodField()
+    primary_image_url = serializers.ReadOnlyField()
 
     class Meta:
         model = CropPassport
@@ -224,6 +247,7 @@ class PublicCropPassportSerializer(serializers.ModelSerializer):
             'status',
             'nft_token_id', 'nft_contract_address',
             'nft_token_uri', 'nft_transaction_hash', 'nft_minted_at',
+            'primary_image_url',
         ]
 
     def get_farmer_location(self, obj):

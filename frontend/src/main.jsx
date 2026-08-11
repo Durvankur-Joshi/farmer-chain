@@ -15,8 +15,13 @@ axios.interceptors.request.use((config) => {
     localStorage.getItem("access_token") ||
     Cookies.get("access_token") ||
     Cookies.get("token");
-  if (token && !config.headers.Authorization) {
-    config.headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    if (config.headers && typeof config.headers.set === "function") {
+      config.headers.set("Authorization", `Bearer ${token}`);
+    } else {
+      config.headers = config.headers || {};
+      config.headers["Authorization"] = `Bearer ${token}`;
+    }
   }
   return config;
 });

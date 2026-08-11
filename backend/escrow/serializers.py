@@ -15,7 +15,7 @@ class EscrowTransactionSerializer(serializers.ModelSerializer):
     fpo_wallet     = serializers.CharField(source='fpo.wallet_address', read_only=True)
     product_name   = serializers.CharField(source='quote.product_name', read_only=True)
     quantity       = serializers.DecimalField(
-        source='quote.quantity', read_only=True, max_digits=10, decimal_places=2
+        source='quote.quantity', read_only=True, max_digits=18, decimal_places=8
     )
     unit           = serializers.CharField(source='quote.unit', read_only=True)
     quote_id       = serializers.IntegerField(source='quote.id', read_only=True)
@@ -51,7 +51,7 @@ class RetailerEscrowTransactionSerializer(serializers.ModelSerializer):
     retailer_wallet = serializers.CharField(source='retailer.wallet_address', read_only=True)
     product_name   = serializers.CharField(source='quote.product_name', read_only=True)
     quantity       = serializers.DecimalField(
-        source='quote.quantity', read_only=True, max_digits=10, decimal_places=2
+        source='quote.quantity', read_only=True, max_digits=18, decimal_places=8
     )
     unit           = serializers.CharField(source='quote.unit', read_only=True)
     quote_id       = serializers.IntegerField(source='quote.id', read_only=True)

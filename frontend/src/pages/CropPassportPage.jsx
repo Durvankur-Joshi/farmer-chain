@@ -146,6 +146,36 @@ export default function CropPassportPage() {
           </span>
         </div>
 
+        {/* ── Primary Crop Image Banner ─────────────────────────────── */}
+        {crop.primary_image_url && (
+          <div className="bg-slate-800/80 backdrop-blur-xl rounded-3xl border border-slate-700/80 p-4 sm:p-5 flex flex-col sm:flex-row items-center gap-4">
+            <img
+              src={crop.primary_image_url}
+              alt={crop.crop_name}
+              className="w-full sm:w-44 h-32 object-cover rounded-2xl border border-slate-700 shadow-lg shrink-0"
+            />
+            <div className="space-y-1.5 flex-1 text-xs">
+              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">
+                📸 Primary Crop Image & AI Verification
+              </span>
+              <h3 className="text-base font-extrabold text-white">{crop.crop_name}</h3>
+              {aiVerif?.verification && (
+                <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                    Grade {aiVerif.verification.quality_grade}
+                  </span>
+                  <span className="text-slate-300">
+                    Detected: <strong className="text-white">{aiVerif.verification.crop_detected}</strong>
+                  </span>
+                  <span className="font-mono text-emerald-400 font-bold">
+                    Score: {aiVerif.verification.quality_score} / 100
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ── Passport Hero Card ───────────────────────────────────── */}
         <div className="bg-slate-800/80 backdrop-blur-xl rounded-3xl border border-slate-700/80 p-6 sm:p-8 shadow-2xl shadow-black/40 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

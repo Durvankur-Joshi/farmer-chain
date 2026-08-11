@@ -107,31 +107,7 @@ export default function CropPassportCard({ crop, onMintSuccess, onDeleteSuccess 
         </div>
       </div>
 
-      {/* ── Trust Milestones Indicators ────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
-        <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-          <span>✓</span>
-          <span>W3C DID Linked</span>
-        </span>
-        <span className={`px-2.5 py-1 rounded-full border flex items-center gap-1 ${
-          hasDocuments ? "bg-blue-50 text-blue-800 border-blue-200" : "bg-slate-50 text-slate-400 border-slate-200"
-        }`}>
-          <span>{hasDocuments ? "✓" : "○"}</span>
-          <span>IPFS Evidence {hasDocuments ? "Stored" : "Pending"}</span>
-        </span>
-        <span className={`px-2.5 py-1 rounded-full border flex items-center gap-1 ${
-          hasAI ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-slate-50 text-slate-400 border-slate-200"
-        }`}>
-          <span>{hasAI ? "✓" : "○"}</span>
-          <span>AI Quality {hasAI ? "Assessed" : "Pending"}</span>
-        </span>
-        <span className={`px-2.5 py-1 rounded-full border flex items-center gap-1 ${
-          isMinted ? "bg-purple-50 text-purple-800 border-purple-200" : "bg-slate-50 text-slate-400 border-slate-200"
-        }`}>
-          <span>{isMinted ? "✓" : "○"}</span>
-          <span>Sepolia NFT {isMinted ? "Minted" : "Pending"}</span>
-        </span>
-      </div>
+
 
       {/* ── Crop Details 4-Column Grid ─────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
@@ -242,13 +218,51 @@ export default function CropPassportCard({ crop, onMintSuccess, onDeleteSuccess 
         </div>
       )}
 
-      {/* ── Decentralized IPFS Evidence Documents Section ─────────── */}
+      {/* ── Primary Crop Image Preview Banner ─────────────────────── */}
+      {crop.primary_image_url && (
+        <div className="flex flex-col sm:flex-row items-center gap-4 bg-purple-50/40 p-3.5 rounded-2xl border border-purple-200/80">
+          <img
+            src={crop.primary_image_url}
+            alt={crop.crop_name}
+            className="w-full sm:w-36 h-28 object-cover rounded-xl border border-purple-200 shadow-xs shrink-0"
+          />
+          <div className="space-y-1 flex-1 text-xs">
+            <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider block">
+              📸 Primary Verified Crop Image
+            </span>
+            <p className="font-extrabold text-slate-900">{crop.crop_name}</p>
+            {crop.latest_ai_verification && (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                  Grade {crop.latest_ai_verification.quality_grade}
+                </span>
+                <span className="text-[11px] text-slate-600 font-medium">
+                  Detected: <strong>{crop.latest_ai_verification.crop_detected}</strong>
+                </span>
+                <span className="text-[11px] font-mono text-purple-800 font-bold">
+                  Score: {crop.latest_ai_verification.quality_score} / 100
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Primary Crop Image & AI Verification Studio ────────── */}
+      {/* Only show standalone AI verification when no verification exists yet (avoid duplicate upload) */}
+      {!crop.primary_image_url && !crop.latest_ai_verification && (
+        <div className="border-t border-slate-100 pt-4">
+          <AIVerification cropId={crop.id} cropName={crop.crop_name} />
+        </div>
+      )}
+
+      {/* ── Optional Evidence Documents Section ─────────────────── */}
       <div className="border-t border-slate-100 pt-4 space-y-3">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
             <span className="text-sm">📦</span>
             <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              Decentralized IPFS Evidence Documents
+              Optional Evidence
             </h4>
           </div>
           <button
@@ -274,11 +288,6 @@ export default function CropPassportCard({ crop, onMintSuccess, onDeleteSuccess 
           cropId={crop.id}
           refreshTrigger={docRefresh}
         />
-      </div>
-
-      {/* ── AI Quality Verification Studio ────────────────────────── */}
-      <div className="border-t border-slate-100 pt-4">
-        <AIVerification cropId={crop.id} cropName={crop.crop_name} />
       </div>
 
       {/* ── Delete Confirmation Modal ──────────────────────────────── */}

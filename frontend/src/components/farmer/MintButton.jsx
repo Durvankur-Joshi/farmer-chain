@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
+import Cookies from "js-cookie";
 import { ethers } from "ethers";
 import CropPassportABI from "../../utils/CropPassportABI.json";
 import StatusBadge from "../common/StatusBadge";
@@ -66,11 +67,21 @@ export default function MintButton({ crop, onMintSuccess }) {
         }
       }
 
+      const token =
+        localStorage.getItem("access_token") ||
+        Cookies.get("access_token") ||
+        Cookies.get("token");
+
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
       setStatus("Preparing IPFS metadata & decentralized token URI…");
       const mintPrepRes = await axios.post(
         `/api/farmer/crops/${crop.id}/mint/`,
         {},
-        { withCredentials: true }
+        {
+          withCredentials: true,
+          headers: authHeaders,
+        }
       );
       const { token_uri, farmer_wallet } = mintPrepRes.data;
 
@@ -129,7 +140,10 @@ export default function MintButton({ crop, onMintSuccess }) {
           tx_hash: receipt.transactionHash,
           token_uri: token_uri,
         },
-        { withCredentials: true }
+        {
+          withCredentials: true,
+          headers: authHeaders,
+        }
       );
 
       setStatus("🎉 NFT Crop Passport successfully minted on Ethereum Sepolia!");
@@ -143,16 +157,47 @@ export default function MintButton({ crop, onMintSuccess }) {
     }
   };
 
+  const hasCropData = !!(crop.crop_name && crop.crop_category && crop.quantity > 0 && crop.unit && crop.cultivation_date && crop.harvest_date);
+  const latestAI = crop.latest_ai_verification || (crop.ai_verifications && crop.ai_verifications[0]);
+  const hasPrimaryImage = !!(crop.primary_image_url || latestAI?.image_gateway_url);
+  const hasAIVerified = !!(latestAI && latestAI.verification_status === "verified");
+
+  const isReadyToMint = hasCropData && hasPrimaryImage && hasAIVerified;
+
   return (
     <div className="space-y-2.5">
+      {!isReadyToMint && (
+        <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-xl text-xs space-y-1.5 mb-2">
+          <p className="font-extrabold text-purple-950 flex items-center gap-1.5">
+            <span>🔒</span>
+            <span>Minting Requirements Checklist</span>
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] font-semibold">
+            <span className={hasCropData ? "text-emerald-700 font-bold" : "text-rose-600"}>
+              {hasCropData ? "✓" : "❌"} Crop Details Complete
+            </span>
+            <span className={hasPrimaryImage ? "text-emerald-700 font-bold" : "text-rose-600"}>
+              {hasPrimaryImage ? "✓" : "❌"} Primary Crop Image
+            </span>
+            <span className={hasAIVerified ? "text-emerald-700 font-bold" : "text-rose-600"}>
+              {hasAIVerified ? `✓ AI Verified (${latestAI?.quality_grade ? `Grade ${latestAI.quality_grade}` : 'Verified'})` : "❌ AI Verification Required"}
+            </span>
+          </div>
+        </div>
+      )}
+
       <button
         type="button"
         onClick={handleMint}
-        disabled={minting}
-        className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-xs disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+        disabled={minting || !isReadyToMint}
+        className={`text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-xs flex items-center gap-2 ${
+          isReadyToMint
+            ? "bg-purple-600 hover:bg-purple-500 text-white cursor-pointer shadow-purple-900/20"
+            : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+        }`}
       >
-        <span>🪙</span>
-        <span>{minting ? "Minting on Sepolia…" : "Mint NFT Digital Twin"}</span>
+        <span>{isReadyToMint ? "🪙" : "🔒"}</span>
+        <span>{minting ? "Minting on Sepolia…" : isReadyToMint ? "Mint NFT Digital Twin" : "Minting Gated (Complete Checklist)"}</span>
       </button>
 
       {status && (

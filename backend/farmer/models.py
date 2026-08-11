@@ -56,10 +56,10 @@ class FarmerQuote(models.Model):
     )
     product_name = models.CharField(max_length=200)
     category = models.CharField(max_length=100)
-    description = models.TextField()
-    quantity = models.DecimalField(max_digits=10, decimal_places=2)
+    description = models.TextField(blank=True, default='')
+    quantity = models.DecimalField(max_digits=18, decimal_places=8)
     unit = models.CharField(max_length=20, help_text="e.g., kg, quintal, ton")
-    price_per_unit = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    price_per_unit = models.DecimalField(max_digits=18, decimal_places=8, null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')  # Increased max_length
     deadline = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -112,7 +112,7 @@ class CropPassport(models.Model):
     crop_name = models.CharField(max_length=200)
     crop_category = models.CharField(max_length=100)
     description = models.TextField(blank=True)
-    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+    quantity = models.DecimalField(max_digits=18, decimal_places=8)
     unit = models.CharField(max_length=20, choices=UNIT_CHOICES, default='kg')
     cultivation_date = models.DateField()
     harvest_date = models.DateField()
@@ -157,6 +157,30 @@ class CropPassport(models.Model):
     @property
     def is_minted(self):
         return self.status == self.STATUS_MINTED
+
+    @property
+    def primary_image_cid(self):
+        latest_verified = self.ai_verifications.filter(verification_status='verified').first()
+        if latest_verified and latest_verified.image_cid:
+            return latest_verified.image_cid
+        latest_any = self.ai_verifications.first()
+        if latest_any and latest_any.image_cid:
+            return latest_any.image_cid
+        doc = self.documents.filter(document_type='crop_image').first()
+        if doc and doc.ipfs_cid:
+            return doc.ipfs_cid
+        return None
+
+    @property
+    def primary_image_url(self):
+        cid = self.primary_image_cid
+        if cid:
+            return f"https://gateway.pinata.cloud/ipfs/{cid}"
+        return None
+
+    @property
+    def latest_ai_verification(self):
+        return self.ai_verifications.filter(verification_status='verified').first() or self.ai_verifications.first()
 
 
 class CropPassportDocument(models.Model):

@@ -109,13 +109,17 @@ class FarmerOpenQuoteListView(generics.ListAPIView):
             qs = qs.filter(
                 Q(product_name__icontains=q) |
                 Q(category__icontains=q) |
+                Q(crop_passport__crop_category__icontains=q) |
                 Q(description__icontains=q)
             )
 
         # Category filter
         category = self.request.query_params.get('category')
         if category and category.strip() and category.lower() != 'all':
-            qs = qs.filter(category__iexact=category.strip())
+            qs = qs.filter(
+                Q(category__iexact=category.strip()) |
+                Q(crop_passport__crop_category__iexact=category.strip())
+            )
 
         # Unit filter
         unit = self.request.query_params.get('unit')

@@ -264,8 +264,15 @@ export default function RetailerQuotes() {
                 key={q.id}
                 className="border border-slate-200/80 rounded-2xl p-5 bg-white hover:border-slate-300 transition-all space-y-3 shadow-2xs"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <div className="space-y-0.5">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  {(q.primary_image_url || q.crop_passport_details?.primary_image_url) && (
+                    <img
+                      src={q.primary_image_url || q.crop_passport_details.primary_image_url}
+                      alt={q.product_name}
+                      className="w-16 h-16 object-cover rounded-xl border border-slate-200 shrink-0"
+                    />
+                  )}
+                  <div className="space-y-0.5 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-base font-extrabold text-slate-900">{q.product_name}</span>
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">{q.category}</span>

@@ -117,12 +117,16 @@ class FarmerQuoteListCreateView(generics.ListCreateAPIView):
             qs = qs.filter(
                 Q(product_name__icontains=q) |
                 Q(category__icontains=q) |
+                Q(crop_passport__crop_category__icontains=q) |
                 Q(description__icontains=q)
             )
 
         category = self.request.query_params.get('category')
         if category and category.strip() and category.lower() != 'all':
-            qs = qs.filter(category__iexact=category.strip())
+            qs = qs.filter(
+                Q(category__iexact=category.strip()) |
+                Q(crop_passport__crop_category__iexact=category.strip())
+            )
 
         unit = self.request.query_params.get('unit')
         if unit and unit.strip() and unit.lower() != 'all':
@@ -405,21 +409,15 @@ def prepare_mint_view(request, crop_id):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # ── 2. Validate IPFS Document / Crop Image upload ─────────────────
-    docs = crop.documents.all()
-    if not docs.exists():
+    # ── 2. Validate Primary Crop Image & AI Quality Verification ──────
+    verifications = crop.ai_verifications.filter(verification_status='verified')
+    if not crop.primary_image_url or not verifications.exists():
         return Response(
-            {"error": "A crop document/image must be uploaded to IPFS before generating the Crop Passport."},
+            {"error": "Primary crop image and successful AI Quality Verification are required before generating the Crop Passport."},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # ── 3. Validate AI Quality Verification ───────────────────────────
-    verifications = crop.ai_verifications.filter(verification_status='verified')
-    if not verifications.exists():
-        return Response(
-            {"error": "AI Quality Verification must be completed and verified before generating the Crop Passport."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+    # ── 3. (Evidence documents are optional supporting proof — not required for minting)
 
     # Build W3C-style NFT metadata (no sensitive fields)
     metadata = {

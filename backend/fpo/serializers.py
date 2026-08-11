@@ -29,7 +29,7 @@ class FPOBidSerializer(serializers.ModelSerializer):
     fpo_email = serializers.CharField(source='fpo.email', read_only=True)
     quote_product_name = serializers.CharField(source='quote.product_name', read_only=True)
     quote_farmer_name = serializers.CharField(source='quote.farmer.name', read_only=True)
-    quote_quantity = serializers.DecimalField(source='quote.quantity', read_only=True, max_digits=10, decimal_places=2)
+    quote_quantity = serializers.DecimalField(source='quote.quantity', read_only=True, max_digits=18, decimal_places=8)
     quote_unit = serializers.CharField(source='quote.unit', read_only=True)
     
     class Meta:

@@ -13,7 +13,7 @@ class FarmerAdmin(admin.ModelAdmin):
 @admin.register(FarmerQuote)
 class FarmerQuoteAdmin(admin.ModelAdmin):
     list_display = ('product_name', 'farmer', 'quantity', 'unit', 'status', 'deadline')
-    list_filter = ('status', 'category')
+    list_filter = ('status', 'crop_passport__crop_category')
     search_fields = ('product_name', 'farmer__name')
 
 

@@ -119,6 +119,13 @@ export default function FarmerQuotes() {
                 className="border border-slate-200/80 rounded-2xl p-5 hover:border-blue-300 hover:shadow-xs transition-all bg-white space-y-3"
               >
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                  {quote.crop_passport_details?.primary_image_url && (
+                    <img
+                      src={quote.crop_passport_details.primary_image_url}
+                      alt={quote.product_name}
+                      className="w-20 h-20 object-cover rounded-xl border border-slate-200 shrink-0"
+                    />
+                  )}
                   <div className="space-y-1 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-base font-extrabold text-slate-900">
