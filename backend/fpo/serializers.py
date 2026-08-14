@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import FPO, FPOBid, FPOQuote
+from .models import FPO, FPOBid, FPOQuote, FPOInventoryLot
 
 class FPOSerializer(serializers.ModelSerializer):
     class Meta:
@@ -116,3 +116,93 @@ class FPOQuoteSerializer(serializers.ModelSerializer):
         if value <= timezone.now().date():
             raise serializers.ValidationError("Deadline must be in the future.")
         return value
+
+
+class FPOInventoryLotSerializer(serializers.ModelSerializer):
+    """
+    Phase 1 — FPO Inventory Lot Serializer.
+    Provides complete lot details and provenance tracking (FPO -> Farmer -> Crop -> Passport).
+    """
+    fpo_name = serializers.CharField(source='fpo.name', read_only=True)
+    farmer_name = serializers.CharField(source='farmer.name', read_only=True)
+    farmer_email = serializers.CharField(source='farmer.email', read_only=True)
+    farmer_city = serializers.CharField(source='farmer.city', read_only=True)
+    farmer_state = serializers.CharField(source='farmer.state', read_only=True)
+    farmer_did = serializers.CharField(source='farmer.did', read_only=True)
+
+    farmer_details = serializers.SerializerMethodField()
+    crop_passport_details = serializers.SerializerMethodField()
+    provenance = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FPOInventoryLot
+        fields = [
+            'id', 'fpo', 'fpo_name', 'farmer', 'farmer_name', 'farmer_email',
+            'farmer_city', 'farmer_state', 'farmer_did', 'farmer_details',
+            'crop_passport', 'crop_passport_details', 'provenance',
+            'product_name', 'crop_category', 'original_quantity',
+            'available_quantity', 'reserved_quantity', 'unit',
+            'acquisition_price', 'status', 'quote', 'bid',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = fields
+
+    def get_farmer_details(self, obj):
+        if not obj.farmer:
+            return None
+        f = obj.farmer
+        return {
+            'id': f.id,
+            'name': f.name,
+            'email': f.email,
+            'city': f.city,
+            'state': f.state,
+            'did': f.did,
+            'wallet_address': f.wallet_address,
+        }
+
+    def get_crop_passport_details(self, obj):
+        if not obj.crop_passport:
+            return None
+        cp = obj.crop_passport
+        ai = cp.latest_ai_verification
+        return {
+            'id': cp.id,
+            'crop_name': cp.crop_name,
+            'crop_category': cp.crop_category,
+            'description': cp.description,
+            'status': cp.status,
+            'is_minted': cp.is_minted,
+            'cultivation_date': str(cp.cultivation_date),
+            'harvest_date': str(cp.harvest_date),
+            'location': cp.location,
+            'nft_token_id': cp.nft_token_id,
+            'primary_image_url': cp.primary_image_url,
+            'ai_verification': {
+                'quality_grade': ai.quality_grade,
+                'quality_score': float(ai.quality_score) if ai.quality_score is not None else None,
+                'confidence_score': float(ai.confidence_score) if ai.confidence_score is not None else None,
+                'crop_detected': ai.crop_detected,
+                'verification_status': ai.verification_status,
+                'image_gateway_url': ai.image_gateway_url,
+            } if ai else None,
+        }
+
+    def get_provenance(self, obj):
+        cp = obj.crop_passport
+        return {
+            'fpo_name': obj.fpo.name,
+            'fpo_did': obj.fpo.did,
+            'farmer_name': obj.farmer.name,
+            'farmer_did': obj.farmer.did,
+            'farmer_location': f"{obj.farmer.city}, {obj.farmer.state}",
+            'crop_name': obj.product_name,
+            'crop_category': obj.crop_category,
+            'passport_id': cp.id if cp else None,
+            'passport_status': cp.status if cp else 'no_passport',
+            'nft_minted': cp.is_minted if cp else False,
+            'nft_token_id': cp.nft_token_id if cp else None,
+            'ai_grade': cp.latest_ai_verification.quality_grade if (cp and cp.latest_ai_verification) else None,
+            'acquired_at': str(obj.created_at),
+            'acquisition_price_eth': str(obj.acquisition_price) if obj.acquisition_price else None,
+        }

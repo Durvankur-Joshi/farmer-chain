@@ -3,8 +3,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
-from .models import FPO, FPOBid, FPOQuote
-from .serializers import FPOSerializer, FPORegistrationSerializer, FPOBidSerializer, FPOQuoteSerializer
+from .models import FPO, FPOBid, FPOQuote, FPOInventoryLot
+from .serializers import FPOSerializer, FPORegistrationSerializer, FPOBidSerializer, FPOQuoteSerializer, FPOInventoryLotSerializer
 from common.permissions import IsFPO
 from farmer.models import FarmerQuote
 from farmer.serializers import FarmerQuoteSerializer
@@ -98,6 +98,10 @@ class FarmerOpenQuoteListView(generics.ListAPIView):
 
     def get_queryset(self):
         fpo = self.request.user.user_obj
+
+        # Safely clean up any auto-generated quotes that have no asking price and no bids
+        FarmerQuote.objects.filter(price_per_unit__isnull=True, bids__isnull=True).delete()
+
         # Exclude quotes where FPO has already bid
         qs = FarmerQuote.objects.filter(status='open').exclude(bids__fpo=fpo)
 
@@ -203,5 +207,78 @@ def accept_retailer_bid(request, bid_pk):
     
     return Response({
         "message": "Retailer bid accepted successfully.",
-        "bid_id": bid.pk
+        "bid_id": bid.pk,
+        "quote_id": quote.id
     })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsFPO])
+def fpo_inventory_list_view(request):
+    """
+    GET /api/fpo/inventory/
+
+    Phase 1 — Returns inventory stock lots owned by the authenticated FPO.
+    Supports filtering by search query (q/search), crop_category, and status.
+    Ensures backfilling for any accepted farmer deals that have not created a lot yet.
+    """
+    fpo = request.user.user_obj
+
+    # Backfill lots for any accepted farmer quotes where inventory lot wasn't created yet
+    from farmer.models import FarmerQuote
+    from .services import create_fpo_inventory_lot_from_deal
+    accepted_quotes = FarmerQuote.objects.filter(
+        accepted_bid__fpo=fpo,
+        status__in=['accepted', 'contract_created', 'closed', 'awarded']
+    )
+    for q_obj in accepted_quotes:
+        create_fpo_inventory_lot_from_deal(q_obj, q_obj.accepted_bid)
+
+    qs = FPOInventoryLot.objects.filter(fpo=fpo)
+
+    # Search filter
+    q = request.query_params.get('search') or request.query_params.get('q')
+    if q:
+        q = q.strip()
+        from django.db.models import Q
+        qs = qs.filter(
+            Q(product_name__icontains=q) |
+            Q(crop_category__icontains=q) |
+            Q(farmer__name__icontains=q) |
+            Q(farmer__city__icontains=q)
+        )
+
+    # Category filter
+    category = request.query_params.get('category')
+    if category and category.strip() and category.lower() != 'all':
+        qs = qs.filter(crop_category__iexact=category.strip())
+
+    # Status filter
+    status_param = request.query_params.get('status')
+    if status_param and status_param.strip() and status_param.lower() != 'all':
+        qs = qs.filter(status=status_param.strip())
+
+    serializer = FPOInventoryLotSerializer(qs, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsFPO])
+def fpo_inventory_detail_view(request, lot_id):
+    """
+    GET /api/fpo/inventory/<lot_id>/
+
+    Phase 1 — Returns detailed inventory lot record with full provenance data.
+    Enforces ownership check so FPOs can only view their own inventory.
+    """
+    fpo = request.user.user_obj
+    lot = get_object_or_404(FPOInventoryLot, pk=lot_id)
+
+    if lot.fpo_id != fpo.pk:
+        return Response(
+            {'error': 'You do not own this inventory lot.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    serializer = FPOInventoryLotSerializer(lot)
+    return Response(serializer.data, status=status.HTTP_200_OK)

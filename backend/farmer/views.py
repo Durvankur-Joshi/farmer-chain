@@ -200,7 +200,14 @@ def accept_fpo_bid(request, bid_pk):
     quote.status = 'accepted'
     quote.accepted_bid = bid
     quote.save()
-    
+
+    # Phase 1 — Create FPO Inventory Lot preserving Farmer & Crop Passport provenance
+    try:
+        from fpo.services import create_fpo_inventory_lot_from_deal
+        create_fpo_inventory_lot_from_deal(quote, bid)
+    except Exception as exc:
+        logger.warning("Could not auto-create FPO inventory lot on bid accept: %s", exc)
+
     return Response({
         "message": "Bid accepted successfully. You can now create the smart contract.",
         "bid_id": bid.pk,

@@ -74,3 +74,100 @@ class FPOQuote(models.Model):
     
     def __str__(self):
         return f"{self.product_name} quote by {self.fpo.name}"
+
+
+class FPOInventoryLot(models.Model):
+    """
+    Phase 1 — FPO Inventory Foundation.
+    Represents stock acquired/held by an FPO from a specific farmer.
+    Permanently retains the source farmer and crop passport provenance.
+    """
+    STATUS_CHOICES = [
+        ('available', 'Available'),
+        ('reserved', 'Reserved'),
+        ('depleted', 'Depleted'),
+    ]
+
+    UNIT_CHOICES = [
+        ('kg', 'Kilogram (kg)'),
+        ('quintal', 'Quintal (quintal)'),
+        ('caret', 'Caret (caret)'),
+        ('piece', 'Piece (piece)'),
+        ('acre', 'Acre (acre)'),
+        ('ton', 'Metric Ton (ton)'),
+        ('litre', 'Litre (litre)'),
+        ('dozen', 'Dozen (dozen)'),
+    ]
+
+    fpo = models.ForeignKey(FPO, on_delete=models.CASCADE, related_name='inventory_lots')
+    farmer = models.ForeignKey('farmer.Farmer', on_delete=models.CASCADE, related_name='fpo_inventory_lots')
+    crop_passport = models.ForeignKey(
+        'farmer.CropPassport',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='fpo_inventory_lots'
+    )
+    product_name = models.CharField(max_length=200)
+    crop_category = models.CharField(max_length=100, blank=True)
+    original_quantity = models.DecimalField(max_digits=18, decimal_places=8)
+    available_quantity = models.DecimalField(max_digits=18, decimal_places=8)
+    reserved_quantity = models.DecimalField(max_digits=18, decimal_places=8, default=0)
+    unit = models.CharField(max_length=20, choices=UNIT_CHOICES, default='kg')
+    acquisition_price = models.DecimalField(
+        max_digits=18,
+        decimal_places=8,
+        null=True,
+        blank=True,
+        help_text="Acquisition price per unit in ETH paid to farmer"
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='available')
+
+    # Provenance tracking to source deal
+    quote = models.ForeignKey(
+        'farmer.FarmerQuote',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='inventory_lots'
+    )
+    bid = models.ForeignKey(
+        FPOBid,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='inventory_lots'
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Inventory Lot #{self.id} — {self.product_name} ({self.available_quantity}/{self.original_quantity} {self.unit}) held by {self.fpo.name}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.original_quantity is None or self.original_quantity <= 0:
+            raise ValidationError("Original quantity must be greater than zero.")
+        if self.available_quantity is None or self.available_quantity < 0:
+            raise ValidationError("Available quantity cannot be negative.")
+        if self.available_quantity > self.original_quantity:
+            raise ValidationError("Available quantity cannot exceed original quantity.")
+        if self.reserved_quantity is None or self.reserved_quantity < 0:
+            raise ValidationError("Reserved quantity cannot be negative.")
+        if self.reserved_quantity > self.available_quantity:
+            raise ValidationError("Reserved quantity cannot exceed available quantity.")
+
+    def save(self, *args, **kwargs):
+        if self.available_quantity is not None:
+            if self.available_quantity <= 0:
+                self.status = 'depleted'
+            elif self.reserved_quantity and self.reserved_quantity == self.available_quantity:
+                self.status = 'reserved'
+            elif self.available_quantity > 0 and self.status == 'depleted':
+                self.status = 'available'
+        self.clean()
+        super().save(*args, **kwargs)

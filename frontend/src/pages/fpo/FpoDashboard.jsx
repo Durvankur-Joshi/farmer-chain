@@ -6,6 +6,7 @@ import FarmerQuotes from "../../components/fpo/FarmerQuotes";
 import RetailerQuotes from "../../components/fpo/RetailerQuotes";
 import FpoEscrowPanel from "../../components/fpo/FpoEscrowPanel";
 import FpoRetailerEscrowPanel from "../../components/fpo/FpoRetailerEscrowPanel";
+import FpoInventoryPanel from "../../components/fpo/FpoInventoryPanel";
 import TrustReputationCard from "../../components/common/TrustReputationCard";
 import DidIdentityCard from "../../components/common/DidIdentityCard";
 import DashboardNavbar from "../../components/common/DashboardNavbar";
@@ -207,6 +208,19 @@ export default function FpoDashboard() {
           <button
             type="button"
             className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === "inventory"
+                ? "bg-blue-600 text-white shadow-sm"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            }`}
+            onClick={() => setActiveTab("inventory")}
+          >
+            <span>📦</span>
+            <span>Stock Inventory & Provenance</span>
+          </button>
+
+          <button
+            type="button"
+            className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
               activeTab === "retailer"
                 ? "bg-blue-600 text-white shadow-sm"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
@@ -260,6 +274,8 @@ export default function FpoDashboard() {
               <FarmerQuotes />
             </div>
           )}
+
+          {activeTab === "inventory" && <FpoInventoryPanel />}
 
           {activeTab === "retailer" && (
             <div>
