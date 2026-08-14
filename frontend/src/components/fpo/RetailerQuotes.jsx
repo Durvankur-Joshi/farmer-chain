@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { SUPPORTED_UNITS, calculateTotalEth } from "../../utils/pricing";
+import NegotiationModal from "../common/NegotiationModal";
+import ProvenanceCard from "../common/ProvenanceCard";
 
 export default function RetailerQuotes() {
   const [quotes, setQuotes] = useState([]);
@@ -17,6 +19,7 @@ export default function RetailerQuotes() {
   const [expandedQuote, setExpandedQuote] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formMsg, setFormMsg] = useState(null);
+  const [negotiatingBid, setNegotiatingBid] = useState(null);
 
   const fetchRetailerQuotes = useCallback(async () => {
     setLoading(true);
@@ -102,140 +105,31 @@ export default function RetailerQuotes() {
 
   return (
     <div className="space-y-6">
-      {/* Create Quote Form */}
-      <form onSubmit={submitQuote} className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-5 space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
-          <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-            <span>➕</span> Publish Aggregated Lot to Retail Marketplace
-          </h3>
-          <span className="text-[10px] font-semibold text-slate-500">
-            Visible to All Approved Retailers
-          </span>
+      {/* Cart-backed Workflow Banner */}
+      <div className="bg-gradient-to-r from-purple-900 to-indigo-900 text-white rounded-2xl p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🚀</span>
+            <h3 className="text-sm font-extrabold">Cart-Backed Wholesale Market Quotes</h3>
+          </div>
+          <p className="text-xs text-purple-100/80 max-w-xl">
+            Wholesale market quotes are created directly from your <strong>Stock Cart</strong> allocations to preserve 100% provenance traceability to source farmers and crop passports.
+          </p>
         </div>
-
-        {formMsg && (
-          <div className={`p-3 rounded-xl text-xs font-medium ${
-            formMsg.type === "success" ? "bg-emerald-50 border border-emerald-200 text-emerald-800" : "bg-rose-50 border border-rose-200 text-rose-800"
-          }`}>
-            {formMsg.text}
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Product / Crop Name *</label>
-            <input
-              name="product_name"
-              placeholder="e.g. Organic Sharbati Wheat (Grade A)"
-              value={form.product_name}
-              onChange={handleChange}
-              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-blue-500 outline-none"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Category *</label>
-            <input
-              name="category"
-              placeholder="e.g. Grains / Pulses / Oilseeds"
-              value={form.category}
-              onChange={handleChange}
-              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-blue-500 outline-none"
-              required
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Quantity *</label>
-            <input
-              name="quantity"
-              type="number"
-              min="0.0001"
-              step="any"
-              placeholder="e.g. 500"
-              value={form.quantity}
-              onChange={handleChange}
-              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-blue-500 outline-none font-mono"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Unit *</label>
-            <select
-              name="unit"
-              value={form.unit}
-              onChange={handleChange}
-              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-blue-500 outline-none cursor-pointer"
-              required
-            >
-              <option value="">Select Unit</option>
-              {SUPPORTED_UNITS.map((u) => (
-                <option key={u.value} value={u.value}>
-                  {u.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Asking Price (ETH / {form.unit || "unit"}) *
-            </label>
-            <input
-              name="price_per_unit"
-              type="number"
-              min="0.000001"
-              step="any"
-              placeholder="e.g. 0.005"
-              value={form.price_per_unit}
-              onChange={handleChange}
-              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-blue-500 outline-none font-mono font-bold"
-              required
-            />
-          </div>
-        </div>
-
-        {estimatedTotal && (
-          <div className="p-2.5 bg-blue-100/70 border border-blue-200 rounded-xl flex items-center justify-between text-xs">
-            <span className="font-medium text-blue-950">Calculated Total Lot Value:</span>
-            <span className="font-mono font-extrabold text-blue-800 text-sm">{estimatedTotal} ETH</span>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Deadline Date *</label>
-            <input
-              name="deadline"
-              type="date"
-              value={form.deadline}
-              onChange={handleChange}
-              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-blue-500 outline-none"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Packaging & Warehouse Notes</label>
-            <input
-              name="description"
-              placeholder="FPO warehouse location, 50kg bag packing, ready for dispatch…"
-              value={form.description}
-              onChange={handleChange}
-              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-blue-500 outline-none"
-            />
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          disabled={submitting}
-          className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+        <a
+          href="#cart"
+          onClick={(e) => {
+            e.preventDefault();
+            // Switch to cart tab if active
+            const cartTabBtn = document.querySelector('button[onClick*="cart"]');
+            if (cartTabBtn) cartTabBtn.click();
+          }}
+          className="px-4 py-2 bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold rounded-xl text-xs transition-all shadow-sm shrink-0 flex items-center gap-1 cursor-pointer"
         >
-          <span>🚀</span>
-          <span>{submitting ? "Publishing Quote…" : "Publish Lot to Retailers"}</span>
-        </button>
-      </form>
+          <span>🛒</span>
+          <span>Open Stock Cart</span>
+        </a>
+      </div>
 
       {/* Published Quotes Listing */}
       <div className="space-y-4">
@@ -309,6 +203,12 @@ export default function RetailerQuotes() {
                   </div>
                 </div>
 
+                {/* Provenance Allocations Summary */}
+                <ProvenanceCard
+                  allocations={q.allocations}
+                  provenanceSummary={q.provenance_summary}
+                />
+
                 {/* Expanded Bids Section */}
                 {expandedQuote === q.id && (
                   <div className="mt-3 pt-3 border-t border-slate-100 space-y-3">
@@ -345,12 +245,22 @@ export default function RetailerQuotes() {
                                   Deal Closed
                                 </span>
                               ) : (
-                                <button
-                                  onClick={() => acceptBid(b.id)}
-                                  className="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3.5 py-1.5 rounded-lg transition-all cursor-pointer shrink-0"
-                                >
-                                  Accept Bid
-                                </button>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => setNegotiatingBid({ bid: b, contentType: 'retailer.retailerbid' })}
+                                    className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-900 font-bold px-3 py-1.5 rounded-lg border border-purple-300 transition-all cursor-pointer flex items-center gap-1"
+                                  >
+                                    <span>💬</span>
+                                    <span>Negotiate</span>
+                                  </button>
+                                  <button
+                                    onClick={() => acceptBid(b.id)}
+                                    className="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3.5 py-1.5 rounded-lg transition-all cursor-pointer"
+                                  >
+                                    Accept Bid
+                                  </button>
+                                </div>
                               )}
                             </div>
                           );
@@ -372,6 +282,16 @@ export default function RetailerQuotes() {
           </div>
         )}
       </div>
+
+      {negotiatingBid && (
+        <NegotiationModal
+          bid={negotiatingBid.bid}
+          contentType={negotiatingBid.contentType}
+          currentUserRole="fpo"
+          onClose={() => setNegotiatingBid(null)}
+          onNegotiationUpdated={() => fetchRetailerQuotes()}
+        />
+      )}
     </div>
   );
 }

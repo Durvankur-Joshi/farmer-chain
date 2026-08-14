@@ -9,6 +9,11 @@ import StatusBadge from "../../components/common/StatusBadge";
 import { calculateTotalEth } from "../../utils/pricing";
 import MarketplaceFilterBar from "../../components/common/MarketplaceFilterBar";
 import RetailerEscrowPanel from "../../components/retailer/RetailerEscrowPanel";
+import RetailerCartPanel from "../../components/retailer/RetailerCartPanel";
+import RetailerOrdersPanel from "../../components/retailer/RetailerOrdersPanel";
+import RetailerInventoryPanel from "../../components/retailer/RetailerInventoryPanel";
+import NegotiationModal from "../../components/common/NegotiationModal";
+import ProvenanceCard from "../../components/common/ProvenanceCard";
 
 export default function RetailerDashboard() {
   const navigate = useNavigate();
@@ -24,6 +29,12 @@ export default function RetailerDashboard() {
   const [bidStatusMap, setBidStatusMap] = useState({});
   const [didInfo, setDidInfo] = useState(null);
   const [currentFilters, setCurrentFilters] = useState({});
+  const [negotiatingBid, setNegotiatingBid] = useState(null);
+
+  // Phase 4 Retailer Cart & Order state
+  const [cartCount, setCartCount] = useState(0);
+  const [cartQuantities, setCartQuantities] = useState({});
+  const [addingToCartMap, setAddingToCartMap] = useState({});
 
   const retailerId = Cookies.get("retailer_id");
 
@@ -48,6 +59,46 @@ export default function RetailerDashboard() {
       console.error("Could not fetch DID:", err);
     }
   }, []);
+
+  const fetchCartCount = useCallback(async () => {
+    try {
+      const res = await axios.get("/api/retailer/cart/", { withCredentials: true });
+      setCartCount(res.data?.summary?.total_items_count || 0);
+    } catch (err) {
+      console.error("Could not fetch cart count:", err);
+    }
+  }, []);
+
+  const handleCartQuantityChange = (quoteId, value) => {
+    setCartQuantities((prev) => ({ ...prev, [quoteId]: value }));
+  };
+
+  const handleAddToCart = async (quote) => {
+    const selectedQty = cartQuantities[quote.id] ?? (quote.available_quantity || quote.quantity);
+    const qtyVal = parseFloat(selectedQty);
+    if (isNaN(qtyVal) || qtyVal <= 0) {
+      alert("⚠️ Please enter a valid positive quantity greater than 0.");
+      return;
+    }
+
+    setAddingToCartMap((prev) => ({ ...prev, [quote.id]: true }));
+    try {
+      const res = await axios.post(
+        "/api/retailer/cart/items/",
+        { quote_id: quote.id, selected_quantity: qtyVal },
+        { withCredentials: true }
+      );
+      alert(`🎉 ${res.data?.message || "Reserved quote stock into your cart!"}`);
+      fetchCartCount();
+      fetchFpoQuotes(currentFilters);
+    } catch (err) {
+      console.error("Error adding quote to cart:", err.response?.data || err);
+      const msg = err.response?.data?.error || "Failed to add item to cart.";
+      alert(`❌ ${msg}`);
+    } finally {
+      setAddingToCartMap((prev) => ({ ...prev, [quote.id]: false }));
+    }
+  };
 
   // Fetch open FPO quotes
   const fetchFpoQuotes = useCallback(async (params = {}) => {
@@ -89,7 +140,13 @@ export default function RetailerDashboard() {
     fetchFpoQuotes();
     fetchMyBids();
     fetchDid();
-  }, [fetchFpoQuotes, fetchMyBids, fetchDid]);
+    fetchCartCount();
+  }, [fetchFpoQuotes, fetchMyBids, fetchDid, fetchCartCount]);
+
+  const handleFilterChange = useCallback((newFilters) => {
+    setCurrentFilters(newFilters);
+    fetchFpoQuotes(newFilters);
+  }, [fetchFpoQuotes]);
 
   // 🔹 Bid input handlers
   const handleBidChange = (quoteId, value) => {
@@ -281,8 +338,8 @@ export default function RetailerDashboard() {
             }`}
             onClick={() => setActiveTab("quotes")}
           >
-            <span>🏢</span>
-            <span>Open FPO Quotes</span>
+            <span>🛍️</span>
+            <span>FPO Marketplace</span>
             {fpoQuotes.length > 0 && (
               <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
                 activeTab === "quotes" ? "bg-purple-700/80 text-white" : "bg-slate-100 text-slate-600"
@@ -290,6 +347,37 @@ export default function RetailerDashboard() {
                 {fpoQuotes.length}
               </span>
             )}
+          </button>
+
+          <button
+            type="button"
+            className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === "cart"
+                ? "bg-purple-600 text-white shadow-sm"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            }`}
+            onClick={() => setActiveTab("cart")}
+          >
+            <span>🛒</span>
+            <span>Retailer Cart</span>
+            {cartCount > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-purple-100 text-purple-900 font-extrabold border border-purple-200">
+                {cartCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === "orders"
+                ? "bg-purple-600 text-white shadow-sm"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            }`}
+            onClick={() => setActiveTab("orders")}
+          >
+            <span>📦</span>
+            <span>Commercial Orders</span>
           </button>
 
           <button
@@ -324,6 +412,19 @@ export default function RetailerDashboard() {
             <span>🔐</span>
             <span>Escrow Deals</span>
           </button>
+
+          <button
+            type="button"
+            className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === "inventory"
+                ? "bg-purple-600 text-white shadow-sm"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            }`}
+            onClick={() => setActiveTab("inventory")}
+          >
+            <span>📦</span>
+            <span>Purchased Inventory</span>
+          </button>
         </div>
 
         {/* ── Open FPO Quotes Tab ────────────────────────────────────── */}
@@ -345,10 +446,7 @@ export default function RetailerDashboard() {
 
             <div className="space-y-4">
               <MarketplaceFilterBar
-                onFilterChange={(newFilters) => {
-                  setCurrentFilters(newFilters);
-                  fetchFpoQuotes(newFilters);
-                }}
+                onFilterChange={handleFilterChange}
                 showHarvestDate={false}
                 placeholder="Search FPO lots by product name, category, or notes…"
               />
@@ -409,81 +507,111 @@ export default function RetailerDashboard() {
                                 </span>
                               )}
                             </div>
+
+                            {/* Provenance Allocations Breakdown */}
+                            <ProvenanceCard
+                              allocations={quote.allocations}
+                              provenanceSummary={quote.provenance_summary}
+                              fpoName={quote.fpo_name}
+                            />
                           </div>
 
-                          {/* Bidding Controls */}
-                          <div className="flex flex-wrap sm:flex-nowrap items-start gap-2 pt-2 lg:pt-0 shrink-0">
-                            <div className="relative w-36">
-                              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                                Offer (ETH / {quote.unit})
+                          {/* Quote Actions: Reserve in Cart & Place Bid */}
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 pt-3 border-t border-slate-100 lg:border-t-0 lg:pt-0 shrink-0">
+                            {/* Quantity Selection & Add to Cart */}
+                            <div className="p-3 bg-purple-50/60 border border-purple-200/80 rounded-2xl space-y-2 flex-1 sm:flex-none">
+                              <label className="block text-[10px] font-extrabold text-purple-900 uppercase tracking-wider">
+                                Select Purchase Qty ({quote.unit})
                               </label>
-                              <input
-                                type="number"
-                                step="any"
-                                min="0.000001"
-                                placeholder="0.005"
-                                value={bids[quote.id] || ""}
-                                onChange={(e) => handleBidChange(quote.id, e.target.value)}
-                                className={`w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white outline-none transition-all font-mono font-bold ${
-                                  bids[quote.id] && Number(bids[quote.id]) <= 0
-                                    ? "border-rose-300 focus:border-rose-500 ring-1 ring-rose-400"
-                                    : "border-slate-200 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                                }`}
-                              />
-                              {bids[quote.id] && Number(bids[quote.id]) <= 0 && (
-                                <p className="text-[10px] text-rose-600 font-bold mt-1">
-                                  Must be &gt; 0 ETH
-                                </p>
-                              )}
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="number"
+                                  step="any"
+                                  min="0.000001"
+                                  max={quote.available_quantity || quote.quantity}
+                                  value={cartQuantities[quote.id] ?? (quote.available_quantity || quote.quantity)}
+                                  onChange={(e) => handleCartQuantityChange(quote.id, e.target.value)}
+                                  className="w-28 px-3 py-1.5 bg-white border border-purple-200 rounded-xl text-xs font-mono font-extrabold text-purple-950 focus:border-purple-500 outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddToCart(quote)}
+                                  disabled={addingToCartMap[quote.id]}
+                                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer shrink-0 disabled:opacity-50"
+                                >
+                                  <span>🛒</span>
+                                  <span>{addingToCartMap[quote.id] ? "Reserving…" : "Add to Cart"}</span>
+                                </button>
+                              </div>
+                              <span className="text-[10px] text-purple-700 font-semibold block">
+                                Available: {quote.available_quantity ?? quote.quantity} {quote.unit}
+                              </span>
                             </div>
 
-                            <div className="relative w-28">
-                              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                                Delivery (Days)
-                              </label>
-                              <input
-                                type="number"
-                                min="1"
-                                placeholder="Days"
-                                value={deliveryTimes[quote.id] || ""}
-                                onChange={(e) => handleDeliveryChange(quote.id, e.target.value)}
-                                className={`w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white outline-none transition-all font-semibold ${
-                                  deliveryTimes[quote.id] && Number(deliveryTimes[quote.id]) < 1
-                                    ? "border-rose-300 focus:border-rose-500 ring-1 ring-rose-400"
-                                    : "border-slate-200 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                                }`}
-                              />
-                              {deliveryTimes[quote.id] && Number(deliveryTimes[quote.id]) < 1 && (
-                                <p className="text-[10px] text-rose-600 font-bold mt-1">
-                                  Min 1 day
-                                </p>
-                              )}
-                            </div>
+                            {/* Bidding Controls */}
+                            <div className="flex items-start gap-2">
+                              <div className="relative w-32">
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                  Offer (ETH/{quote.unit})
+                                </label>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  min="0.000001"
+                                  placeholder="0.005"
+                                  value={bids[quote.id] || ""}
+                                  onChange={(e) => handleBidChange(quote.id, e.target.value)}
+                                  className={`w-full px-3 py-1.5 bg-slate-50 border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white outline-none transition-all font-mono font-bold ${
+                                    bids[quote.id] && Number(bids[quote.id]) <= 0
+                                      ? "border-rose-300 focus:border-rose-500 ring-1 ring-rose-400"
+                                      : "border-slate-200 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                                  }`}
+                                />
+                              </div>
 
-                            <div className="self-start pt-5">
-                              <button
-                                type="button"
-                                onClick={() => submitBid(quote.id)}
-                                disabled={
-                                  isLoading ||
-                                  !bids[quote.id] ||
-                                  Number(bids[quote.id]) <= 0 ||
-                                  !deliveryTimes[quote.id] ||
-                                  Number(deliveryTimes[quote.id]) < 1
-                                }
-                                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed h-[38px]"
-                              >
-                                <span>💰</span>
-                                <span>{isLoading ? "Submitting…" : "Place Bid"}</span>
-                              </button>
+                              <div className="relative w-24">
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                  Delivery
+                                </label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  placeholder="Days"
+                                  value={deliveryTimes[quote.id] || ""}
+                                  onChange={(e) => handleDeliveryChange(quote.id, e.target.value)}
+                                  className={`w-full px-3 py-1.5 bg-slate-50 border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white outline-none transition-all font-semibold ${
+                                    deliveryTimes[quote.id] && Number(deliveryTimes[quote.id]) < 1
+                                      ? "border-rose-300 focus:border-rose-500 ring-1 ring-rose-400"
+                                      : "border-slate-200 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                                  }`}
+                                />
+                              </div>
+
+                              <div className="pt-4">
+                                <button
+                                  type="button"
+                                  onClick={() => submitBid(quote.id)}
+                                  disabled={
+                                    isLoading ||
+                                    !bids[quote.id] ||
+                                    Number(bids[quote.id]) <= 0 ||
+                                    !deliveryTimes[quote.id] ||
+                                    Number(deliveryTimes[quote.id]) < 1
+                                  }
+                                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                                >
+                                  <span>💰</span>
+                                  <span>{isLoading ? "…" : "Bid"}</span>
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
 
                         {totalEst && (
                           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                            <span>Estimated Total Procurement Value:</span>
-                            <span className="font-extrabold text-purple-700 font-mono text-sm">{totalEst} ETH</span>
+                            <span>Estimated Bid Value:</span>
+                            <span className="font-extrabold text-purple-700 font-mono text-xs">{totalEst} ETH</span>
                           </div>
                         )}
 
@@ -516,6 +644,29 @@ export default function RetailerDashboard() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* ── Retailer Cart Tab ───────────────────────────────────────── */}
+        {activeTab === "cart" && (
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+            <RetailerCartPanel
+              onCartUpdated={() => {
+                fetchCartCount();
+                fetchFpoQuotes(currentFilters);
+              }}
+              onOrderCreated={() => {
+                fetchCartCount();
+                setActiveTab("orders");
+              }}
+            />
+          </div>
+        )}
+
+        {/* ── Commercial Orders Tab ───────────────────────────────────── */}
+        {activeTab === "orders" && (
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+            <RetailerOrdersPanel />
           </div>
         )}
 
@@ -586,6 +737,17 @@ export default function RetailerDashboard() {
                         )}
                       </div>
                     </div>
+
+                    <div className="pt-1 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setNegotiatingBid({ bid: bid, contentType: 'retailer.retailerbid' })}
+                        className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-900 text-xs font-bold rounded-xl border border-purple-300 transition-all cursor-pointer flex items-center gap-1"
+                      >
+                        <span>💬</span>
+                        <span>Chat / Negotiate</span>
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -615,7 +777,24 @@ export default function RetailerDashboard() {
             <RetailerEscrowPanel />
           </div>
         )}
+
+        {/* ── Purchased Retailer Inventory Tab ────────────────────────── */}
+        {activeTab === "inventory" && (
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+            <RetailerInventoryPanel />
+          </div>
+        )}
       </div>
+
+      {negotiatingBid && (
+        <NegotiationModal
+          bid={negotiatingBid.bid}
+          contentType={negotiatingBid.contentType}
+          currentUserRole="retailer"
+          onClose={() => setNegotiatingBid(null)}
+          onNegotiationUpdated={() => fetchMyBids()}
+        />
+      )}
     </div>
   );
 }

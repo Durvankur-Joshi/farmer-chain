@@ -19,6 +19,13 @@ export default function MarketplaceFilterBar({
   const [dateError, setDateError] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
+  const onFilterChangeRef = React.useRef(onFilterChange);
+  React.useEffect(() => {
+    onFilterChangeRef.current = onFilterChange;
+  }, [onFilterChange]);
+
+  const prevFiltersRef = React.useRef(null);
+
   // Validate and propagate changes
   useEffect(() => {
     let hasError = false;
@@ -49,7 +56,7 @@ export default function MarketplaceFilterBar({
     }
 
     if (!hasError) {
-      onFilterChange({
+      const payload = {
         search: search.trim(),
         category,
         unit,
@@ -58,9 +65,19 @@ export default function MarketplaceFilterBar({
         harvest_from: harvestFrom,
         harvest_to: harvestTo,
         status,
-      });
+      };
+
+      const payloadStr = JSON.stringify(payload);
+
+      // Only notify parent if filter payload actually changed
+      if (prevFiltersRef.current !== payloadStr) {
+        prevFiltersRef.current = payloadStr;
+        if (onFilterChangeRef.current) {
+          onFilterChangeRef.current(payload);
+        }
+      }
     }
-  }, [search, category, unit, minQty, maxQty, harvestFrom, harvestTo, status, onFilterChange]);
+  }, [search, category, unit, minQty, maxQty, harvestFrom, harvestTo, status]);
 
   const handleClear = () => {
     setSearch("");

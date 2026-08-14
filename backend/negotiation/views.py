@@ -22,62 +22,58 @@ def get_bid_model_instance(content_type_str, object_id):
 def check_negotiation_permission(user, negotiation):
     """Checks if a user is part of a negotiation (either bidder or quote owner)."""
     bid = negotiation.bid
-    quote = bid.quote
+    if not bid:
+        return False
+    quote = getattr(bid, 'quote', None)
+    if not quote:
+        return False
     
-    current_user_obj = user.user_obj
+    current_user_obj = getattr(user, 'user_obj', None)
+    if not current_user_obj:
+        return False
     
-    # Identify the bidder (FPO or Retailer)
     bidder = getattr(bid, 'fpo', None) or getattr(bid, 'retailer', None)
-    
-    # Identify the quote owner (Farmer or FPO)
     quote_owner = getattr(quote, 'farmer', None) or getattr(quote, 'fpo', None)
 
-    return current_user_obj == bidder or current_user_obj == quote_owner
+    return (current_user_obj.id == getattr(bidder, 'id', None)) or (current_user_obj.id == getattr(quote_owner, 'id', None))
 
 
 class StartNegotiationView(APIView):
     permission_classes = [IsAuthenticated]
     
     def post(self, request, *args, **kwargs):
-        content_type_str = request.data.get('content_type') # e.g., 'retailer.retailerbid'
+        content_type_str = request.data.get('content_type') # e.g., 'retailer.retailerbid' or 'fpo.fpobid'
         object_id = request.data.get('object_id')
         
         bid = get_bid_model_instance(content_type_str, object_id)
         if not bid:
             return Response({"error": "Invalid bid type or ID."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Correctly identify the owner of the quote the bid was placed on
         quote = bid.quote
         quote_owner = getattr(quote, 'farmer', None) or getattr(quote, 'fpo', None)
+        bidder = getattr(bid, 'fpo', None) or getattr(bid, 'retailer', None)
 
-        if not quote_owner:
-            return Response({"error": "Could not determine the quote owner."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check permissions: only the quote owner can start a negotiation.
-        if quote_owner.id != request.user.user_obj.id:
-            return Response({"error": "Only the quote creator can start a negotiation."}, status=status.HTTP_403_FORBIDDEN)
+        user_obj = request.user.user_obj
+        if user_obj.id != getattr(quote_owner, 'id', None) and user_obj.id != getattr(bidder, 'id', None):
+            return Response({"error": "Only negotiation participants can initiate chat/negotiation."}, status=status.HTTP_403_FORBIDDEN)
             
         negotiation, created = Negotiation.objects.get_or_create(
             content_type=ContentType.objects.get_for_model(bid),
             object_id=bid.id
         )
 
-        if not created:
-            serializer = NegotiationSerializer(negotiation)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-            
-        # Create initial message
-        sender_user = request.user.user_obj
-        NegotiationMessage.objects.create(
-            negotiation=negotiation,
-            sender_role=request.user.role,
-            sender_id=sender_user.id,
-            sender_name=sender_user.name,
-            message=f"Negotiation started for bid on '{bid.quote.product_name}'."
-        )
+        if created:
+            NegotiationMessage.objects.create(
+                negotiation=negotiation,
+                sender_role=request.user.role,
+                sender_id=user_obj.id,
+                sender_name=user_obj.name,
+                message=f"Negotiation channel opened for bid on '{bid.quote.product_name}'."
+            )
 
         serializer = NegotiationSerializer(negotiation)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
 
 class NegotiationDetailView(APIView):
     permission_classes = [IsAuthenticated]
@@ -92,20 +88,137 @@ class NegotiationDetailView(APIView):
         return Response(serializer.data)
 
     def post(self, request, pk):
+        from django.db import transaction
         negotiation = get_object_or_404(Negotiation, pk=pk)
         
         if not check_negotiation_permission(request.user, negotiation):
             return Response({"error": "You do not have permission to post in this negotiation."}, status=status.HTTP_403_FORBIDDEN)
 
+        if negotiation.status != 'active':
+            return Response({"error": f"Negotiation is currently '{negotiation.status}' and closed to new offers."}, status=status.HTTP_400_BAD_REQUEST)
+
         serializer = CounterOfferSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        sender_user = request.user.user_obj
-        NegotiationMessage.objects.create(
-            negotiation=negotiation,
-            sender_role=request.user.role,
-            sender_id=sender_user.id,
-            sender_name=sender_user.name,
-            **serializer.validated_data
-        )
+        user_obj = request.user.user_obj
+        with transaction.atomic():
+            msg = NegotiationMessage.objects.create(
+                negotiation=negotiation,
+                sender_role=request.user.role,
+                sender_id=user_obj.id,
+                sender_name=user_obj.name,
+                **serializer.validated_data
+            )
+            negotiation.save()
+
         return Response(NegotiationSerializer(negotiation).data, status=status.HTTP_201_CREATED)
+
+
+class AcceptNegotiationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from django.db import transaction
+        from decimal import Decimal
+
+        negotiation = get_object_or_404(Negotiation, pk=pk)
+        if not check_negotiation_permission(request.user, negotiation):
+            return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+
+        if negotiation.status != 'active':
+            return Response({"error": f"Negotiation is already {negotiation.status}."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user_obj = request.user.user_obj
+        bid = negotiation.bid
+
+        # Find latest counter offer or default to bid amount
+        last_counter = negotiation.messages.filter(counter_amount__isnull=False).last()
+        final_price = last_counter.counter_amount if last_counter and last_counter.counter_amount else getattr(bid, 'bid_amount', None)
+        final_qty = last_counter.counter_quantity if last_counter and last_counter.counter_quantity else getattr(bid.quote, 'quantity', None)
+
+        with transaction.atomic():
+            negotiation.status = 'accepted'
+            negotiation.agreed_price_per_unit = final_price
+            negotiation.agreed_quantity = final_qty
+            negotiation.save()
+
+            if hasattr(bid, 'status'):
+                bid.status = 'accepted'
+                bid.save()
+
+            NegotiationMessage.objects.create(
+                negotiation=negotiation,
+                sender_role=request.user.role,
+                sender_id=user_obj.id,
+                sender_name=user_obj.name,
+                message=f"🤝 Agreement Accepted! Final price locked at {final_price} ETH per unit."
+            )
+
+        return Response({
+            "message": "Negotiation accepted successfully. Price and quantity locked.",
+            "negotiation": NegotiationSerializer(negotiation).data
+        })
+
+
+class RejectNegotiationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from django.db import transaction
+
+        negotiation = get_object_or_404(Negotiation, pk=pk)
+        if not check_negotiation_permission(request.user, negotiation):
+            return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+
+        if negotiation.status != 'active':
+            return Response({"error": f"Negotiation is already {negotiation.status}."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user_obj = request.user.user_obj
+        with transaction.atomic():
+            negotiation.status = 'rejected'
+            negotiation.save()
+
+            NegotiationMessage.objects.create(
+                negotiation=negotiation,
+                sender_role=request.user.role,
+                sender_id=user_obj.id,
+                sender_name=user_obj.name,
+                message="❌ Negotiation rejected."
+            )
+
+        return Response({
+            "message": "Negotiation rejected.",
+            "negotiation": NegotiationSerializer(negotiation).data
+        })
+
+
+class WithdrawNegotiationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from django.db import transaction
+
+        negotiation = get_object_or_404(Negotiation, pk=pk)
+        if not check_negotiation_permission(request.user, negotiation):
+            return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+
+        if negotiation.status != 'active':
+            return Response({"error": f"Negotiation is already {negotiation.status}."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user_obj = request.user.user_obj
+        with transaction.atomic():
+            negotiation.status = 'withdrawn'
+            negotiation.save()
+
+            NegotiationMessage.objects.create(
+                negotiation=negotiation,
+                sender_role=request.user.role,
+                sender_id=user_obj.id,
+                sender_name=user_obj.name,
+                message="⚠️ Negotiation withdrawn."
+            )
+
+        return Response({
+            "message": "Negotiation withdrawn.",
+            "negotiation": NegotiationSerializer(negotiation).data
+        })

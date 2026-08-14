@@ -7,6 +7,7 @@ import RetailerQuotes from "../../components/fpo/RetailerQuotes";
 import FpoEscrowPanel from "../../components/fpo/FpoEscrowPanel";
 import FpoRetailerEscrowPanel from "../../components/fpo/FpoRetailerEscrowPanel";
 import FpoInventoryPanel from "../../components/fpo/FpoInventoryPanel";
+import FpoStockCartPanel from "../../components/fpo/FpoStockCartPanel";
 import TrustReputationCard from "../../components/common/TrustReputationCard";
 import DidIdentityCard from "../../components/common/DidIdentityCard";
 import DashboardNavbar from "../../components/common/DashboardNavbar";
@@ -19,6 +20,20 @@ export default function FpoDashboard() {
   const [farmerQuotesCount, setFarmerQuotesCount] = useState(0);
   const [marketQuotesCount, setMarketQuotesCount] = useState(0);
   const [escrowsCount, setEscrowsCount] = useState(0);
+  const [cartItemsCount, setCartItemsCount] = useState(0);
+
+  const fetchCartCount = useCallback(async () => {
+    try {
+      const res = await axios.get("/api/fpo/cart/", { withCredentials: true });
+      setCartItemsCount(res.data?.summary?.total_items_count || 0);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCartCount();
+  }, [fetchCartCount]);
 
   const logout = async () => {
     try {
@@ -221,6 +236,26 @@ export default function FpoDashboard() {
           <button
             type="button"
             className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === "cart"
+                ? "bg-purple-600 text-white shadow-sm"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            }`}
+            onClick={() => setActiveTab("cart")}
+          >
+            <span>🛒</span>
+            <span>Stock Cart & Allocations</span>
+            {cartItemsCount > 0 && (
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                activeTab === "cart" ? "bg-purple-700/80 text-white" : "bg-purple-100 text-purple-700"
+              }`}>
+                {cartItemsCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
               activeTab === "retailer"
                 ? "bg-blue-600 text-white shadow-sm"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
@@ -275,7 +310,9 @@ export default function FpoDashboard() {
             </div>
           )}
 
-          {activeTab === "inventory" && <FpoInventoryPanel />}
+          {activeTab === "inventory" && <FpoInventoryPanel onCartUpdated={fetchCartCount} />}
+
+          {activeTab === "cart" && <FpoStockCartPanel onCartUpdated={fetchCartCount} />}
 
           {activeTab === "retailer" && (
             <div>

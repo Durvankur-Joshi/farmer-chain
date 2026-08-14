@@ -58,6 +58,8 @@ class FPOQuote(models.Model):
     category = models.CharField(max_length=100)
     description = models.TextField()
     quantity = models.DecimalField(max_digits=18, decimal_places=8)
+    available_quantity = models.DecimalField(max_digits=18, decimal_places=8, null=True, blank=True)
+    reserved_quantity = models.DecimalField(max_digits=18, decimal_places=8, default=0)
     unit = models.CharField(max_length=20, help_text="e.g., kg, quintal, ton")
     price_per_unit = models.DecimalField(max_digits=18, decimal_places=8, null=True, blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='open')
@@ -74,6 +76,42 @@ class FPOQuote(models.Model):
     
     def __str__(self):
         return f"{self.product_name} quote by {self.fpo.name}"
+
+    def save(self, *args, **kwargs):
+        if self.available_quantity is None and self.quantity is not None:
+            self.available_quantity = self.quantity - (self.reserved_quantity or 0)
+        super().save(*args, **kwargs)
+
+
+class FPOQuoteAllocation(models.Model):
+    """
+    Phase 3 — FPO Retailer Quote Inventory Allocation.
+    Links a published FPOQuote (wholesale market quote for retailers) to the exact source
+    FPOInventoryLot(s), Farmer(s), and CropPassport(s) from which the stock was allocated.
+    Preserves complete multi-farmer provenance at all times.
+    """
+    quote = models.ForeignKey(FPOQuote, on_delete=models.CASCADE, related_name='allocations')
+    inventory_lot = models.ForeignKey(
+        'FPOInventoryLot',
+        on_delete=models.CASCADE,
+        related_name='quote_allocations'
+    )
+    farmer = models.ForeignKey('farmer.Farmer', on_delete=models.CASCADE, related_name='fpo_quote_allocations')
+    crop_passport = models.ForeignKey(
+        'farmer.CropPassport',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='fpo_quote_allocations'
+    )
+    allocated_quantity = models.DecimalField(max_digits=18, decimal_places=8)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Allocation #{self.id} — Quote #{self.quote_id} | Lot #{self.inventory_lot_id} | {self.allocated_quantity} {self.inventory_lot.unit} (Farmer: {self.farmer.name})"
 
 
 class FPOInventoryLot(models.Model):
@@ -154,20 +192,48 @@ class FPOInventoryLot(models.Model):
             raise ValidationError("Original quantity must be greater than zero.")
         if self.available_quantity is None or self.available_quantity < 0:
             raise ValidationError("Available quantity cannot be negative.")
-        if self.available_quantity > self.original_quantity:
-            raise ValidationError("Available quantity cannot exceed original quantity.")
         if self.reserved_quantity is None or self.reserved_quantity < 0:
             raise ValidationError("Reserved quantity cannot be negative.")
-        if self.reserved_quantity > self.available_quantity:
-            raise ValidationError("Reserved quantity cannot exceed available quantity.")
+        if self.available_quantity + self.reserved_quantity > self.original_quantity:
+            raise ValidationError("Total available plus reserved quantity cannot exceed original quantity.")
 
     def save(self, *args, **kwargs):
         if self.available_quantity is not None:
             if self.available_quantity <= 0:
                 self.status = 'depleted'
-            elif self.reserved_quantity and self.reserved_quantity == self.available_quantity:
+            elif self.reserved_quantity and self.reserved_quantity == self.original_quantity:
                 self.status = 'reserved'
-            elif self.available_quantity > 0 and self.status == 'depleted':
+            elif self.available_quantity > 0 and self.status in ['depleted', 'reserved']:
                 self.status = 'available'
         self.clean()
         super().save(*args, **kwargs)
+
+
+class FPOStockCartItem(models.Model):
+    """
+    Phase 2 — FPO Stock Cart Item.
+    Stores selected partial quantities from an FPOInventoryLot reserved by an FPO in their stock cart
+    before publishing a retailer market quote.
+    Permanently preserves the link to the inventory lot (and its farmer/crop/passport provenance).
+    """
+    fpo = models.ForeignKey(FPO, on_delete=models.CASCADE, related_name='cart_items')
+    inventory_lot = models.ForeignKey(
+        FPOInventoryLot,
+        on_delete=models.CASCADE,
+        related_name='cart_items'
+    )
+    selected_quantity = models.DecimalField(max_digits=18, decimal_places=8)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ('fpo', 'inventory_lot')
+
+    def __str__(self):
+        return f"Cart Item #{self.id} — Lot #{self.inventory_lot_id} ({self.selected_quantity} {self.inventory_lot.unit}) for {self.fpo.name}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.selected_quantity is None or self.selected_quantity <= 0:
+            raise ValidationError("Selected quantity must be greater than zero.")

@@ -11,7 +11,7 @@ const STATUS_OPTIONS = [
   { value: "depleted", label: "Depleted" },
 ];
 
-export default function FpoInventoryPanel() {
+export default function FpoInventoryPanel({ onCartUpdated }) {
   const [lots, setLots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -19,6 +19,8 @@ export default function FpoInventoryPanel() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [activeProvenanceLot, setActiveProvenanceLot] = useState(null);
+  const [selectedQtyInputs, setSelectedQtyInputs] = useState({});
+  const [reservingId, setReservingId] = useState(null);
 
   const fetchInventory = useCallback(async () => {
     setLoading(true);
@@ -45,6 +47,43 @@ export default function FpoInventoryPanel() {
   useEffect(() => {
     fetchInventory();
   }, [fetchInventory]);
+
+  const handleAddToCart = async (lot) => {
+    const qty = selectedQtyInputs[lot.id];
+    if (!qty || parseFloat(qty) <= 0) {
+      alert(`⚠️ Please enter a positive quantity in ${lot.unit} to reserve.`);
+      return;
+    }
+
+    if (parseFloat(qty) > parseFloat(lot.available_quantity)) {
+      alert(`⚠️ Selected quantity (${qty} ${lot.unit}) exceeds available stock (${lot.available_quantity} ${lot.unit}).`);
+      return;
+    }
+
+    setReservingId(lot.id);
+    setError("");
+    try {
+      await axios.post(
+        "/api/fpo/cart/items/",
+        {
+          inventory_lot_id: lot.id,
+          selected_quantity: qty,
+        },
+        { withCredentials: true }
+      );
+
+      // Clear input and refresh inventory list
+      setSelectedQtyInputs((prev) => ({ ...prev, [lot.id]: "" }));
+      fetchInventory();
+      if (onCartUpdated) onCartUpdated();
+    } catch (err) {
+      console.error("Error adding to stock cart:", err.response?.data || err.message);
+      const msg = err.response?.data?.error || "Failed to reserve stock in cart.";
+      alert(`❌ ${msg}`);
+    } finally {
+      setReservingId(null);
+    }
+  };
 
   // Derive categories from available lots for filtering
   const categories = ["all", ...Array.from(new Set(lots.map((l) => l.crop_category).filter(Boolean)))];
@@ -257,15 +296,35 @@ export default function FpoInventoryPanel() {
                   )}
                 </div>
 
-                {/* Actions */}
-                <div className="pt-2 flex items-center justify-between border-t border-slate-100">
-                  <span className="text-[10px] text-slate-400 font-medium">
-                    Acquired: {new Date(lot.created_at).toLocaleDateString()}
-                  </span>
+                {/* Stock Allocation & Cart Reservation Controls */}
+                <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 flex-1">
+                    <input
+                      type="number"
+                      step="any"
+                      min="0.000001"
+                      max={lot.available_quantity}
+                      placeholder={`Qty in ${lot.unit}`}
+                      value={selectedQtyInputs[lot.id] || ""}
+                      onChange={(e) => setSelectedQtyInputs({ ...selectedQtyInputs, [lot.id]: e.target.value })}
+                      disabled={parseFloat(lot.available_quantity) <= 0 || reservingId === lot.id}
+                      className="w-32 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:bg-white focus:border-blue-500 outline-none disabled:opacity-50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddToCart(lot)}
+                      disabled={parseFloat(lot.available_quantity) <= 0 || reservingId === lot.id}
+                      className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <span>🛒</span>
+                      <span>{reservingId === lot.id ? "Reserving…" : "Reserve in Cart"}</span>
+                    </button>
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => setActiveProvenanceLot(lot)}
-                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold rounded-xl transition-all cursor-pointer flex items-center gap-1 border border-blue-200"
+                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 border border-blue-200 shrink-0"
                   >
                     <span>🔍</span>
                     <span>Trace Provenance</span>

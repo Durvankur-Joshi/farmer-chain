@@ -3,8 +3,12 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
-from .models import FPO, FPOBid, FPOQuote, FPOInventoryLot
-from .serializers import FPOSerializer, FPORegistrationSerializer, FPOBidSerializer, FPOQuoteSerializer, FPOInventoryLotSerializer
+from .models import FPO, FPOBid, FPOQuote, FPOQuoteAllocation, FPOInventoryLot, FPOStockCartItem
+from .serializers import (
+    FPOSerializer, FPORegistrationSerializer, FPOBidSerializer,
+    FPOQuoteSerializer, FPOQuoteAllocationSerializer,
+    FPOInventoryLotSerializer, FPOStockCartItemSerializer
+)
 from common.permissions import IsFPO
 from farmer.models import FarmerQuote
 from farmer.serializers import FarmerQuoteSerializer
@@ -181,10 +185,86 @@ class FPOQuoteListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated, IsFPO]
 
     def get_queryset(self):
-        return FPOQuote.objects.filter(fpo=self.request.user.user_obj)
+        return FPOQuote.objects.filter(fpo=self.request.user.user_obj).order_by('-created_at')
 
-    def perform_create(self, serializer):
-        serializer.save(fpo=self.request.user.user_obj)
+    def create(self, request, *args, **kwargs):
+        # Delegate quote creation to Phase 3 provenance-aware cart allocation service
+        return create_fpo_quote_from_cart_view(request)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsFPO])
+def create_fpo_quote_from_cart_view(request):
+    """
+    POST /api/fpo/quotes/from-cart/
+
+    Phase 3 — Creates a wholesale FPOQuote for retailers exclusively from active FPOStockCartItem allocations.
+    Validates cart is non-empty, calculates total quantity, creates individual FPOQuoteAllocation records for each lot,
+    preserves full multi-farmer provenance, and clears the cart items.
+    """
+    from django.db import transaction
+    from decimal import Decimal, InvalidOperation
+
+    fpo = request.user.user_obj
+    price_raw = request.data.get('price_per_unit')
+    deadline_raw = request.data.get('deadline')
+    custom_product_name = request.data.get('product_name')
+    description = request.data.get('description', '')
+
+    if not price_raw:
+        return Response({'error': 'Asking price per unit (price_per_unit) is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not deadline_raw:
+        return Response({'error': 'Bidding deadline is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        price_per_unit = Decimal(str(price_raw))
+        if price_per_unit <= Decimal('0'):
+            return Response({'error': 'Asking price must be a positive number greater than 0.'}, status=status.HTTP_400_BAD_REQUEST)
+    except (TypeError, ValueError, InvalidOperation):
+        return Response({'error': 'Invalid price_per_unit format.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    cart_items = FPOStockCartItem.objects.filter(fpo=fpo).select_related('inventory_lot', 'inventory_lot__farmer', 'inventory_lot__crop_passport')
+    if not cart_items.exists():
+        return Response({
+            'error': 'Your Stock Cart is empty. You must reserve inventory lots in your cart before publishing a wholesale market quote.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    first_lot = cart_items.first().inventory_lot
+    product_name = custom_product_name.strip() if (custom_product_name and custom_product_name.strip()) else first_lot.product_name
+    category = first_lot.crop_category or 'General'
+    unit = first_lot.unit
+
+    total_quantity = sum((item.selected_quantity for item in cart_items), Decimal('0'))
+
+    with transaction.atomic():
+        quote = FPOQuote.objects.create(
+            fpo=fpo,
+            product_name=product_name,
+            category=category,
+            description=description,
+            quantity=total_quantity,
+            unit=unit,
+            price_per_unit=price_per_unit,
+            status='open',
+            deadline=deadline_raw
+        )
+
+        for item in cart_items:
+            lot = item.inventory_lot
+            FPOQuoteAllocation.objects.create(
+                quote=quote,
+                inventory_lot=lot,
+                farmer=lot.farmer,
+                crop_passport=lot.crop_passport,
+                allocated_quantity=item.selected_quantity
+            )
+            item.delete()
+
+    serializer = FPOQuoteSerializer(quote)
+    return Response({
+        'message': f'Wholesale market quote published successfully to retailers with {quote.allocations.count()} provenance allocations.',
+        'quote': serializer.data
+    }, status=status.HTTP_201_CREATED)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated, IsFPO])
@@ -282,3 +362,225 @@ def fpo_inventory_detail_view(request, lot_id):
 
     serializer = FPOInventoryLotSerializer(lot)
     return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# ── Phase 2 — FPO Stock Cart Views ──────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsFPO])
+def fpo_stock_cart_get_view(request):
+    """
+    GET /api/fpo/cart/
+
+    Phase 2 — Retrieves the authenticated FPO's current Stock Cart items and summary.
+    Preserves individual lot & farmer provenance per allocation.
+    """
+    fpo = request.user.user_obj
+    cart_items = FPOStockCartItem.objects.filter(fpo=fpo).select_related('inventory_lot', 'inventory_lot__farmer', 'inventory_lot__crop_passport')
+    
+    serialized_items = FPOStockCartItemSerializer(cart_items, many=True).data
+
+    from decimal import Decimal
+    total_selected_qty = Decimal('0')
+    unique_farmers = set()
+    unique_passports = set()
+    unique_crops = set()
+    units_set = set()
+
+    for item in cart_items:
+        lot = item.inventory_lot
+        total_selected_qty += item.selected_quantity
+        if lot.farmer_id:
+            unique_farmers.add(lot.farmer_id)
+        if lot.crop_passport_id:
+            unique_passports.add(lot.crop_passport_id)
+        if lot.product_name:
+            unique_crops.add(lot.product_name)
+        if lot.unit:
+            units_set.add(lot.unit)
+
+    summary = {
+        "total_selected_quantity": str(total_selected_qty),
+        "total_items_count": cart_items.count(),
+        "unique_farmers_count": len(unique_farmers),
+        "unique_passports_count": len(unique_passports),
+        "unique_crops_count": len(unique_crops),
+        "units": list(units_set),
+    }
+
+    return Response({
+        "items": serialized_items,
+        "summary": summary,
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsFPO])
+def fpo_stock_cart_add_item_view(request):
+    """
+    POST /api/fpo/cart/items/
+
+    Phase 2 — Adds an inventory lot allocation or updates quantity in the FPO Stock Cart.
+    Atomically reserves the selected stock on the FPOInventoryLot.
+    Body: { "inventory_lot_id": <int>, "selected_quantity": <decimal> }
+    """
+    from django.db import transaction
+    from decimal import Decimal, InvalidOperation
+
+    fpo = request.user.user_obj
+    lot_id = request.data.get('inventory_lot_id')
+    raw_qty = request.data.get('selected_quantity')
+
+    if not lot_id:
+        return Response({'error': 'inventory_lot_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        requested_qty = Decimal(str(raw_qty))
+        if requested_qty <= Decimal('0'):
+            return Response({'error': 'selected_quantity must be a positive number greater than 0.'}, status=status.HTTP_400_BAD_REQUEST)
+    except (TypeError, ValueError, InvalidOperation):
+        return Response({'error': 'Invalid selected_quantity format.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        lot = get_object_or_404(FPOInventoryLot.objects.select_for_update(), pk=lot_id)
+
+        if lot.fpo_id != fpo.pk:
+            return Response({'error': 'You do not own this inventory lot.'}, status=status.HTTP_403_FORBIDDEN)
+
+        existing_item = FPOStockCartItem.objects.filter(fpo=fpo, inventory_lot=lot).first()
+        old_selected_qty = existing_item.selected_quantity if existing_item else Decimal('0')
+        diff = requested_qty - old_selected_qty
+
+        if diff > Decimal('0') and diff > lot.available_quantity:
+            max_selectable = lot.available_quantity + old_selected_qty
+            return Response({
+                'error': f'Cannot select {requested_qty} {lot.unit}. Maximum available stock for this lot is {max_selectable} {lot.unit}.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update inventory lot reservation atomically
+        lot.available_quantity -= diff
+        lot.reserved_quantity += diff
+        lot.save()
+
+        if existing_item:
+            existing_item.selected_quantity = requested_qty
+            existing_item.save()
+            cart_item = existing_item
+        else:
+            cart_item = FPOStockCartItem.objects.create(
+                fpo=fpo,
+                inventory_lot=lot,
+                selected_quantity=requested_qty
+            )
+
+    serializer = FPOStockCartItemSerializer(cart_item)
+    return Response({
+        'message': f'Reserved {requested_qty} {lot.unit} in stock cart.',
+        'cart_item': serializer.data
+    }, status=status.HTTP_201_CREATED if not existing_item else status.HTTP_200_OK)
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated, IsFPO])
+def fpo_stock_cart_update_item_view(request, item_id):
+    """
+    PATCH /api/fpo/cart/items/<item_id>/
+
+    Phase 2 — Updates selected partial quantity for an existing cart item.
+    Body: { "selected_quantity": <decimal> }
+    """
+    from django.db import transaction
+    from decimal import Decimal, InvalidOperation
+
+    fpo = request.user.user_obj
+    raw_qty = request.data.get('selected_quantity')
+
+    try:
+        requested_qty = Decimal(str(raw_qty))
+        if requested_qty <= Decimal('0'):
+            return Response({'error': 'selected_quantity must be a positive number greater than 0.'}, status=status.HTTP_400_BAD_REQUEST)
+    except (TypeError, ValueError, InvalidOperation):
+        return Response({'error': 'Invalid selected_quantity format.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        item = get_object_or_404(FPOStockCartItem.objects.select_for_update(), pk=item_id)
+        if item.fpo_id != fpo.pk:
+            return Response({'error': 'You do not own this cart item.'}, status=status.HTTP_403_FORBIDDEN)
+
+        lot = get_object_or_404(FPOInventoryLot.objects.select_for_update(), pk=item.inventory_lot_id)
+        old_selected_qty = item.selected_quantity
+        diff = requested_qty - old_selected_qty
+
+        if diff > Decimal('0') and diff > lot.available_quantity:
+            max_selectable = lot.available_quantity + old_selected_qty
+            return Response({
+                'error': f'Cannot select {requested_qty} {lot.unit}. Maximum available stock for this lot is {max_selectable} {lot.unit}.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        lot.available_quantity -= diff
+        lot.reserved_quantity += diff
+        lot.save()
+
+        item.selected_quantity = requested_qty
+        item.save()
+
+    serializer = FPOStockCartItemSerializer(item)
+    return Response({
+        'message': 'Cart item quantity updated.',
+        'cart_item': serializer.data
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated, IsFPO])
+def fpo_stock_cart_delete_item_view(request, item_id):
+    """
+    DELETE /api/fpo/cart/items/<item_id>/
+
+    Phase 2 — Removes a cart item and releases its reserved stock back to available inventory.
+    """
+    from django.db import transaction
+
+    fpo = request.user.user_obj
+
+    with transaction.atomic():
+        item = get_object_or_404(FPOStockCartItem.objects.select_for_update(), pk=item_id)
+        if item.fpo_id != fpo.pk:
+            return Response({'error': 'You do not own this cart item.'}, status=status.HTTP_403_FORBIDDEN)
+
+        lot = get_object_or_404(FPOInventoryLot.objects.select_for_update(), pk=item.inventory_lot_id)
+        qty_to_release = item.selected_quantity
+
+        lot.available_quantity += qty_to_release
+        lot.reserved_quantity -= qty_to_release
+        lot.save()
+
+        item.delete()
+
+    return Response({
+        'message': f'Removed lot from stock cart and released {qty_to_release} {lot.unit} back to available inventory.'
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated, IsFPO])
+def fpo_stock_cart_clear_view(request):
+    """
+    DELETE /api/fpo/cart/clear/
+
+    Phase 2 — Clears all cart items for the authenticated FPO and releases all reservations.
+    """
+    from django.db import transaction
+
+    fpo = request.user.user_obj
+
+    with transaction.atomic():
+        cart_items = FPOStockCartItem.objects.filter(fpo=fpo).select_for_update()
+        for item in cart_items:
+            lot = FPOInventoryLot.objects.select_for_update().get(pk=item.inventory_lot_id)
+            lot.available_quantity += item.selected_quantity
+            lot.reserved_quantity -= item.selected_quantity
+            lot.save()
+            item.delete()
+
+    return Response({'message': 'Stock cart cleared and all reserved inventory released.'}, status=status.HTTP_200_OK)

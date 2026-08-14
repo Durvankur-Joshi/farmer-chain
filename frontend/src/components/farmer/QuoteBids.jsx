@@ -2,10 +2,12 @@ import React, { useState } from "react";
 import axios from "axios";
 import StatusBadge from "../common/StatusBadge";
 import { calculateTotalEth } from "../../utils/pricing";
+import NegotiationModal from "../common/NegotiationModal";
 
 export default function QuoteBids({ quote, onBack, refreshHistory }) {
   const [acceptingId, setAcceptingId] = useState(null);
   const [feedback, setFeedback] = useState(null);
+  const [negotiatingBid, setNegotiatingBid] = useState(null);
 
   const acceptBid = async (bidId) => {
     setAcceptingId(bidId);
@@ -96,13 +98,21 @@ export default function QuoteBids({ quote, onBack, refreshHistory }) {
                   </div>
                 </div>
 
-                {/* Accept button */}
-                <div className="pt-2 sm:pt-0 shrink-0">
+                {/* Accept & Negotiate buttons */}
+                <div className="pt-2 sm:pt-0 shrink-0 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNegotiatingBid({ bid: bid, contentType: 'fpo.fpobid' })}
+                    className="px-3.5 py-2.5 bg-purple-100 hover:bg-purple-200 text-purple-900 font-bold rounded-xl text-xs border border-purple-300 transition-all cursor-pointer flex items-center gap-1"
+                  >
+                    <span>💬</span>
+                    <span>Negotiate</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => acceptBid(bid.id)}
                     disabled={isAccepted || isProcessing || quote.status !== 'open'}
-                    className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer ${
+                    className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer ${
                       isAccepted
                         ? "bg-emerald-100 text-emerald-800 cursor-not-allowed border border-emerald-300"
                         : quote.status !== 'open'
@@ -134,6 +144,16 @@ export default function QuoteBids({ quote, onBack, refreshHistory }) {
             FPO organizations are reviewing this supply quote. Submitted bids will be listed here with payment details.
           </p>
         </div>
+      )}
+
+      {negotiatingBid && (
+        <NegotiationModal
+          bid={negotiatingBid.bid}
+          contentType={negotiatingBid.contentType}
+          currentUserRole="farmer"
+          onClose={() => setNegotiatingBid(null)}
+          onNegotiationUpdated={() => refreshHistory && refreshHistory()}
+        />
       )}
     </div>
   );

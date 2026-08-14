@@ -1,5 +1,6 @@
 Directory structure:
 └── farmerChain/
+    ├── README.md
     ├── render.yaml
     ├── backend/
     │   ├── debug_quotes.py
@@ -67,6 +68,7 @@ Directory structure:
     │   │   ├── apps.py
     │   │   ├── models.py
     │   │   ├── serializers.py
+    │   │   ├── services.py
     │   │   ├── tests.py
     │   │   ├── urls.py
     │   │   └── views.py
@@ -128,6 +130,8 @@ Directory structure:
             │   │   ├── DashboardNavbar.jsx
             │   │   ├── DidIdentityCard.jsx
             │   │   ├── MarketplaceFilterBar.jsx
+            │   │   ├── NegotiationModal.jsx
+            │   │   ├── ProvenanceCard.jsx
             │   │   ├── StatusBadge.jsx
             │   │   └── TrustReputationCard.jsx
             │   ├── farmer/
@@ -145,10 +149,15 @@ Directory structure:
             │   │   ├── BidForm.jsx
             │   │   ├── FarmerQuotes.jsx
             │   │   ├── FpoEscrowPanel.jsx
+            │   │   ├── FpoInventoryPanel.jsx
             │   │   ├── FpoRetailerEscrowPanel.jsx
+            │   │   ├── FpoStockCartPanel.jsx
             │   │   └── RetailerQuotes.jsx
             │   └── retailer/
-            │       └── RetailerEscrowPanel.jsx
+            │       ├── RetailerCartPanel.jsx
+            │       ├── RetailerEscrowPanel.jsx
+            │       ├── RetailerInventoryPanel.jsx
+            │       └── RetailerOrdersPanel.jsx
             ├── contract/
             │   └── Contract.jsx
             ├── pages/
@@ -169,6 +178,941 @@ Directory structure:
                 ├── EscrowABI.json
                 ├── pricing.js
                 └── ProtectedRoute.jsx
+
+================================================
+FILE: README.md
+================================================
+# FarmerChain 🌾⛓️
+
+**FarmerChain** is a blockchain-based agricultural supply-chain platform designed to connect **Farmers, Farmer Producer Organizations (FPOs), and Retailers** through a transparent, traceable, and digitally verifiable workflow.
+
+The platform combines **digital crop passports, AI-assisted crop image verification, decentralized evidence, marketplace negotiation, Ethereum Sepolia smart contracts, and escrow-based payments** to create a trusted journey for agricultural products from the farmer to the buyer.
+
+> **Hackathon Demo Focus:** The current demonstrated flow focuses primarily on **Farmer → FPO**. The **FPO → Retailer** marketplace, inventory, cart, chat, negotiation, payment, and delivery extensions are being developed as the next stage of the platform.
+
+---
+
+## 🚀 What Problem Are We Solving?
+
+Agricultural supply chains often have fragmented information about:
+
+- Where a crop came from
+- Which farmer produced it
+- What quantity is actually available
+- Whether the crop information can be verified
+- How prices were negotiated
+- Whether payment was actually secured
+- What happens to the crop after it moves between supply-chain participants
+
+When products move between multiple participants, provenance information can easily disappear.
+
+FarmerChain addresses this by creating a **digital identity and traceable transaction history for agricultural products**.
+
+---
+
+# 💡 Our Solution
+
+FarmerChain creates a connected digital workflow:
+
+```text
+Farmer
+   │
+   ├── Registration + Wallet
+   │
+   ▼
+Crop Passport
+   │
+   ├── Crop Information
+   ├── Crop Image
+   ├── AI Verification
+   └── Evidence
+   │
+   ▼
+Farmer Crop Listing
+   │
+   ▼
+FPO
+   │
+   ├── View Crop + Provenance
+   ├── Bid / Counter-Bid
+   └── Accept Agreement
+   │
+   ▼
+Blockchain Escrow
+   │
+   ├── Smart Contract
+   ├── Sepolia Transaction
+   └── Locked Payment
+   │
+   ▼
+Delivery Confirmation
+   │
+   ▼
+Payment Release
+```
+
+The next stage extends this to:
+
+```text
+Farmer
+   ↓
+FPO Inventory
+   ↓
+FPO Stock Cart
+   ↓
+Retailer Market Quote
+   ↓
+Retailer Cart
+   ↓
+Negotiation
+   ↓
+Escrow / Payment
+   ↓
+Delivery
+```
+
+---
+
+# ✨ Core Features
+
+## 1. Farmer Registration
+
+Farmers can create an account and connect their **MetaMask wallet**.
+
+The wallet provides the blockchain identity used for on-chain operations.
+
+The application also supports an approval flow before the farmer can use the full platform.
+
+---
+
+## 2. Digital Crop Passport
+
+A farmer can create a digital passport for a crop.
+
+The passport contains information such as:
+
+- Crop name
+- Crop category
+- Quantity
+- Unit
+- Location
+- Cultivation date
+- Harvest date
+- Crop image
+- Verification information
+- Supporting evidence where available
+
+The passport acts as the digital identity of the crop.
+
+The objective is to keep crop information and its provenance connected throughout the supply chain.
+
+---
+
+## 3. AI-Assisted Crop Image Verification
+
+The crop registration flow includes image verification.
+
+The farmer uploads a crop image during registration, and the image can be used for the platform's AI-assisted verification process.
+
+The verified image is associated with the crop record so that downstream participants can better understand the product being offered.
+
+---
+
+## 4. Decentralized Evidence
+
+The platform supports decentralized evidence associated with crop records.
+
+Evidence can provide additional information for buyers and FPOs when evaluating a crop.
+
+The system is designed so that evidence is supplementary to the core crop information and can strengthen trust and understanding of the crop's history.
+
+---
+
+## 5. Farmer → FPO Marketplace
+
+Farmers can make their crops available to FPOs by providing:
+
+- Crop
+- Quantity
+- Unit
+- Asking price
+- Related crop passport
+
+The FPO can then discover available crops and review their associated information.
+
+---
+
+## 6. Price Negotiation
+
+The Farmer → FPO flow supports negotiated pricing.
+
+The basic workflow is:
+
+```text
+Farmer Asking Price
+       ↓
+FPO Bid
+       ↓
+Farmer Counter Offer
+       ↓
+FPO Counter Offer
+       ↓
+Agreement
+```
+
+The objective is to provide a digital record of the commercial negotiation rather than treating the final price as an unexplained number.
+
+---
+
+## 7. Blockchain Escrow
+
+After the Farmer and FPO agree on the transaction, the platform can create an on-chain escrow on **Ethereum Sepolia**.
+
+The workflow is:
+
+```text
+Accepted Quote
+     ↓
+Create Smart Escrow
+     ↓
+MetaMask Confirmation
+     ↓
+EscrowCreated Event
+     ↓
+On-Chain Escrow ID
+     ↓
+FPO Deposits ETH
+     ↓
+Payment Locked
+```
+
+The smart contract provides a trust-minimized payment mechanism.
+
+The application keeps the database transaction connected to the corresponding blockchain transaction.
+
+---
+
+## 8. MetaMask Integration
+
+MetaMask is used for blockchain transactions.
+
+Examples include:
+
+- Connecting the user's wallet
+- Creating an escrow
+- Depositing escrow funds
+- Confirming blockchain transactions
+
+The platform uses **Sepolia**, an Ethereum test network, for development and demonstration.
+
+No real production funds should be used for the hackathon demo.
+
+---
+
+## 9. Delivery and Payment Release
+
+After the agricultural product is delivered, the delivery confirmation workflow can trigger the next stage of the escrow lifecycle.
+
+Conceptually:
+
+```text
+Escrow Created
+      ↓
+FPO Funds Escrow
+      ↓
+Crop Delivered
+      ↓
+Delivery Confirmed
+      ↓
+Payment Released
+      ↓
+Farmer Receives Payment
+```
+
+This connects the commercial transaction with the blockchain payment lifecycle.
+
+---
+
+# 🏢 FPO Inventory & Provenance — Next Stage
+
+A major planned enhancement is a provenance-preserving **FPO Inventory system**.
+
+This solves an important supply-chain problem.
+
+For example, an FPO may have:
+
+```text
+Farmer A → 15 kg Rice
+Farmer B → 15 kg Rice
+Farmer C → 20 kg Rice
+```
+
+The FPO has **50 kg Rice**, but the system must not lose the source information.
+
+Instead, inventory remains separated into traceable lots:
+
+```text
+Inventory Lot A
+15 kg
+Farmer A
+Crop Passport A
+
+Inventory Lot B
+15 kg
+Farmer B
+Crop Passport B
+
+Inventory Lot C
+20 kg
+Farmer C
+Crop Passport C
+```
+
+The FPO can later select partial quantities.
+
+For example:
+
+```text
+Farmer A: 15 kg available
+FPO selects: 10 kg
+Remaining: 5 kg
+```
+
+The remaining 5 kg stays in FPO inventory.
+
+This allows the future retailer transaction to maintain the complete provenance chain.
+
+---
+
+# 🛒 FPO Stock Cart — Planned
+
+The FPO Stock Cart will allow an FPO to select stock from multiple inventory lots.
+
+Example:
+
+| Source | Available | Selected |
+|---|---:|---:|
+| Farmer A | 15 kg | 10 kg |
+| Farmer B | 15 kg | 15 kg |
+| Farmer C | 20 kg | 20 kg |
+| **Total** | **50 kg** | **45 kg** |
+
+The market quote will be generated from the actual available FPO stock rather than from an arbitrary quantity.
+
+---
+
+# 🏪 FPO → Retailer Marketplace — Planned
+
+The next major marketplace stage connects FPOs with retailers.
+
+A retailer can request agricultural products from an FPO.
+
+The resulting market quote will preserve:
+
+```text
+Retailer
+   ↓
+FPO
+   ↓
+FPO Inventory Lot
+   ↓
+Farmer
+   ↓
+Crop
+   ↓
+Crop Passport
+```
+
+If multiple farmers contribute to a single retailer quote, **all contributing farmers and crop passports remain traceable**.
+
+Example:
+
+```text
+Retailer Order
+50 kg Rice
+      │
+      ├── 10 kg → Farmer A → Passport A
+      ├── 15 kg → Farmer B → Passport B
+      └── 25 kg → Farmer C → Passport C
+```
+
+This prevents provenance from disappearing when stock is aggregated.
+
+---
+
+# 🛍️ Retailer Cart — Planned
+
+Retailers will have their own cart.
+
+The retailer cart will show:
+
+- Product
+- Quantity
+- Unit
+- FPO
+- Farmer source
+- Crop passport
+- Asking price
+- Negotiated price
+- Availability
+
+The system will prevent a retailer from purchasing more stock than is available.
+
+---
+
+# 💬 Communication & Negotiation — Planned
+
+The platform is being extended with contextual conversations:
+
+### Farmer ↔ FPO
+
+Used for:
+
+- Crop discussions
+- Price negotiation
+- Counter offers
+- Transaction communication
+
+### FPO ↔ Retailer
+
+Used for:
+
+- Product discussions
+- Price negotiation
+- Counter offers
+- Order communication
+
+Negotiation is designed to support multiple rounds:
+
+```text
+Offer
+ ↓
+Counter Offer
+ ↓
+Counter Offer
+ ↓
+Accept
+```
+
+Participants can also reject, withdraw, or end a negotiation.
+
+The objective is to preserve the negotiation history instead of overwriting previous prices.
+
+---
+
+# 🔗 Full Traceability Vision
+
+The long-term transaction chain is:
+
+```text
+                 CROP PASSPORT
+                      │
+                      ▼
+                   FARMER
+                      │
+                Farmer ↔ FPO
+                Quote / Bid
+                      │
+                      ▼
+                FPO INVENTORY
+                      │
+                Stock Cart
+                      │
+                      ▼
+                MARKET QUOTE
+                      │
+                      ▼
+                RETAILER CART
+                      │
+               FPO ↔ Retailer
+               Negotiation
+                      │
+                      ▼
+                    ORDER
+                      │
+                      ▼
+               BLOCKCHAIN ESCROW
+                      │
+                      ▼
+                  DELIVERY
+                      │
+                      ▼
+               PAYMENT RELEASE
+```
+
+The key principle is:
+
+> **Aggregation should never destroy provenance.**
+
+---
+
+# 🧱 Technology Stack
+
+## Frontend
+
+- React
+- Vite
+- Axios
+- Modern responsive UI
+- MetaMask / browser wallet integration
+- Ethers.js
+
+## Backend
+
+- Python
+- Django
+- Django REST Framework
+- SQLite during development
+
+## Blockchain
+
+- Ethereum
+- Sepolia testnet
+- Solidity smart contracts
+- MetaMask
+- Ethers.js
+
+## Decentralized Storage / Evidence
+
+- IPFS-based evidence architecture
+
+## AI
+
+- AI-assisted crop image verification
+
+---
+
+# 🏗️ High-Level Architecture
+
+```text
+┌─────────────────────────────┐
+│          React UI           │
+│ Farmer / FPO / Retailer     │
+└──────────────┬──────────────┘
+               │ REST API
+               ▼
+┌─────────────────────────────┐
+│      Django REST API        │
+│ Authentication              │
+│ Crop Passports              │
+│ Quotes / Bids               │
+│ Inventory                   │
+│ Transactions                │
+└───────┬───────────────┬─────┘
+        │               │
+        ▼               ▼
+┌──────────────┐  ┌──────────────┐
+│   Database   │  │ AI / IPFS    │
+│ Crop/Users   │  │ Verification │
+│ Quotes/etc.  │  │ Evidence     │
+└──────────────┘  └──────────────┘
+        │
+        │ Blockchain interaction
+        ▼
+┌─────────────────────────────┐
+│ Ethereum Sepolia            │
+│ Smart Escrow Contracts      │
+└──────────────┬──────────────┘
+               │
+               ▼
+          MetaMask
+```
+
+---
+
+# 📂 Project Structure
+
+The project is organized into frontend and backend applications.
+
+A typical structure is:
+
+```text
+farmerChain/
+│
+├── backend/
+│   ├── manage.py
+│   ├── farmer/
+│   ├── escrow/
+│   ├── ...
+│   └── requirements.txt
+│
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── farmer/
+│   │   │   ├── fpo/
+│   │   │   └── ...
+│   │   ├── ...
+│   │   └── ...
+│   ├── package.json
+│   └── ...
+│
+├── contracts/
+│   ├── FarmerChainEscrow.sol
+│   └── ...
+│
+└── README.md
+```
+
+The exact structure may vary as development continues.
+
+---
+
+# ⚙️ Local Development Setup
+
+## Prerequisites
+
+Install:
+
+- Python 3.x
+- Node.js
+- npm
+- MetaMask
+- Git
+
+For blockchain testing:
+
+- MetaMask wallet
+- Sepolia network enabled
+- Sepolia test ETH
+
+---
+
+## Backend
+
+Navigate to the backend:
+
+```bash
+cd backend
+```
+
+Create/activate the Python virtual environment if required.
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Run Django migrations:
+
+```bash
+python manage.py migrate
+```
+
+Create an admin user:
+
+```bash
+python manage.py createsuperuser
+```
+
+Start the backend:
+
+```bash
+python manage.py runserver
+```
+
+The Django development server normally runs at:
+
+```text
+http://127.0.0.1:8000/
+```
+
+---
+
+## Frontend
+
+Open another terminal:
+
+```bash
+cd frontend
+```
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Start the development server:
+
+```bash
+npm run dev
+```
+
+Vite normally provides a local URL such as:
+
+```text
+http://localhost:5173/
+```
+
+---
+
+# 🦊 MetaMask / Sepolia Setup
+
+For the blockchain demo:
+
+1. Install MetaMask.
+2. Enable the Sepolia test network.
+3. Connect the wallet to FarmerChain.
+4. Obtain Sepolia test ETH from a suitable Sepolia faucet.
+5. Use separate test accounts for Farmer and FPO where required.
+6. Confirm that transactions are being sent to the intended Sepolia contract.
+
+The demo uses testnet assets only.
+
+---
+
+# 🔐 Security & Trust Model
+
+FarmerChain uses several layers of trust:
+
+### Application Layer
+
+Django manages:
+
+- User accounts
+- Roles
+- Crop information
+- Quotes
+- Bids
+- Transaction records
+- Inventory records
+
+### Verification Layer
+
+Crop images and supporting evidence provide additional information for crop verification.
+
+### Blockchain Layer
+
+Ethereum Sepolia provides independently verifiable transaction records for escrow operations.
+
+### Wallet Layer
+
+MetaMask provides user-controlled signing for blockchain transactions.
+
+The goal is to avoid relying on a single database record as the only source of truth for critical payment operations.
+
+---
+
+# 👥 User Roles
+
+## Farmer
+
+Can:
+
+- Register
+- Connect wallet
+- Create crop passports
+- Upload crop images
+- Complete crop verification
+- List crops
+- Set asking prices
+- Receive FPO bids
+- Negotiate
+- Participate in escrow transactions
+- Confirm delivery where applicable
+
+## FPO
+
+Can:
+
+- Review farmer crop listings
+- Review crop/passport information
+- Bid on crops
+- Negotiate prices
+- Create/fund blockchain escrow
+- Manage acquired inventory
+- Build retailer-facing market quotes as the platform expands
+
+## Retailer
+
+The retailer workflow is under active development.
+
+The planned capabilities include:
+
+- Browse FPO products
+- View provenance
+- Add products to cart
+- Negotiate prices
+- Place orders
+- Complete escrow payment
+- Confirm delivery
+
+## Admin
+
+The admin layer manages platform-level approval and administration through Django Admin.
+
+---
+
+# 🎥 Hackathon Demo Flow
+
+The recommended demo focuses on the Farmer → FPO journey.
+
+### Step 1 — Farmer Registration
+
+Create the farmer account and connect MetaMask.
+
+### Step 2 — Admin Approval
+
+Approve the farmer through the administration workflow.
+
+### Step 3 — Farmer Login
+
+Log into the farmer dashboard.
+
+### Step 4 — Create Crop Passport
+
+Enter crop information and upload the crop image.
+
+### Step 5 — Verification
+
+Complete the crop verification/passport workflow.
+
+### Step 6 — Offer Crop to FPO
+
+Create the farmer's crop listing with quantity and asking price.
+
+### Step 7 — FPO Review
+
+Switch to the FPO account and review the crop, quantity, price, and provenance.
+
+### Step 8 — FPO Bid
+
+The FPO submits a bid.
+
+### Step 9 — Negotiation
+
+The farmer and FPO can negotiate until a price is agreed.
+
+### Step 10 — Blockchain Escrow
+
+The farmer creates the smart-contract escrow using MetaMask on Sepolia.
+
+### Step 11 — FPO Funding
+
+The FPO deposits the agreed ETH amount into the escrow.
+
+### Step 12 — Delivery
+
+After delivery confirmation, the escrow lifecycle proceeds toward payment release.
+
+---
+
+# 🧪 Testing & Development
+
+The project has been developed iteratively with backend, frontend, and blockchain integration testing.
+
+Development checks include:
+
+- Django system checks
+- API validation
+- Frontend builds
+- Farmer/FPO workflow testing
+- MetaMask transaction testing
+- Sepolia transaction verification
+- Escrow lifecycle testing
+
+Testing is performed against the current implementation as features evolve.
+
+---
+
+# 📈 Roadmap
+
+## Completed / Demonstrated
+
+- [x] Farmer registration
+- [x] MetaMask wallet connection
+- [x] Admin approval workflow
+- [x] Crop registration
+- [x] Digital crop passport
+- [x] Crop image upload
+- [x] AI-assisted verification workflow
+- [x] Crop listing
+- [x] Farmer → FPO interaction
+- [x] FPO bidding
+- [x] Price negotiation workflow
+- [x] Ethereum Sepolia integration
+- [x] Smart escrow creation
+- [x] FPO escrow funding
+- [x] Delivery/payment lifecycle foundation
+
+## In Development / Next
+
+- [ ] FPO provenance-preserving inventory
+- [ ] FPO stock cart
+- [ ] Partial stock allocation
+- [ ] FPO → Retailer market quotes
+- [ ] Retailer cart
+- [ ] Multi-farmer provenance in retailer orders
+- [ ] Farmer ↔ FPO chat
+- [ ] FPO ↔ Retailer chat
+- [ ] Multi-round negotiation
+- [ ] FPO → Retailer escrow/payment
+- [ ] End-to-end retailer delivery flow
+- [ ] Expanded filtering and marketplace discovery
+
+---
+
+# 🌍 Vision
+
+FarmerChain aims to create a transparent agricultural marketplace where the history of a product does not disappear as it moves through the supply chain.
+
+Instead of:
+
+```text
+Farmer → FPO → Retailer
+```
+
+being a series of disconnected transactions, FarmerChain aims to create:
+
+```text
+Farmer
+  ↓
+Verified Crop
+  ↓
+Crop Passport
+  ↓
+FPO Inventory
+  ↓
+Retailer Order
+  ↓
+Blockchain Payment
+  ↓
+Delivery
+```
+
+with provenance preserved at every stage.
+
+Our long-term goal is a **trusted, traceable and digitally verifiable agricultural supply chain** where farmers receive transparent market access, FPOs can manage verified inventory, and retailers can understand the origin of the products they purchase.
+
+---
+
+# 🏆 Hackathon Value Proposition
+
+FarmerChain combines:
+
+**🌾 Agriculture + 🤖 AI + 🔗 Blockchain + 📦 Traceability + 💰 Digital Escrow**
+
+to address a real supply-chain problem.
+
+The key innovation is not simply putting a payment on blockchain. It is connecting **crop identity, provenance, commercial negotiation, inventory, and blockchain settlement** into one continuous transaction history.
+
+---
+
+# 📜 License
+
+Add the project's intended open-source or proprietary license here before public release.
+
+---
+
+# 👨‍💻 Project Status
+
+FarmerChain is an actively developed hackathon project.
+
+The **Farmer → FPO blockchain transaction flow** is the primary demonstrated workflow, while the **FPO → Retailer provenance-aware marketplace** is being developed as the next stage.
+
+
 
 ================================================
 FILE: render.yaml
@@ -5004,6 +5948,7 @@ class RetailerEscrowTransactionSerializer(serializers.ModelSerializer):
     etherscan_deposit_url  = serializers.CharField(read_only=True)
     etherscan_release_url  = serializers.CharField(read_only=True)
     etherscan_contract_url = serializers.CharField(read_only=True)
+    allocations    = serializers.SerializerMethodField()
 
     class Meta:
         model = RetailerEscrowTransaction
@@ -5018,10 +5963,26 @@ class RetailerEscrowTransactionSerializer(serializers.ModelSerializer):
             'delivery_tx_hash', 'release_tx_hash',
             'etherscan_deposit_url', 'etherscan_release_url',
             'etherscan_contract_url',
+            'allocations',
             'created_at', 'funded_at',
             'delivery_confirmed_at', 'released_at',
         ]
         read_only_fields = fields
+
+    def get_allocations(self, obj):
+        if not obj.quote or not hasattr(obj.quote, 'allocations'):
+            return []
+        res = []
+        for alloc in obj.quote.allocations.all():
+            res.append({
+                'id': alloc.id,
+                'farmer_name': alloc.farmer.name if alloc.farmer else "Unknown",
+                'farmer_did': alloc.farmer.did if alloc.farmer else "",
+                'crop_passport_id': alloc.crop_passport_id,
+                'allocated_quantity': str(alloc.allocated_quantity),
+                'unit': alloc.inventory_lot.unit if alloc.inventory_lot else "unit",
+            })
+        return res
 
 
 
@@ -5413,6 +6374,13 @@ def escrow_released(request, escrow_pk):
     escrow.released_at = timezone.now()
     escrow.save(update_fields=['status', 'release_tx_hash', 'released_at'])
 
+    # Ensure FPO Inventory Lot exists for FPO
+    try:
+        from fpo.services import create_fpo_inventory_lot_from_deal
+        create_fpo_inventory_lot_from_deal(quote=escrow.quote, bid=escrow.bid)
+    except Exception as exc:
+        logger.error("Error creating FPOInventoryLot on escrow release: %s", exc)
+
     logger.info('Payment released: escrow=%d, tx=%s', escrow.pk, tx_hash)
 
     serializer = EscrowTransactionSerializer(escrow)
@@ -5470,14 +6438,14 @@ def escrow_my_list(request):
 
 # â”€â”€ POST /api/escrow/retailer/create/ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @api_view(['POST'])
-@permission_classes([IsAuthenticated, IsFPO])
+@permission_classes([IsAuthenticated])
 def create_retailer_escrow(request):
     """
     Create an escrow record for an accepted FPO quote (FPO is Seller, Retailer is Buyer).
 
     Body: { "quote_id": <int> }
     """
-    fpo = request.user.user_obj
+    user_obj = request.user.user_obj
     quote_id = request.data.get('quote_id')
 
     if not quote_id:
@@ -5488,22 +6456,26 @@ def create_retailer_escrow(request):
 
     quote = get_object_or_404(FPOQuote, pk=quote_id)
 
-    # Ownership check
-    if quote.fpo_id != fpo.pk:
-        return Response(
-            {'error': 'You do not own this FPO quote.'},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
     # Must have an accepted bid
-    if not quote.accepted_bid:
+    bid = quote.accepted_bid
+    if not bid and hasattr(quote, 'bids'):
+        bid = quote.bids.filter(status='accepted').first()
+
+    if not bid:
         return Response(
             {'error': 'This quote does not have an accepted retailer bid yet.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    bid = quote.accepted_bid
+    fpo = quote.fpo
     retailer = bid.retailer
+
+    # Participant check: user must be either the FPO or Retailer
+    if user_obj.pk != fpo.pk and user_obj.pk != retailer.pk:
+        return Response(
+            {'error': 'You are not a participant of this accepted deal.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
     # Wallet addresses required
     if not fpo.wallet_address:
@@ -5528,8 +6500,20 @@ def create_retailer_escrow(request):
             status=status.HTTP_409_CONFLICT,
         )
 
-    # Calculate amount: bid_amount (price per unit) Ã— quantity
-    amount_eth = Decimal(str(bid.bid_amount)) * Decimal(str(quote.quantity))
+    # Calculate agreed amount: check if negotiation has locked agreed_price_per_unit
+    from negotiation.models import Negotiation
+    content_type_str = f"retailer.retailerbid"
+    try:
+        from django.contrib.contenttypes.models import ContentType
+        ct = ContentType.objects.get(app_label='retailer', model='retailerbid')
+        neg = Negotiation.objects.filter(content_type=ct, object_id=bid.id, status='accepted').first()
+    except Exception:
+        neg = None
+
+    price = neg.agreed_price_per_unit if (neg and neg.agreed_price_per_unit) else bid.bid_amount
+    qty = neg.agreed_quantity if (neg and neg.agreed_quantity) else quote.quantity
+
+    amount_eth = Decimal(str(price)) * Decimal(str(qty))
     if amount_eth <= 0:
         return Response(
             {'error': 'Calculated escrow amount must be greater than zero.'},
@@ -5560,7 +6544,7 @@ def create_retailer_escrow(request):
     serializer = RetailerEscrowTransactionSerializer(escrow)
     return Response(
         {
-            'message': 'Retailer escrow created. Proceed to create on-chain escrow via MetaMask.',
+            'message': 'Retailer escrow created. Proceed to create/fund on-chain escrow via MetaMask.',
             'escrow': serializer.data,
             'contract_address': contract_address,
             'fpo_wallet': fpo.wallet_address,
@@ -5574,17 +6558,17 @@ def create_retailer_escrow(request):
 
 # â”€â”€ POST /api/escrow/retailer/<id>/created-onchain/ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @api_view(['POST'])
-@permission_classes([IsAuthenticated, IsFPO])
+@permission_classes([IsAuthenticated])
 def retailer_escrow_created_onchain(request, escrow_pk):
     """
-    Record the on-chain escrow creation tx hash and escrow ID by the FPO.
+    Record the on-chain escrow creation tx hash and escrow ID by FPO or Retailer.
 
     Body: { "tx_hash": "0x...", "escrow_id": <int>, "contract_address": "0x..." }
     """
-    fpo = request.user.user_obj
+    user_obj = request.user.user_obj
     escrow = get_object_or_404(RetailerEscrowTransaction, pk=escrow_pk)
 
-    if escrow.fpo_id != fpo.pk:
+    if escrow.fpo_id != user_obj.pk and escrow.retailer_id != user_obj.pk:
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
     tx_hash = request.data.get('tx_hash', '')
@@ -5760,6 +6744,42 @@ def retailer_escrow_released(request, escrow_pk):
     escrow.release_tx_hash = tx_hash
     escrow.released_at = timezone.now()
     escrow.save(update_fields=['status', 'release_tx_hash', 'released_at'])
+
+    # â”€â”€ Move stock into RetailerInventoryLot with 100% Provenance â”€â”€â”€â”€â”€â”€â”€
+    try:
+        from retailer.models import RetailerInventoryLot
+        quote = escrow.quote
+        if quote and hasattr(quote, 'allocations'):
+            price = quote.price_per_unit or (escrow.amount_eth / quote.quantity if quote.quantity else Decimal('0'))
+            for alloc in quote.allocations.all():
+                # 1. Update FPO Inventory Lot
+                lot = alloc.inventory_lot
+                if lot:
+                    qty = alloc.allocated_quantity
+                    lot.reserved_quantity = max(Decimal('0'), (lot.reserved_quantity or Decimal('0')) - qty)
+                    lot.original_quantity = max(Decimal('0'), (lot.original_quantity or Decimal('0')) - qty)
+                    if lot.available_quantity <= 0 and lot.reserved_quantity <= 0:
+                        lot.status = 'depleted'
+                    lot.save()
+
+                # 2. Create Retailer Inventory Lot
+                RetailerInventoryLot.objects.create(
+                    retailer=escrow.retailer,
+                    fpo=escrow.fpo,
+                    farmer=alloc.farmer,
+                    crop_passport=alloc.crop_passport,
+                    inventory_lot=alloc.inventory_lot,
+                    escrow=escrow,
+                    product_name=quote.product_name,
+                    crop_category=quote.category,
+                    quantity=alloc.allocated_quantity,
+                    unit=quote.unit,
+                    purchase_price_per_unit=price,
+                    total_price=alloc.allocated_quantity * price,
+                    status='in_stock',
+                )
+    except Exception as exc:
+        logger.error("Error creating RetailerInventoryLot for escrow #%d: %s", escrow.pk, exc)
 
     logger.info('Retailer escrow payment released: escrow=%d, tx=%s', escrow.pk, tx_hash)
 
@@ -6024,6 +7044,8 @@ class FarmerQuote(models.Model):
         related_name='quotes'
     )
     product_name = models.CharField(max_length=200)
+    category = models.CharField(max_length=100)
+    description = models.TextField(blank=True, default='')
     quantity = models.DecimalField(max_digits=18, decimal_places=8)
     unit = models.CharField(max_length=20, help_text="e.g., kg, quintal, ton")
     price_per_unit = models.DecimalField(max_digits=18, decimal_places=8, null=True, blank=True)
@@ -6317,16 +7339,13 @@ class FarmerRegistrationSerializer(serializers.ModelSerializer):
 class FarmerQuoteSerializer(serializers.ModelSerializer):
     farmer_name = serializers.CharField(source='farmer.name', read_only=True)
     farmer_email = serializers.CharField(source='farmer.email', read_only=True)
-    category = serializers.CharField(source='crop_passport.crop_category', read_only=True, default='')
     bids = serializers.SerializerMethodField()
     crop_passport = serializers.PrimaryKeyRelatedField(
         queryset=CropPassport.objects.all(),
-        required=False,
-        allow_null=True
+        required=True,
+        error_messages={"required": "Select a completed Crop Passport before creating a quote."}
     )
     crop_passport_details = serializers.SerializerMethodField()
-
-    description = serializers.CharField(source='crop_passport.description', read_only=True, default='')
 
     class Meta:
         model = FarmerQuote
@@ -6340,16 +7359,15 @@ class FarmerQuoteSerializer(serializers.ModelSerializer):
         read_only_fields = ('farmer', 'status', 'created_at', 'accepted_bid')
         extra_kwargs = {
             'product_name': {'required': False},
+            'category': {'required': False},
+            'description': {'required': False, 'allow_blank': True},
             'quantity': {'required': False},
             'unit': {'required': False},
-            'price_per_unit': {'required': False, 'allow_null': True},
+            'price_per_unit': {'required': True},
+            'deadline': {'required': True},
         }
 
     def get_bids(self, obj):
-        """
-        Custom method to get and serialize the bids for this quote.
-        This avoids the circular import issue at startup.
-        """
         bids_data = []
         for bid in obj.bids.all():
             bids_data.append({
@@ -6396,43 +7414,30 @@ class FarmerQuoteSerializer(serializers.ModelSerializer):
         # If this is a new quote creation
         if not self.instance:
             if not crop_passport:
-                # Check if farmer has manual fields or no passport
-                if not attrs.get('product_name') or not attrs.get('quantity'):
-                    raise serializers.ValidationError({
-                        "crop_passport": "Create and complete a Crop Passport before creating a quote."
-                    })
-            else:
-                # Validate ownership
-                if farmer and crop_passport.farmer_id != farmer.pk:
-                    raise serializers.ValidationError({
-                        "crop_passport": "You do not own this Crop Passport."
-                    })
+                raise serializers.ValidationError({
+                    "crop_passport": "Select a completed Crop Passport before creating a quote."
+                })
 
-                # Validate passport required information
-                if not crop_passport.crop_name or not crop_passport.quantity or crop_passport.quantity <= 0:
-                    raise serializers.ValidationError({
-                        "crop_passport": "Selected Crop Passport is incomplete or has invalid quantity."
-                    })
+            # Validate ownership
+            if farmer and crop_passport.farmer_id != farmer.pk:
+                raise serializers.ValidationError({
+                    "crop_passport": "You do not own this Crop Passport."
+                })
 
-                # Populate ONLY actual FarmerQuote model fields from the passport
-                attrs['product_name'] = crop_passport.crop_name
-                attrs['quantity'] = crop_passport.quantity
-                attrs['unit'] = crop_passport.unit
+            # Validate passport required information
+            if not crop_passport.crop_name or not crop_passport.quantity or crop_passport.quantity <= 0:
+                raise serializers.ValidationError({
+                    "crop_passport": "Selected Crop Passport is incomplete or has invalid quantity."
+                })
+
+            # Populate model fields automatically from the crop passport
+            attrs['product_name'] = crop_passport.crop_name
+            attrs['category'] = crop_passport.crop_category
+            attrs['description'] = crop_passport.description or ''
+            attrs['quantity'] = crop_passport.quantity
+            attrs['unit'] = crop_passport.unit
 
         return super().validate(attrs)
-
-    # â”€â”€ Actual FarmerQuote model fields (constructor-safe) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    _MODEL_FIELDS = frozenset({
-        'farmer', 'crop_passport', 'product_name', 'quantity', 'unit',
-        'price_per_unit', 'status', 'deadline', 'accepted_bid',
-        'contract_address', 'contract_created_at',
-    })
-
-    def create(self, validated_data):
-        """Strip any key that is NOT an actual FarmerQuote model field
-        before calling Model.objects.create(), preventing TypeError."""
-        clean = {k: v for k, v in validated_data.items() if k in self._MODEL_FIELDS}
-        return FarmerQuote.objects.create(**clean)
 
     def validate_quantity(self, value):
         if value is not None and value <= 0:
@@ -6938,7 +7943,7 @@ FILE: backend/fpo/__init__.py
 FILE: backend/fpo/admin.py
 ================================================
 from django.contrib import admin
-from .models import FPO, FPOBid, FPOQuote
+from .models import FPO, FPOBid, FPOQuote, FPOInventoryLot, FPOStockCartItem
 
 @admin.register(FPO)
 class FPOAdmin(admin.ModelAdmin):
@@ -6957,6 +7962,17 @@ class FPOQuoteAdmin(admin.ModelAdmin):
     list_display = ('product_name', 'fpo', 'quantity', 'unit', 'status', 'deadline')
     list_filter = ('status', 'category')
     search_fields = ('product_name', 'fpo__name')
+
+@admin.register(FPOInventoryLot)
+class FPOInventoryLotAdmin(admin.ModelAdmin):
+    list_display = ('id', 'product_name', 'fpo', 'farmer', 'available_quantity', 'original_quantity', 'unit', 'status', 'created_at')
+    list_filter = ('status', 'crop_category', 'unit')
+    search_fields = ('product_name', 'farmer__name', 'fpo__name')
+
+@admin.register(FPOStockCartItem)
+class FPOStockCartItemAdmin(admin.ModelAdmin):
+    list_display = ('id', 'fpo', 'inventory_lot', 'selected_quantity', 'created_at')
+    search_fields = ('fpo__name', 'inventory_lot__product_name')
 
 
 
@@ -7035,6 +8051,8 @@ class FPOQuote(models.Model):
     category = models.CharField(max_length=100)
     description = models.TextField()
     quantity = models.DecimalField(max_digits=18, decimal_places=8)
+    available_quantity = models.DecimalField(max_digits=18, decimal_places=8, null=True, blank=True)
+    reserved_quantity = models.DecimalField(max_digits=18, decimal_places=8, default=0)
     unit = models.CharField(max_length=20, help_text="e.g., kg, quintal, ton")
     price_per_unit = models.DecimalField(max_digits=18, decimal_places=8, null=True, blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='open')
@@ -7052,12 +8070,173 @@ class FPOQuote(models.Model):
     def __str__(self):
         return f"{self.product_name} quote by {self.fpo.name}"
 
+    def save(self, *args, **kwargs):
+        if self.available_quantity is None and self.quantity is not None:
+            self.available_quantity = self.quantity - (self.reserved_quantity or 0)
+        super().save(*args, **kwargs)
+
+
+class FPOQuoteAllocation(models.Model):
+    """
+    Phase 3 â€” FPO Retailer Quote Inventory Allocation.
+    Links a published FPOQuote (wholesale market quote for retailers) to the exact source
+    FPOInventoryLot(s), Farmer(s), and CropPassport(s) from which the stock was allocated.
+    Preserves complete multi-farmer provenance at all times.
+    """
+    quote = models.ForeignKey(FPOQuote, on_delete=models.CASCADE, related_name='allocations')
+    inventory_lot = models.ForeignKey(
+        'FPOInventoryLot',
+        on_delete=models.CASCADE,
+        related_name='quote_allocations'
+    )
+    farmer = models.ForeignKey('farmer.Farmer', on_delete=models.CASCADE, related_name='fpo_quote_allocations')
+    crop_passport = models.ForeignKey(
+        'farmer.CropPassport',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='fpo_quote_allocations'
+    )
+    allocated_quantity = models.DecimalField(max_digits=18, decimal_places=8)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Allocation #{self.id} â€” Quote #{self.quote_id} | Lot #{self.inventory_lot_id} | {self.allocated_quantity} {self.inventory_lot.unit} (Farmer: {self.farmer.name})"
+
+
+class FPOInventoryLot(models.Model):
+    """
+    Phase 1 â€” FPO Inventory Foundation.
+    Represents stock acquired/held by an FPO from a specific farmer.
+    Permanently retains the source farmer and crop passport provenance.
+    """
+    STATUS_CHOICES = [
+        ('available', 'Available'),
+        ('reserved', 'Reserved'),
+        ('depleted', 'Depleted'),
+    ]
+
+    UNIT_CHOICES = [
+        ('kg', 'Kilogram (kg)'),
+        ('quintal', 'Quintal (quintal)'),
+        ('caret', 'Caret (caret)'),
+        ('piece', 'Piece (piece)'),
+        ('acre', 'Acre (acre)'),
+        ('ton', 'Metric Ton (ton)'),
+        ('litre', 'Litre (litre)'),
+        ('dozen', 'Dozen (dozen)'),
+    ]
+
+    fpo = models.ForeignKey(FPO, on_delete=models.CASCADE, related_name='inventory_lots')
+    farmer = models.ForeignKey('farmer.Farmer', on_delete=models.CASCADE, related_name='fpo_inventory_lots')
+    crop_passport = models.ForeignKey(
+        'farmer.CropPassport',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='fpo_inventory_lots'
+    )
+    product_name = models.CharField(max_length=200)
+    crop_category = models.CharField(max_length=100, blank=True)
+    original_quantity = models.DecimalField(max_digits=18, decimal_places=8)
+    available_quantity = models.DecimalField(max_digits=18, decimal_places=8)
+    reserved_quantity = models.DecimalField(max_digits=18, decimal_places=8, default=0)
+    unit = models.CharField(max_length=20, choices=UNIT_CHOICES, default='kg')
+    acquisition_price = models.DecimalField(
+        max_digits=18,
+        decimal_places=8,
+        null=True,
+        blank=True,
+        help_text="Acquisition price per unit in ETH paid to farmer"
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='available')
+
+    # Provenance tracking to source deal
+    quote = models.ForeignKey(
+        'farmer.FarmerQuote',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='inventory_lots'
+    )
+    bid = models.ForeignKey(
+        FPOBid,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='inventory_lots'
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Inventory Lot #{self.id} â€” {self.product_name} ({self.available_quantity}/{self.original_quantity} {self.unit}) held by {self.fpo.name}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.original_quantity is None or self.original_quantity <= 0:
+            raise ValidationError("Original quantity must be greater than zero.")
+        if self.available_quantity is None or self.available_quantity < 0:
+            raise ValidationError("Available quantity cannot be negative.")
+        if self.reserved_quantity is None or self.reserved_quantity < 0:
+            raise ValidationError("Reserved quantity cannot be negative.")
+        if self.available_quantity + self.reserved_quantity > self.original_quantity:
+            raise ValidationError("Total available plus reserved quantity cannot exceed original quantity.")
+
+    def save(self, *args, **kwargs):
+        if self.available_quantity is not None:
+            if self.available_quantity <= 0:
+                self.status = 'depleted'
+            elif self.reserved_quantity and self.reserved_quantity == self.original_quantity:
+                self.status = 'reserved'
+            elif self.available_quantity > 0 and self.status in ['depleted', 'reserved']:
+                self.status = 'available'
+        self.clean()
+        super().save(*args, **kwargs)
+
+
+class FPOStockCartItem(models.Model):
+    """
+    Phase 2 â€” FPO Stock Cart Item.
+    Stores selected partial quantities from an FPOInventoryLot reserved by an FPO in their stock cart
+    before publishing a retailer market quote.
+    Permanently preserves the link to the inventory lot (and its farmer/crop/passport provenance).
+    """
+    fpo = models.ForeignKey(FPO, on_delete=models.CASCADE, related_name='cart_items')
+    inventory_lot = models.ForeignKey(
+        FPOInventoryLot,
+        on_delete=models.CASCADE,
+        related_name='cart_items'
+    )
+    selected_quantity = models.DecimalField(max_digits=18, decimal_places=8)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ('fpo', 'inventory_lot')
+
+    def __str__(self):
+        return f"Cart Item #{self.id} â€” Lot #{self.inventory_lot_id} ({self.selected_quantity} {self.inventory_lot.unit}) for {self.fpo.name}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.selected_quantity is None or self.selected_quantity <= 0:
+            raise ValidationError("Selected quantity must be greater than zero.")
+
 
 ================================================
 FILE: backend/fpo/serializers.py
 ================================================
 from rest_framework import serializers
-from .models import FPO, FPOBid, FPOQuote
+from .models import FPO, FPOBid, FPOQuote, FPOQuoteAllocation, FPOInventoryLot, FPOStockCartItem
 
 class FPOSerializer(serializers.ModelSerializer):
     class Meta:
@@ -7110,20 +8289,113 @@ class FPOBidSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Delivery time must be greater than zero.")
         return value
 
+
+class FPOQuoteAllocationSerializer(serializers.ModelSerializer):
+    """
+    Phase 3 â€” FPO Retailer Quote Inventory Allocation Serializer.
+    Exposes individual farmer & crop passport allocations for a wholesale market quote.
+    """
+    farmer_name = serializers.CharField(source='farmer.name', read_only=True)
+    farmer_did = serializers.CharField(source='farmer.did', read_only=True)
+    farmer_location = serializers.SerializerMethodField()
+    crop_passport_details = serializers.SerializerMethodField()
+    unit = serializers.ReadOnlyField(source='inventory_lot.unit')
+    acquisition_price = serializers.ReadOnlyField(source='inventory_lot.acquisition_price')
+
+    class Meta:
+        model = FPOQuoteAllocation
+        fields = [
+            'id', 'quote', 'inventory_lot', 'farmer', 'farmer_name', 'farmer_did',
+            'farmer_location', 'crop_passport', 'crop_passport_details',
+            'allocated_quantity', 'unit', 'acquisition_price', 'created_at'
+        ]
+
+    def get_farmer_location(self, obj):
+        if obj.farmer:
+            return f"{obj.farmer.city}, {obj.farmer.state}"
+        return ""
+
+    def get_crop_passport_details(self, obj):
+        cp = obj.crop_passport
+        if not cp:
+            return None
+        ai = cp.latest_ai_verification
+        return {
+            'id': cp.id,
+            'crop_name': cp.crop_name,
+            'crop_category': cp.crop_category,
+            'status': cp.status,
+            'is_minted': cp.is_minted,
+            'harvest_date': str(cp.harvest_date),
+            'location': cp.location,
+            'nft_token_id': cp.nft_token_id,
+            'primary_image_url': cp.primary_image_url,
+            'ai_verification': {
+                'quality_grade': ai.quality_grade,
+                'quality_score': float(ai.quality_score) if ai.quality_score is not None else None,
+                'verification_status': ai.verification_status,
+                'image_gateway_url': ai.image_gateway_url,
+            } if ai else None,
+        }
+
+
 class FPOQuoteSerializer(serializers.ModelSerializer):
     fpo_name = serializers.CharField(source='fpo.name', read_only=True)
     fpo_email = serializers.CharField(source='fpo.email', read_only=True)
+    fpo_did = serializers.CharField(source='fpo.did', read_only=True)
+    fpo_location = serializers.SerializerMethodField()
     bids = serializers.SerializerMethodField()
+    allocations = FPOQuoteAllocationSerializer(many=True, read_only=True)
+    provenance_summary = serializers.SerializerMethodField()
     
     class Meta:
         model = FPOQuote
         fields = [
-            'id', 'fpo', 'product_name', 'category', 'description', 
+            'id', 'fpo', 'fpo_name', 'fpo_email', 'fpo_did', 'fpo_location',
+            'product_name', 'category', 'description', 
             'quantity', 'unit', 'price_per_unit', 'status', 'deadline', 
-            'created_at', 'accepted_bid', 'fpo_name', 'fpo_email',
-            'bids'
+            'created_at', 'accepted_bid', 'bids', 'allocations', 'provenance_summary'
         ]
         read_only_fields = ('fpo', 'status', 'created_at', 'accepted_bid')
+
+    def get_fpo_location(self, obj):
+        if obj.fpo:
+            return f"{obj.fpo.city}, {obj.fpo.state}"
+        return ""
+
+    def get_provenance_summary(self, obj):
+        allocations = obj.allocations.all()
+        farmers_set = set()
+        passports_set = set()
+        farmers_list = []
+        passports_list = []
+
+        for alloc in allocations:
+            if alloc.farmer:
+                farmers_set.add(alloc.farmer_id)
+                farmers_list.append({
+                    'id': alloc.farmer.id,
+                    'name': alloc.farmer.name,
+                    'did': alloc.farmer.did,
+                    'location': f"{alloc.farmer.city}, {alloc.farmer.state}",
+                    'allocated_quantity': str(alloc.allocated_quantity),
+                })
+            if alloc.crop_passport:
+                passports_set.add(alloc.crop_passport_id)
+                passports_list.append({
+                    'id': alloc.crop_passport.id,
+                    'crop_name': alloc.crop_passport.crop_name,
+                    'is_minted': alloc.crop_passport.is_minted,
+                    'ai_grade': alloc.crop_passport.latest_ai_verification.quality_grade if alloc.crop_passport.latest_ai_verification else None,
+                    'allocated_quantity': str(alloc.allocated_quantity),
+                })
+
+        return {
+            'total_farmers_count': len(farmers_set),
+            'total_passports_count': len(passports_set),
+            'farmers_list': farmers_list,
+            'passports_list': passports_list,
+        }
     
     def get_bids(self, obj):
         """
@@ -7176,6 +8448,130 @@ class FPOQuoteSerializer(serializers.ModelSerializer):
         return value
 
 
+class FPOInventoryLotSerializer(serializers.ModelSerializer):
+    """
+    Phase 1 â€” FPO Inventory Lot Serializer.
+    Provides complete lot details and provenance tracking (FPO -> Farmer -> Crop -> Passport).
+    """
+    fpo_name = serializers.CharField(source='fpo.name', read_only=True)
+    farmer_name = serializers.CharField(source='farmer.name', read_only=True)
+    farmer_email = serializers.CharField(source='farmer.email', read_only=True)
+    farmer_city = serializers.CharField(source='farmer.city', read_only=True)
+    farmer_state = serializers.CharField(source='farmer.state', read_only=True)
+    farmer_did = serializers.CharField(source='farmer.did', read_only=True)
+
+    farmer_details = serializers.SerializerMethodField()
+    crop_passport_details = serializers.SerializerMethodField()
+    provenance = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FPOInventoryLot
+        fields = [
+            'id', 'fpo', 'fpo_name', 'farmer', 'farmer_name', 'farmer_email',
+            'farmer_city', 'farmer_state', 'farmer_did', 'farmer_details',
+            'crop_passport', 'crop_passport_details', 'provenance',
+            'product_name', 'crop_category', 'original_quantity',
+            'available_quantity', 'reserved_quantity', 'unit',
+            'acquisition_price', 'status', 'quote', 'bid',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = fields
+
+    def get_farmer_details(self, obj):
+        if not obj.farmer:
+            return None
+        f = obj.farmer
+        return {
+            'id': f.id,
+            'name': f.name,
+            'email': f.email,
+            'city': f.city,
+            'state': f.state,
+            'did': f.did,
+            'wallet_address': f.wallet_address,
+        }
+
+    def get_crop_passport_details(self, obj):
+        if not obj.crop_passport:
+            return None
+        cp = obj.crop_passport
+        ai = cp.latest_ai_verification
+        return {
+            'id': cp.id,
+            'crop_name': cp.crop_name,
+            'crop_category': cp.crop_category,
+            'description': cp.description,
+            'status': cp.status,
+            'is_minted': cp.is_minted,
+            'cultivation_date': str(cp.cultivation_date),
+            'harvest_date': str(cp.harvest_date),
+            'location': cp.location,
+            'nft_token_id': cp.nft_token_id,
+            'primary_image_url': cp.primary_image_url,
+            'ai_verification': {
+                'quality_grade': ai.quality_grade,
+                'quality_score': float(ai.quality_score) if ai.quality_score is not None else None,
+                'confidence_score': float(ai.confidence_score) if ai.confidence_score is not None else None,
+                'crop_detected': ai.crop_detected,
+                'verification_status': ai.verification_status,
+                'image_gateway_url': ai.image_gateway_url,
+            } if ai else None,
+        }
+
+    def get_provenance(self, obj):
+        cp = obj.crop_passport
+        return {
+            'fpo_name': obj.fpo.name,
+            'fpo_did': obj.fpo.did,
+            'farmer_name': obj.farmer.name,
+            'farmer_did': obj.farmer.did,
+            'farmer_location': f"{obj.farmer.city}, {obj.farmer.state}",
+            'crop_name': obj.product_name,
+            'crop_category': obj.crop_category,
+            'passport_id': cp.id if cp else None,
+            'passport_status': cp.status if cp else 'no_passport',
+            'nft_minted': cp.is_minted if cp else False,
+            'nft_token_id': cp.nft_token_id if cp else None,
+            'ai_grade': cp.latest_ai_verification.quality_grade if (cp and cp.latest_ai_verification) else None,
+            'acquired_at': str(obj.created_at),
+            'acquisition_price_eth': str(obj.acquisition_price) if obj.acquisition_price else None,
+        }
+
+
+class FPOStockCartItemSerializer(serializers.ModelSerializer):
+    """
+    Phase 2 â€” FPO Stock Cart Item Serializer.
+    Exposes selected cart quantity and full inventory lot provenance details.
+    """
+    inventory_lot_details = FPOInventoryLotSerializer(source='inventory_lot', read_only=True)
+    remaining_quantity = serializers.DecimalField(
+        source='inventory_lot.available_quantity',
+        read_only=True,
+        max_digits=18,
+        decimal_places=8
+    )
+
+    class Meta:
+        model = FPOStockCartItem
+        fields = [
+            'id', 'fpo', 'inventory_lot', 'inventory_lot_details',
+            'selected_quantity', 'remaining_quantity',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ('fpo', 'created_at', 'updated_at')
+
+    def validate_selected_quantity(self, value):
+        if value is None or value <= 0:
+            raise serializers.ValidationError("Selected quantity must be greater than zero.")
+        return value
+
+
+================================================
+FILE: backend/fpo/services.py
+================================================
+[Binary file]
+
+
 ================================================
 FILE: backend/fpo/tests.py
 ================================================
@@ -7192,7 +8588,11 @@ from django.urls import path
 from .views import (
     FPORegistrationView, FPOListView, FPODetailView, fpo_login_check,
     fpo_dashboard, FarmerOpenQuoteListView, FPOBidCreateView, 
-    FPOQuoteListCreateView, accept_retailer_bid
+    FPOQuoteListCreateView, accept_retailer_bid,
+    fpo_inventory_list_view, fpo_inventory_detail_view,
+    fpo_stock_cart_get_view, fpo_stock_cart_add_item_view,
+    fpo_stock_cart_update_item_view, fpo_stock_cart_delete_item_view,
+    fpo_stock_cart_clear_view, create_fpo_quote_from_cart_view
 )
 
 urlpatterns = [
@@ -7204,7 +8604,15 @@ urlpatterns = [
     path('quotes/farmer/open/', FarmerOpenQuoteListView.as_view(), name='fpo-farmer-open-quotes'),
     path('quotes/farmer/<int:quote_pk>/bids/', FPOBidCreateView.as_view(), name='fpo-create-bid-on-farmer-quote'),
     path('quotes/', FPOQuoteListCreateView.as_view(), name='fpo-quote-list'),
+    path('quotes/from-cart/', create_fpo_quote_from_cart_view, name='fpo-quote-create-from-cart'),
     path('bids/retailer/<int:bid_pk>/accept/', accept_retailer_bid, name='fpo-accept-retailer-bid'),
+    path('inventory/', fpo_inventory_list_view, name='fpo-inventory-list'),
+    path('inventory/<int:lot_id>/', fpo_inventory_detail_view, name='fpo-inventory-detail'),
+    path('cart/', fpo_stock_cart_get_view, name='fpo-stock-cart-get'),
+    path('cart/items/', fpo_stock_cart_add_item_view, name='fpo-stock-cart-add-item'),
+    path('cart/items/<int:item_id>/', fpo_stock_cart_update_item_view, name='fpo-stock-cart-update-item'),
+    path('cart/items/<int:item_id>/delete/', fpo_stock_cart_delete_item_view, name='fpo-stock-cart-delete-item'),
+    path('cart/clear/', fpo_stock_cart_clear_view, name='fpo-stock-cart-clear'),
 ]
 
 
@@ -7216,8 +8624,12 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
-from .models import FPO, FPOBid, FPOQuote
-from .serializers import FPOSerializer, FPORegistrationSerializer, FPOBidSerializer, FPOQuoteSerializer
+from .models import FPO, FPOBid, FPOQuote, FPOQuoteAllocation, FPOInventoryLot, FPOStockCartItem
+from .serializers import (
+    FPOSerializer, FPORegistrationSerializer, FPOBidSerializer,
+    FPOQuoteSerializer, FPOQuoteAllocationSerializer,
+    FPOInventoryLotSerializer, FPOStockCartItemSerializer
+)
 from common.permissions import IsFPO
 from farmer.models import FarmerQuote
 from farmer.serializers import FarmerQuoteSerializer
@@ -7311,6 +8723,10 @@ class FarmerOpenQuoteListView(generics.ListAPIView):
 
     def get_queryset(self):
         fpo = self.request.user.user_obj
+
+        # Safely clean up any auto-generated quotes that have no asking price and no bids
+        FarmerQuote.objects.filter(price_per_unit__isnull=True, bids__isnull=True).delete()
+
         # Exclude quotes where FPO has already bid
         qs = FarmerQuote.objects.filter(status='open').exclude(bids__fpo=fpo)
 
@@ -7321,6 +8737,7 @@ class FarmerOpenQuoteListView(generics.ListAPIView):
             from django.db.models import Q
             qs = qs.filter(
                 Q(product_name__icontains=q) |
+                Q(category__icontains=q) |
                 Q(crop_passport__crop_category__icontains=q) |
                 Q(description__icontains=q)
             )
@@ -7328,7 +8745,10 @@ class FarmerOpenQuoteListView(generics.ListAPIView):
         # Category filter
         category = self.request.query_params.get('category')
         if category and category.strip() and category.lower() != 'all':
-            qs = qs.filter(crop_passport__crop_category__iexact=category.strip())
+            qs = qs.filter(
+                Q(category__iexact=category.strip()) |
+                Q(crop_passport__crop_category__iexact=category.strip())
+            )
 
         # Unit filter
         unit = self.request.query_params.get('unit')
@@ -7386,10 +8806,86 @@ class FPOQuoteListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated, IsFPO]
 
     def get_queryset(self):
-        return FPOQuote.objects.filter(fpo=self.request.user.user_obj)
+        return FPOQuote.objects.filter(fpo=self.request.user.user_obj).order_by('-created_at')
 
-    def perform_create(self, serializer):
-        serializer.save(fpo=self.request.user.user_obj)
+    def create(self, request, *args, **kwargs):
+        # Delegate quote creation to Phase 3 provenance-aware cart allocation service
+        return create_fpo_quote_from_cart_view(request)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsFPO])
+def create_fpo_quote_from_cart_view(request):
+    """
+    POST /api/fpo/quotes/from-cart/
+
+    Phase 3 â€” Creates a wholesale FPOQuote for retailers exclusively from active FPOStockCartItem allocations.
+    Validates cart is non-empty, calculates total quantity, creates individual FPOQuoteAllocation records for each lot,
+    preserves full multi-farmer provenance, and clears the cart items.
+    """
+    from django.db import transaction
+    from decimal import Decimal, InvalidOperation
+
+    fpo = request.user.user_obj
+    price_raw = request.data.get('price_per_unit')
+    deadline_raw = request.data.get('deadline')
+    custom_product_name = request.data.get('product_name')
+    description = request.data.get('description', '')
+
+    if not price_raw:
+        return Response({'error': 'Asking price per unit (price_per_unit) is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not deadline_raw:
+        return Response({'error': 'Bidding deadline is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        price_per_unit = Decimal(str(price_raw))
+        if price_per_unit <= Decimal('0'):
+            return Response({'error': 'Asking price must be a positive number greater than 0.'}, status=status.HTTP_400_BAD_REQUEST)
+    except (TypeError, ValueError, InvalidOperation):
+        return Response({'error': 'Invalid price_per_unit format.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    cart_items = FPOStockCartItem.objects.filter(fpo=fpo).select_related('inventory_lot', 'inventory_lot__farmer', 'inventory_lot__crop_passport')
+    if not cart_items.exists():
+        return Response({
+            'error': 'Your Stock Cart is empty. You must reserve inventory lots in your cart before publishing a wholesale market quote.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    first_lot = cart_items.first().inventory_lot
+    product_name = custom_product_name.strip() if (custom_product_name and custom_product_name.strip()) else first_lot.product_name
+    category = first_lot.crop_category or 'General'
+    unit = first_lot.unit
+
+    total_quantity = sum((item.selected_quantity for item in cart_items), Decimal('0'))
+
+    with transaction.atomic():
+        quote = FPOQuote.objects.create(
+            fpo=fpo,
+            product_name=product_name,
+            category=category,
+            description=description,
+            quantity=total_quantity,
+            unit=unit,
+            price_per_unit=price_per_unit,
+            status='open',
+            deadline=deadline_raw
+        )
+
+        for item in cart_items:
+            lot = item.inventory_lot
+            FPOQuoteAllocation.objects.create(
+                quote=quote,
+                inventory_lot=lot,
+                farmer=lot.farmer,
+                crop_passport=lot.crop_passport,
+                allocated_quantity=item.selected_quantity
+            )
+            item.delete()
+
+    serializer = FPOQuoteSerializer(quote)
+    return Response({
+        'message': f'Wholesale market quote published successfully to retailers with {quote.allocations.count()} provenance allocations.',
+        'quote': serializer.data
+    }, status=status.HTTP_201_CREATED)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated, IsFPO])
@@ -7412,8 +8908,303 @@ def accept_retailer_bid(request, bid_pk):
     
     return Response({
         "message": "Retailer bid accepted successfully.",
-        "bid_id": bid.pk
+        "bid_id": bid.pk,
+        "quote_id": quote.id
     })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsFPO])
+def fpo_inventory_list_view(request):
+    """
+    GET /api/fpo/inventory/
+
+    Phase 1 â€” Returns inventory stock lots owned by the authenticated FPO.
+    Supports filtering by search query (q/search), crop_category, and status.
+    Ensures backfilling for any accepted farmer deals that have not created a lot yet.
+    """
+    fpo = request.user.user_obj
+
+    # Backfill lots for any accepted farmer quotes where inventory lot wasn't created yet
+    from farmer.models import FarmerQuote
+    from .services import create_fpo_inventory_lot_from_deal
+    accepted_quotes = FarmerQuote.objects.filter(
+        accepted_bid__fpo=fpo,
+        status__in=['accepted', 'contract_created', 'closed', 'awarded']
+    )
+    for q_obj in accepted_quotes:
+        create_fpo_inventory_lot_from_deal(q_obj, q_obj.accepted_bid)
+
+    qs = FPOInventoryLot.objects.filter(fpo=fpo)
+
+    # Search filter
+    q = request.query_params.get('search') or request.query_params.get('q')
+    if q:
+        q = q.strip()
+        from django.db.models import Q
+        qs = qs.filter(
+            Q(product_name__icontains=q) |
+            Q(crop_category__icontains=q) |
+            Q(farmer__name__icontains=q) |
+            Q(farmer__city__icontains=q)
+        )
+
+    # Category filter
+    category = request.query_params.get('category')
+    if category and category.strip() and category.lower() != 'all':
+        qs = qs.filter(crop_category__iexact=category.strip())
+
+    # Status filter
+    status_param = request.query_params.get('status')
+    if status_param and status_param.strip() and status_param.lower() != 'all':
+        qs = qs.filter(status=status_param.strip())
+
+    serializer = FPOInventoryLotSerializer(qs, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsFPO])
+def fpo_inventory_detail_view(request, lot_id):
+    """
+    GET /api/fpo/inventory/<lot_id>/
+
+    Phase 1 â€” Returns detailed inventory lot record with full provenance data.
+    Enforces ownership check so FPOs can only view their own inventory.
+    """
+    fpo = request.user.user_obj
+    lot = get_object_or_404(FPOInventoryLot, pk=lot_id)
+
+    if lot.fpo_id != fpo.pk:
+        return Response(
+            {'error': 'You do not own this inventory lot.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    serializer = FPOInventoryLotSerializer(lot)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# â”€â”€ Phase 2 â€” FPO Stock Cart Views â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsFPO])
+def fpo_stock_cart_get_view(request):
+    """
+    GET /api/fpo/cart/
+
+    Phase 2 â€” Retrieves the authenticated FPO's current Stock Cart items and summary.
+    Preserves individual lot & farmer provenance per allocation.
+    """
+    fpo = request.user.user_obj
+    cart_items = FPOStockCartItem.objects.filter(fpo=fpo).select_related('inventory_lot', 'inventory_lot__farmer', 'inventory_lot__crop_passport')
+    
+    serialized_items = FPOStockCartItemSerializer(cart_items, many=True).data
+
+    from decimal import Decimal
+    total_selected_qty = Decimal('0')
+    unique_farmers = set()
+    unique_passports = set()
+    unique_crops = set()
+    units_set = set()
+
+    for item in cart_items:
+        lot = item.inventory_lot
+        total_selected_qty += item.selected_quantity
+        if lot.farmer_id:
+            unique_farmers.add(lot.farmer_id)
+        if lot.crop_passport_id:
+            unique_passports.add(lot.crop_passport_id)
+        if lot.product_name:
+            unique_crops.add(lot.product_name)
+        if lot.unit:
+            units_set.add(lot.unit)
+
+    summary = {
+        "total_selected_quantity": str(total_selected_qty),
+        "total_items_count": cart_items.count(),
+        "unique_farmers_count": len(unique_farmers),
+        "unique_passports_count": len(unique_passports),
+        "unique_crops_count": len(unique_crops),
+        "units": list(units_set),
+    }
+
+    return Response({
+        "items": serialized_items,
+        "summary": summary,
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsFPO])
+def fpo_stock_cart_add_item_view(request):
+    """
+    POST /api/fpo/cart/items/
+
+    Phase 2 â€” Adds an inventory lot allocation or updates quantity in the FPO Stock Cart.
+    Atomically reserves the selected stock on the FPOInventoryLot.
+    Body: { "inventory_lot_id": <int>, "selected_quantity": <decimal> }
+    """
+    from django.db import transaction
+    from decimal import Decimal, InvalidOperation
+
+    fpo = request.user.user_obj
+    lot_id = request.data.get('inventory_lot_id')
+    raw_qty = request.data.get('selected_quantity')
+
+    if not lot_id:
+        return Response({'error': 'inventory_lot_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        requested_qty = Decimal(str(raw_qty))
+        if requested_qty <= Decimal('0'):
+            return Response({'error': 'selected_quantity must be a positive number greater than 0.'}, status=status.HTTP_400_BAD_REQUEST)
+    except (TypeError, ValueError, InvalidOperation):
+        return Response({'error': 'Invalid selected_quantity format.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        lot = get_object_or_404(FPOInventoryLot.objects.select_for_update(), pk=lot_id)
+
+        if lot.fpo_id != fpo.pk:
+            return Response({'error': 'You do not own this inventory lot.'}, status=status.HTTP_403_FORBIDDEN)
+
+        existing_item = FPOStockCartItem.objects.filter(fpo=fpo, inventory_lot=lot).first()
+        old_selected_qty = existing_item.selected_quantity if existing_item else Decimal('0')
+        diff = requested_qty - old_selected_qty
+
+        if diff > Decimal('0') and diff > lot.available_quantity:
+            max_selectable = lot.available_quantity + old_selected_qty
+            return Response({
+                'error': f'Cannot select {requested_qty} {lot.unit}. Maximum available stock for this lot is {max_selectable} {lot.unit}.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update inventory lot reservation atomically
+        lot.available_quantity -= diff
+        lot.reserved_quantity += diff
+        lot.save()
+
+        if existing_item:
+            existing_item.selected_quantity = requested_qty
+            existing_item.save()
+            cart_item = existing_item
+        else:
+            cart_item = FPOStockCartItem.objects.create(
+                fpo=fpo,
+                inventory_lot=lot,
+                selected_quantity=requested_qty
+            )
+
+    serializer = FPOStockCartItemSerializer(cart_item)
+    return Response({
+        'message': f'Reserved {requested_qty} {lot.unit} in stock cart.',
+        'cart_item': serializer.data
+    }, status=status.HTTP_201_CREATED if not existing_item else status.HTTP_200_OK)
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated, IsFPO])
+def fpo_stock_cart_update_item_view(request, item_id):
+    """
+    PATCH /api/fpo/cart/items/<item_id>/
+
+    Phase 2 â€” Updates selected partial quantity for an existing cart item.
+    Body: { "selected_quantity": <decimal> }
+    """
+    from django.db import transaction
+    from decimal import Decimal, InvalidOperation
+
+    fpo = request.user.user_obj
+    raw_qty = request.data.get('selected_quantity')
+
+    try:
+        requested_qty = Decimal(str(raw_qty))
+        if requested_qty <= Decimal('0'):
+            return Response({'error': 'selected_quantity must be a positive number greater than 0.'}, status=status.HTTP_400_BAD_REQUEST)
+    except (TypeError, ValueError, InvalidOperation):
+        return Response({'error': 'Invalid selected_quantity format.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        item = get_object_or_404(FPOStockCartItem.objects.select_for_update(), pk=item_id)
+        if item.fpo_id != fpo.pk:
+            return Response({'error': 'You do not own this cart item.'}, status=status.HTTP_403_FORBIDDEN)
+
+        lot = get_object_or_404(FPOInventoryLot.objects.select_for_update(), pk=item.inventory_lot_id)
+        old_selected_qty = item.selected_quantity
+        diff = requested_qty - old_selected_qty
+
+        if diff > Decimal('0') and diff > lot.available_quantity:
+            max_selectable = lot.available_quantity + old_selected_qty
+            return Response({
+                'error': f'Cannot select {requested_qty} {lot.unit}. Maximum available stock for this lot is {max_selectable} {lot.unit}.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        lot.available_quantity -= diff
+        lot.reserved_quantity += diff
+        lot.save()
+
+        item.selected_quantity = requested_qty
+        item.save()
+
+    serializer = FPOStockCartItemSerializer(item)
+    return Response({
+        'message': 'Cart item quantity updated.',
+        'cart_item': serializer.data
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated, IsFPO])
+def fpo_stock_cart_delete_item_view(request, item_id):
+    """
+    DELETE /api/fpo/cart/items/<item_id>/
+
+    Phase 2 â€” Removes a cart item and releases its reserved stock back to available inventory.
+    """
+    from django.db import transaction
+
+    fpo = request.user.user_obj
+
+    with transaction.atomic():
+        item = get_object_or_404(FPOStockCartItem.objects.select_for_update(), pk=item_id)
+        if item.fpo_id != fpo.pk:
+            return Response({'error': 'You do not own this cart item.'}, status=status.HTTP_403_FORBIDDEN)
+
+        lot = get_object_or_404(FPOInventoryLot.objects.select_for_update(), pk=item.inventory_lot_id)
+        qty_to_release = item.selected_quantity
+
+        lot.available_quantity += qty_to_release
+        lot.reserved_quantity -= qty_to_release
+        lot.save()
+
+        item.delete()
+
+    return Response({
+        'message': f'Removed lot from stock cart and released {qty_to_release} {lot.unit} back to available inventory.'
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated, IsFPO])
+def fpo_stock_cart_clear_view(request):
+    """
+    DELETE /api/fpo/cart/clear/
+
+    Phase 2 â€” Clears all cart items for the authenticated FPO and releases all reservations.
+    """
+    from django.db import transaction
+
+    fpo = request.user.user_obj
+
+    with transaction.atomic():
+        cart_items = FPOStockCartItem.objects.filter(fpo=fpo).select_for_update()
+        for item in cart_items:
+            lot = FPOInventoryLot.objects.select_for_update().get(pk=item.inventory_lot_id)
+            lot.available_quantity += item.selected_quantity
+            lot.reserved_quantity -= item.selected_quantity
+            lot.save()
+            item.delete()
+
+    return Response({'message': 'Stock cart cleared and all reserved inventory released.'}, status=status.HTTP_200_OK)
 
 
 ================================================
@@ -7460,14 +9251,28 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 
 class Negotiation(models.Model):
-    STATUS_CHOICES = [('active', 'Active'), ('accepted', 'Accepted'), ('rejected', 'Rejected')]
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('accepted', 'Accepted'),
+        ('rejected', 'Rejected'),
+        ('withdrawn', 'Withdrawn'),
+    ]
     
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     object_id = models.PositiveIntegerField()
     bid = GenericForeignKey('content_type', 'object_id')
     
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
+    agreed_price_per_unit = models.DecimalField(max_digits=18, decimal_places=8, null=True, blank=True)
+    agreed_quantity = models.DecimalField(max_digits=18, decimal_places=8, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Negotiation #{self.id} on Bid #{self.object_id} ({self.status})"
 
 class NegotiationMessage(models.Model):
     negotiation = models.ForeignKey(Negotiation, related_name='messages', on_delete=models.CASCADE)
@@ -7477,10 +9282,17 @@ class NegotiationMessage(models.Model):
     sender_id = models.PositiveIntegerField()
     sender_name = models.CharField(max_length=100)
     
-    message = models.TextField()
-    counter_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    message = models.TextField(blank=True)
+    counter_amount = models.DecimalField(max_digits=18, decimal_places=8, null=True, blank=True)
+    counter_quantity = models.DecimalField(max_digits=18, decimal_places=8, null=True, blank=True)
     counter_delivery_time_days = models.PositiveIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"Message #{self.id} by {self.sender_name} ({self.sender_role}) in Neg #{self.negotiation_id}"
 
 
 ================================================
@@ -7492,25 +9304,76 @@ from .models import Negotiation, NegotiationMessage
 class NegotiationMessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = NegotiationMessage
-        fields = '__all__'
+        fields = [
+            'id', 'negotiation', 'sender_role', 'sender_id', 'sender_name',
+            'message', 'counter_amount', 'counter_quantity',
+            'counter_delivery_time_days', 'created_at'
+        ]
 
-# --- THIS IS THE CORRECTED SERIALIZER ---
 class NegotiationSerializer(serializers.ModelSerializer):
     messages = NegotiationMessageSerializer(many=True, read_only=True)
-    # Explicitly define fields to represent the GenericForeignKey
     bid_id = serializers.IntegerField(source='object_id', read_only=True)
     bid_type = serializers.CharField(source='content_type.model', read_only=True)
+    details = serializers.SerializerMethodField()
 
     class Meta:
         model = Negotiation
-        # Replace the problematic 'bid' field with our explicit ones
-        fields = ('id', 'bid_id', 'bid_type', 'status', 'created_at', 'messages')
-# --- END OF CORRECTION ---
+        fields = (
+            'id', 'bid_id', 'bid_type', 'status', 'agreed_price_per_unit',
+            'agreed_quantity', 'created_at', 'updated_at', 'details', 'messages'
+        )
+
+    def get_details(self, obj):
+        bid = obj.bid
+        if not bid:
+            return None
+        quote = getattr(bid, 'quote', None)
+        if not quote:
+            return None
+
+        # Bidder details
+        bidder_obj = getattr(bid, 'fpo', None) or getattr(bid, 'retailer', None)
+        bidder_type = 'FPO' if hasattr(bid, 'fpo') else 'Retailer'
+        bidder_name = bidder_obj.name if bidder_obj else "Unknown"
+
+        # Quote owner details
+        quote_owner = getattr(quote, 'farmer', None) or getattr(quote, 'fpo', None)
+        owner_type = 'Farmer' if hasattr(quote, 'farmer') else 'FPO'
+        owner_name = quote_owner.name if quote_owner else "Unknown"
+
+        # Allocations provenance if FPOQuote
+        allocations_data = []
+        if hasattr(quote, 'allocations'):
+            for alloc in quote.allocations.all():
+                allocations_data.append({
+                    'id': alloc.id,
+                    'farmer_name': alloc.farmer.name if alloc.farmer else "Unknown",
+                    'farmer_did': alloc.farmer.did if alloc.farmer else "",
+                    'crop_passport_id': alloc.crop_passport_id,
+                    'allocated_quantity': str(alloc.allocated_quantity),
+                    'unit': alloc.inventory_lot.unit if alloc.inventory_lot else "unit",
+                })
+
+        return {
+            'product_name': quote.product_name,
+            'category': getattr(quote, 'category', ''),
+            'unit': quote.unit,
+            'quote_quantity': str(quote.quantity),
+            'quote_price_per_unit': str(quote.price_per_unit) if quote.price_per_unit else None,
+            'bid_amount': str(bid.bid_amount) if getattr(bid, 'bid_amount', None) else None,
+            'bid_delivery_days': getattr(bid, 'delivery_time_days', None),
+            'bidder_name': bidder_name,
+            'bidder_type': bidder_type,
+            'owner_name': owner_name,
+            'owner_type': owner_type,
+            'allocations': allocations_data,
+        }
 
 class CounterOfferSerializer(serializers.Serializer):
-    message = serializers.CharField(required=False, allow_blank=True)
-    counter_amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=True)
-    counter_delivery_time_days = serializers.IntegerField(min_value=1, required=True)
+    message = serializers.CharField(required=False, allow_blank=True, default="")
+    counter_amount = serializers.DecimalField(max_digits=18, decimal_places=8, required=False, allow_null=True)
+    counter_quantity = serializers.DecimalField(max_digits=18, decimal_places=8, required=False, allow_null=True)
+    counter_delivery_time_days = serializers.IntegerField(min_value=1, required=False, allow_null=True)
 
 
 ================================================
@@ -7526,129 +9389,24 @@ from django.test import TestCase
 FILE: backend/negotiation/urls.py
 ================================================
 from django.urls import path
-from .views import StartNegotiationView, NegotiationDetailView
+from .views import (
+    StartNegotiationView, NegotiationDetailView,
+    AcceptNegotiationView, RejectNegotiationView, WithdrawNegotiationView
+)
 
 urlpatterns = [
     path('start/', StartNegotiationView.as_view(), name='start-negotiation'),
     path('<int:pk>/', NegotiationDetailView.as_view(), name='negotiation-detail'),
-    # You would add accept/reject views here as well, similar to the bid acceptance logic
+    path('<int:pk>/accept/', AcceptNegotiationView.as_view(), name='accept-negotiation'),
+    path('<int:pk>/reject/', RejectNegotiationView.as_view(), name='reject-negotiation'),
+    path('<int:pk>/withdraw/', WithdrawNegotiationView.as_view(), name='withdraw-negotiation'),
 ]
 
 
 ================================================
 FILE: backend/negotiation/views.py
 ================================================
-from rest_framework import generics, status
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from django.contrib.contenttypes.models import ContentType
-from django.shortcuts import get_object_or_404
-from .models import Negotiation, NegotiationMessage
-from .serializers import NegotiationSerializer, CounterOfferSerializer
-from rest_framework import serializers  # Add this import
-
-def get_bid_model_instance(content_type_str, object_id):
-    """Helper to get a bid object instance from its content type string and ID."""
-    try:
-        app_label, model = content_type_str.split('.')
-        content_type = ContentType.objects.get(app_label=app_label, model=model)
-        ModelClass = content_type.model_class()
-        bid = get_object_or_404(ModelClass, pk=object_id)
-        return bid
-    except (ContentType.DoesNotExist, ValueError):
-        return None
-
-def check_negotiation_permission(user, negotiation):
-    """Checks if a user is part of a negotiation (either bidder or quote owner)."""
-    bid = negotiation.bid
-    quote = bid.quote
-    
-    current_user_obj = user.user_obj
-    
-    # Identify the bidder (FPO or Retailer)
-    bidder = getattr(bid, 'fpo', None) or getattr(bid, 'retailer', None)
-    
-    # Identify the quote owner (Farmer or FPO)
-    quote_owner = getattr(quote, 'farmer', None) or getattr(quote, 'fpo', None)
-
-    return current_user_obj == bidder or current_user_obj == quote_owner
-
-
-class StartNegotiationView(APIView):
-    permission_classes = [IsAuthenticated]
-    
-    def post(self, request, *args, **kwargs):
-        content_type_str = request.data.get('content_type') # e.g., 'retailer.retailerbid'
-        object_id = request.data.get('object_id')
-        
-        bid = get_bid_model_instance(content_type_str, object_id)
-        if not bid:
-            return Response({"error": "Invalid bid type or ID."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Correctly identify the owner of the quote the bid was placed on
-        quote = bid.quote
-        quote_owner = getattr(quote, 'farmer', None) or getattr(quote, 'fpo', None)
-
-        if not quote_owner:
-            return Response({"error": "Could not determine the quote owner."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check permissions: only the quote owner can start a negotiation.
-        if quote_owner.id != request.user.user_obj.id:
-            return Response({"error": "Only the quote creator can start a negotiation."}, status=status.HTTP_403_FORBIDDEN)
-            
-        negotiation, created = Negotiation.objects.get_or_create(
-            content_type=ContentType.objects.get_for_model(bid),
-            object_id=bid.id
-        )
-
-        if not created:
-            serializer = NegotiationSerializer(negotiation)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-            
-        # Create initial message
-        sender_user = request.user.user_obj
-        NegotiationMessage.objects.create(
-            negotiation=negotiation,
-            sender_role=request.user.role,
-            sender_id=sender_user.id,
-            sender_name=sender_user.name,
-            message=f"Negotiation started for bid on '{bid.quote.product_name}'."
-        )
-
-        serializer = NegotiationSerializer(negotiation)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-class NegotiationDetailView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, pk):
-        negotiation = get_object_or_404(Negotiation, pk=pk)
-        
-        if not check_negotiation_permission(request.user, negotiation):
-            return Response({"error": "You do not have permission to view this negotiation."}, status=status.HTTP_403_FORBIDDEN)
-            
-        serializer = NegotiationSerializer(negotiation)
-        return Response(serializer.data)
-
-    def post(self, request, pk):
-        negotiation = get_object_or_404(Negotiation, pk=pk)
-        
-        if not check_negotiation_permission(request.user, negotiation):
-            return Response({"error": "You do not have permission to post in this negotiation."}, status=status.HTTP_403_FORBIDDEN)
-
-        serializer = CounterOfferSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        sender_user = request.user.user_obj
-        NegotiationMessage.objects.create(
-            negotiation=negotiation,
-            sender_role=request.user.role,
-            sender_id=sender_user.id,
-            sender_name=sender_user.name,
-            **serializer.validated_data
-        )
-        return Response(NegotiationSerializer(negotiation).data, status=status.HTTP_201_CREATED)
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 6754: character maps to <undefined>
 
 
 ================================================
@@ -8035,11 +9793,119 @@ class RetailerBid(models.Model):
         return f"Bid from {self.retailer.name} for {self.quote.product_name}"
 
 
+class RetailerCartItem(models.Model):
+    """
+    Phase 4 â€” Retailer Cart Item.
+    Stores selected partial stock quantity reserved by a Retailer from an FPOQuote
+    before placing a commercial order.
+    Preserves complete link to FPOQuote and its underlying multi-farmer provenance allocations.
+    """
+    retailer = models.ForeignKey(Retailer, on_delete=models.CASCADE, related_name='cart_items')
+    quote = models.ForeignKey('fpo.FPOQuote', on_delete=models.CASCADE, related_name='retailer_cart_items')
+    selected_quantity = models.DecimalField(max_digits=18, decimal_places=8)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ('retailer', 'quote')
+
+    def __str__(self):
+        return f"Retailer Cart Item #{self.id} â€” Quote #{self.quote_id} ({self.selected_quantity} {self.quote.unit}) for {self.retailer.name}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.selected_quantity is None or self.selected_quantity <= 0:
+            raise ValidationError("Selected quantity must be greater than zero.")
+
+
+class RetailerOrder(models.Model):
+    """
+    Phase 4 â€” Retailer Order Foundation.
+    Represents a commercial order placed by a Retailer for an FPOQuote from their Retailer Cart.
+    Preserves order metadata, total lot value, and links to detailed multi-farmer provenance allocations.
+    """
+    STATUS_CHOICES = [
+        ('created', 'Created'),
+        ('pending', 'Pending Confirmation'),
+        ('confirmed', 'Confirmed'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    order_number = models.CharField(max_length=64, unique=True)
+    retailer = models.ForeignKey(Retailer, on_delete=models.CASCADE, related_name='orders')
+    fpo = models.ForeignKey('fpo.FPO', on_delete=models.CASCADE, related_name='retailer_orders')
+    quote = models.ForeignKey('fpo.FPOQuote', on_delete=models.CASCADE, related_name='retailer_orders')
+    product_name = models.CharField(max_length=200)
+    category = models.CharField(max_length=100, blank=True)
+    quantity = models.DecimalField(max_digits=18, decimal_places=8)
+    unit = models.CharField(max_length=20)
+    price_per_unit = models.DecimalField(max_digits=18, decimal_places=8)
+    total_price = models.DecimalField(max_digits=18, decimal_places=8)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='created')
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Order {self.order_number} â€” {self.product_name} ({self.quantity} {self.unit}) by {self.retailer.name}"
+
+
+class RetailerOrderAllocation(models.Model):
+    """
+    Phase 4 â€” Retailer Order Provenance Allocation.
+    Links a RetailerOrder to the exact FPOInventoryLot, Farmer, and CropPassport source allocations,
+    preserving full provenance traceability through the entire supply chain.
+    """
+    order = models.ForeignKey(RetailerOrder, on_delete=models.CASCADE, related_name='allocations')
+    inventory_lot = models.ForeignKey('fpo.FPOInventoryLot', on_delete=models.CASCADE, related_name='retailer_order_allocations')
+    farmer = models.ForeignKey('farmer.Farmer', on_delete=models.CASCADE, related_name='retailer_order_allocations')
+    crop_passport = models.ForeignKey('farmer.CropPassport', on_delete=models.SET_NULL, null=True, blank=True, related_name='retailer_order_allocations')
+    allocated_quantity = models.DecimalField(max_digits=18, decimal_places=8)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Order Allocation #{self.id} â€” Order {self.order.order_number} | Farmer: {self.farmer.name} | Qty: {self.allocated_quantity}"
+
+
+class RetailerInventoryLot(models.Model):
+    """
+    Represents inventory stock acquired by a Retailer after successful Sepolia escrow payment release.
+    Permanently retains complete provenance: Retailer -> FPO -> Farmer -> CropPassport -> Escrow.
+    """
+    retailer = models.ForeignKey(Retailer, on_delete=models.CASCADE, related_name='inventory_lots')
+    fpo = models.ForeignKey('fpo.FPO', on_delete=models.CASCADE, related_name='retailer_inventory_lots')
+    farmer = models.ForeignKey('farmer.Farmer', on_delete=models.CASCADE, related_name='retailer_inventory_lots')
+    crop_passport = models.ForeignKey('farmer.CropPassport', on_delete=models.SET_NULL, null=True, blank=True, related_name='retailer_inventory_lots')
+    inventory_lot = models.ForeignKey('fpo.FPOInventoryLot', on_delete=models.SET_NULL, null=True, blank=True, related_name='retailer_acquired_inventory_lots')
+    escrow = models.ForeignKey('escrow.RetailerEscrowTransaction', on_delete=models.SET_NULL, null=True, blank=True, related_name='retailer_inventory_lots')
+    product_name = models.CharField(max_length=200)
+    crop_category = models.CharField(max_length=100, blank=True)
+    quantity = models.DecimalField(max_digits=18, decimal_places=8)
+    unit = models.CharField(max_length=20)
+    purchase_price_per_unit = models.DecimalField(max_digits=18, decimal_places=8, null=True, blank=True)
+    total_price = models.DecimalField(max_digits=18, decimal_places=8, null=True, blank=True)
+    status = models.CharField(max_length=20, default='in_stock')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Retailer Inventory #{self.id} â€” {self.product_name} ({self.quantity} {self.unit}) owned by {self.retailer.name}"
+
+
 ================================================
 FILE: backend/retailer/serializers.py
 ================================================
 from rest_framework import serializers
-from .models import Retailer, RetailerBid
+from .models import Retailer, RetailerBid, RetailerCartItem, RetailerOrder, RetailerOrderAllocation, RetailerInventoryLot
 from fpo.serializers import FPOQuoteSerializer
 
 class RetailerSerializer(serializers.ModelSerializer):
@@ -8099,10 +9965,194 @@ class RetailerBidSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Bid amount must be greater than zero.")
         return value
 
+
+class RetailerCartItemSerializer(serializers.ModelSerializer):
+    """
+    Phase 4 â€” Retailer Cart Item Serializer.
+    Exposes quote details, price per unit, total price, and remaining unreserved stock.
+    """
+    quote_details = FPOQuoteSerializer(source='quote', read_only=True)
+    item_total_price = serializers.SerializerMethodField()
+    available_remaining_quantity = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RetailerCartItem
+        fields = [
+            'id', 'retailer', 'quote', 'quote_details', 'selected_quantity',
+            'available_remaining_quantity', 'item_total_price',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ('retailer', 'created_at', 'updated_at')
+
+    def get_item_total_price(self, obj):
+        if obj.quote and obj.quote.price_per_unit and obj.selected_quantity:
+            total = obj.quote.price_per_unit * obj.selected_quantity
+            return str(total)
+        return "0"
+
+    def get_available_remaining_quantity(self, obj):
+        if obj.quote:
+            avail = obj.quote.available_quantity
+            return str(avail if avail is not None else obj.quote.quantity)
+        return "0"
+
+
+class RetailerOrderAllocationSerializer(serializers.ModelSerializer):
+    farmer_name = serializers.CharField(source='farmer.name', read_only=True)
+    farmer_did = serializers.CharField(source='farmer.did', read_only=True)
+    farmer_location = serializers.SerializerMethodField()
+    crop_passport_details = serializers.SerializerMethodField()
+    unit = serializers.ReadOnlyField(source='inventory_lot.unit')
+
+    class Meta:
+        model = RetailerOrderAllocation
+        fields = [
+            'id', 'order', 'inventory_lot', 'farmer', 'farmer_name', 'farmer_did',
+            'farmer_location', 'crop_passport', 'crop_passport_details',
+            'allocated_quantity', 'unit', 'created_at'
+        ]
+
+    def get_farmer_location(self, obj):
+        if obj.farmer:
+            return f"{obj.farmer.city}, {obj.farmer.state}"
+        return ""
+
+    def get_crop_passport_details(self, obj):
+        cp = obj.crop_passport
+        if not cp:
+            return None
+        ai = cp.latest_ai_verification
+        return {
+            'id': cp.id,
+            'crop_name': cp.crop_name,
+            'crop_category': cp.crop_category,
+            'status': cp.status,
+            'is_minted': cp.is_minted,
+            'harvest_date': str(cp.harvest_date),
+            'location': cp.location,
+            'nft_token_id': cp.nft_token_id,
+            'primary_image_url': cp.primary_image_url,
+            'ai_verification': {
+                'quality_grade': ai.quality_grade,
+                'quality_score': float(ai.quality_score) if ai.quality_score is not None else None,
+                'verification_status': ai.verification_status,
+                'image_gateway_url': ai.image_gateway_url,
+            } if ai else None,
+        }
+
+
+class RetailerOrderSerializer(serializers.ModelSerializer):
+    fpo_name = serializers.CharField(source='fpo.name', read_only=True)
+    fpo_email = serializers.CharField(source='fpo.email', read_only=True)
+    fpo_did = serializers.CharField(source='fpo.did', read_only=True)
+    fpo_location = serializers.SerializerMethodField()
+    retailer_name = serializers.CharField(source='retailer.name', read_only=True)
+    allocations = RetailerOrderAllocationSerializer(many=True, read_only=True)
+    provenance_summary = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RetailerOrder
+        fields = [
+            'id', 'order_number', 'retailer', 'retailer_name', 'fpo', 'fpo_name',
+            'fpo_email', 'fpo_did', 'fpo_location', 'quote', 'product_name',
+            'category', 'quantity', 'unit', 'price_per_unit', 'total_price',
+            'status', 'notes', 'created_at', 'updated_at', 'allocations', 'provenance_summary'
+        ]
+        read_only_fields = ('order_number', 'retailer', 'fpo', 'quote', 'created_at', 'updated_at')
+
+    def get_fpo_location(self, obj):
+        if obj.fpo:
+            return f"{obj.fpo.city}, {obj.fpo.state}"
+        return ""
+
+    def get_provenance_summary(self, obj):
+        allocations = obj.allocations.all()
+        farmers_set = set()
+        passports_set = set()
+        farmers_list = []
+        passports_list = []
+
+        for alloc in allocations:
+            if alloc.farmer:
+                farmers_set.add(alloc.farmer_id)
+                farmers_list.append({
+                    'id': alloc.farmer.id,
+                    'name': alloc.farmer.name,
+                    'did': alloc.farmer.did,
+                    'location': f"{alloc.farmer.city}, {alloc.farmer.state}",
+                    'allocated_quantity': str(alloc.allocated_quantity),
+                })
+            if alloc.crop_passport:
+                passports_set.add(alloc.crop_passport_id)
+                passports_list.append({
+                    'id': alloc.crop_passport.id,
+                    'crop_name': alloc.crop_passport.crop_name,
+                    'is_minted': alloc.crop_passport.is_minted,
+                    'ai_grade': alloc.crop_passport.latest_ai_verification.quality_grade if alloc.crop_passport.latest_ai_verification else None,
+                    'allocated_quantity': str(alloc.allocated_quantity),
+                })
+
+        return {
+            'total_farmers_count': len(farmers_set),
+            'total_passports_count': len(passports_set),
+            'farmers_list': farmers_list,
+            'passports_list': passports_list,
+        }
+
     def validate_delivery_time_days(self, value):
         if value is None or value <= 0:
             raise serializers.ValidationError("Delivery time must be greater than zero.")
         return value
+
+
+class RetailerInventoryLotSerializer(serializers.ModelSerializer):
+    """
+    Exposes retailer purchased stock lots with full multi-step provenance
+    (Retailer -> FPO -> Farmer -> CropPassport -> Escrow).
+    """
+    fpo_name = serializers.CharField(source='fpo.name', read_only=True)
+    farmer_name = serializers.CharField(source='farmer.name', read_only=True)
+    farmer_did = serializers.CharField(source='farmer.did', read_only=True)
+    farmer_location = serializers.SerializerMethodField()
+    crop_passport_details = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RetailerInventoryLot
+        fields = [
+            'id', 'retailer', 'fpo', 'fpo_name', 'farmer', 'farmer_name',
+            'farmer_did', 'farmer_location', 'crop_passport', 'crop_passport_details',
+            'inventory_lot', 'escrow', 'product_name', 'crop_category',
+            'quantity', 'unit', 'purchase_price_per_unit', 'total_price',
+            'status', 'created_at'
+        ]
+
+    def get_farmer_location(self, obj):
+        if obj.farmer:
+            return f"{obj.farmer.city}, {obj.farmer.state}"
+        return ""
+
+    def get_crop_passport_details(self, obj):
+        cp = obj.crop_passport
+        if not cp:
+            return None
+        ai = cp.latest_ai_verification
+        return {
+            'id': cp.id,
+            'crop_name': cp.crop_name,
+            'crop_category': cp.crop_category,
+            'status': cp.status,
+            'is_minted': cp.is_minted,
+            'harvest_date': str(cp.harvest_date),
+            'location': cp.location,
+            'nft_token_id': cp.nft_token_id,
+            'primary_image_url': cp.primary_image_url,
+            'ai_verification': {
+                'quality_grade': ai.quality_grade,
+                'quality_score': float(ai.quality_score) if ai.quality_score is not None else None,
+                'verification_status': ai.verification_status,
+                'image_gateway_url': ai.image_gateway_url,
+            } if ai else None,
+        }
 
 
 ================================================
@@ -8119,8 +10169,12 @@ FILE: backend/retailer/urls.py
 ================================================
 from django.urls import path
 from .views import (
-    RetailerRegistrationView, RetailerListView, RetailerDetailView,MyBidsListView, retailer_login_check,
-    retailer_dashboard, FPOOpenQuoteListView, RetailerBidCreateView
+    RetailerRegistrationView, RetailerListView, RetailerDetailView, MyBidsListView, retailer_login_check,
+    retailer_dashboard, FPOOpenQuoteListView, RetailerBidCreateView,
+    retailer_cart_get_view, retailer_cart_add_item_view, retailer_cart_update_item_view,
+    retailer_cart_delete_item_view, retailer_cart_clear_view,
+    retailer_order_create_from_cart_view, retailer_orders_my_view,
+    retailer_inventory_my_view
 )
 
 urlpatterns = [
@@ -8132,6 +10186,14 @@ urlpatterns = [
     path('quotes/fpo/open/', FPOOpenQuoteListView.as_view(), name='retailer-fpo-open-quotes'),
     path('quotes/fpo/<int:quote_pk>/bids/', RetailerBidCreateView.as_view(), name='retailer-create-bid-on-fpo-quote'),
     path('bids/my/', MyBidsListView.as_view(), name='retailer-my-bids'),
+    path('cart/', retailer_cart_get_view, name='retailer-cart-get'),
+    path('cart/items/', retailer_cart_add_item_view, name='retailer-cart-add-item'),
+    path('cart/items/<int:item_id>/', retailer_cart_update_item_view, name='retailer-cart-update-item'),
+    path('cart/items/<int:item_id>/delete/', retailer_cart_delete_item_view, name='retailer-cart-delete-item'),
+    path('cart/clear/', retailer_cart_clear_view, name='retailer-cart-clear'),
+    path('orders/create-from-cart/', retailer_order_create_from_cart_view, name='retailer-order-create-from-cart'),
+    path('orders/my/', retailer_orders_my_view, name='retailer-orders-my'),
+    path('inventory/', retailer_inventory_my_view, name='retailer-inventory-my'),
 ]
 
 
@@ -8296,6 +10358,359 @@ class MyBidsListView(generics.ListAPIView):
     def get_queryset(self):
         retailer = self.request.user.user_obj
         return RetailerBid.objects.filter(retailer=retailer).order_by('-submitted_at')
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsRetailer])
+def retailer_cart_get_view(request):
+    """
+    GET /api/retailer/cart/
+
+    Phase 4 â€” Retrieves active cart items and summary for authenticated Retailer.
+    """
+    from decimal import Decimal
+    from .models import RetailerCartItem
+    from .serializers import RetailerCartItemSerializer
+
+    retailer = request.user.user_obj
+    cart_items = RetailerCartItem.objects.filter(retailer=retailer).select_related(
+        'quote', 'quote__fpo'
+    ).prefetch_related('quote__allocations', 'quote__allocations__farmer', 'quote__allocations__crop_passport')
+
+    serializer = RetailerCartItemSerializer(cart_items, many=True)
+    
+    total_selected_quantity = Decimal('0')
+    total_cart_value_eth = Decimal('0')
+    unique_fpos = set()
+    unique_farmers = set()
+    unique_passports = set()
+    units_set = set()
+
+    for item in cart_items:
+        total_selected_quantity += item.selected_quantity
+        if item.quote:
+            unique_fpos.add(item.quote.fpo_id)
+            if item.quote.unit:
+                units_set.add(item.quote.unit)
+            if item.quote.price_per_unit:
+                total_cart_value_eth += (item.quote.price_per_unit * item.selected_quantity)
+            for alloc in item.quote.allocations.all():
+                if alloc.farmer_id:
+                    unique_farmers.add(alloc.farmer_id)
+                if alloc.crop_passport_id:
+                    unique_passports.add(alloc.crop_passport_id)
+
+    summary = {
+        'total_items_count': cart_items.count(),
+        'total_selected_quantity': str(total_selected_quantity),
+        'total_cart_value_eth': str(total_cart_value_eth),
+        'unique_fpos_count': len(unique_fpos),
+        'unique_farmers_count': len(unique_farmers),
+        'unique_passports_count': len(unique_passports),
+        'units': list(units_set),
+    }
+
+    return Response({
+        'items': serializer.data,
+        'summary': summary
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsRetailer])
+def retailer_cart_add_item_view(request):
+    """
+    POST /api/retailer/cart/items/
+
+    Phase 4 â€” Adds or updates a quantity reservation in Retailer Cart.
+    Body: { "quote_id": <int>, "selected_quantity": <decimal> }
+    """
+    from django.db import transaction
+    from decimal import Decimal, InvalidOperation
+    from .models import RetailerCartItem
+    from .serializers import RetailerCartItemSerializer
+
+    retailer = request.user.user_obj
+    quote_id = request.data.get('quote_id')
+    qty_raw = request.data.get('selected_quantity')
+
+    if not quote_id:
+        return Response({'error': 'quote_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if qty_raw is None:
+        return Response({'error': 'selected_quantity is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        requested_qty = Decimal(str(qty_raw))
+        if requested_qty <= Decimal('0'):
+            return Response({'error': 'selected_quantity must be greater than zero.'}, status=status.HTTP_400_BAD_REQUEST)
+    except (TypeError, ValueError, InvalidOperation):
+        return Response({'error': 'Invalid selected_quantity format.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        quote = get_object_or_404(FPOQuote.objects.select_for_update(), pk=quote_id)
+        if quote.status != 'open':
+            return Response({'error': 'This FPO quote is no longer open for purchase.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if quote.available_quantity is None:
+            quote.available_quantity = quote.quantity - (quote.reserved_quantity or Decimal('0'))
+
+        existing_item = RetailerCartItem.objects.filter(retailer=retailer, quote=quote).first()
+        existing_qty = existing_item.selected_quantity if existing_item else Decimal('0')
+        diff = requested_qty - existing_qty
+
+        if diff > quote.available_quantity:
+            return Response({
+                'error': f'Cannot reserve {requested_qty} {quote.unit}. Only {quote.available_quantity} {quote.unit} remaining available on quote.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        quote.available_quantity -= diff
+        quote.reserved_quantity += diff
+        quote.save()
+
+        if existing_item:
+            existing_item.selected_quantity = requested_qty
+            existing_item.save()
+            cart_item = existing_item
+        else:
+            cart_item = RetailerCartItem.objects.create(
+                retailer=retailer,
+                quote=quote,
+                selected_quantity=requested_qty
+            )
+
+    serializer = RetailerCartItemSerializer(cart_item)
+    return Response({
+        'message': f'Reserved {requested_qty} {quote.unit} from Quote #{quote.id} into your cart.',
+        'item': serializer.data
+    }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated, IsRetailer])
+def retailer_cart_update_item_view(request, item_id):
+    """
+    PATCH /api/retailer/cart/items/<item_id>/
+
+    Phase 4 â€” Updates quantity reserved for a cart item.
+    Body: { "selected_quantity": <decimal> }
+    """
+    from django.db import transaction
+    from decimal import Decimal, InvalidOperation
+    from .models import RetailerCartItem
+    from .serializers import RetailerCartItemSerializer
+
+    retailer = request.user.user_obj
+    qty_raw = request.data.get('selected_quantity')
+
+    if qty_raw is None:
+        return Response({'error': 'selected_quantity is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        new_qty = Decimal(str(qty_raw))
+        if new_qty <= Decimal('0'):
+            return Response({'error': 'selected_quantity must be greater than zero.'}, status=status.HTTP_400_BAD_REQUEST)
+    except (TypeError, ValueError, InvalidOperation):
+        return Response({'error': 'Invalid selected_quantity format.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        cart_item = get_object_or_404(RetailerCartItem.objects.select_related('quote'), pk=item_id, retailer=retailer)
+        quote = FPOQuote.objects.select_for_update().get(pk=cart_item.quote_id)
+
+        if quote.available_quantity is None:
+            quote.available_quantity = quote.quantity - (quote.reserved_quantity or Decimal('0'))
+
+        diff = new_qty - cart_item.selected_quantity
+
+        if diff > quote.available_quantity:
+            return Response({
+                'error': f'Cannot increase quantity to {new_qty} {quote.unit}. Only {quote.available_quantity} {quote.unit} unreserved stock remaining on quote.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        quote.available_quantity -= diff
+        quote.reserved_quantity += diff
+        quote.save()
+
+        cart_item.selected_quantity = new_qty
+        cart_item.save()
+
+    serializer = RetailerCartItemSerializer(cart_item)
+    return Response({
+        'message': f'Cart item updated to {new_qty} {quote.unit}.',
+        'item': serializer.data
+    })
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated, IsRetailer])
+def retailer_cart_delete_item_view(request, item_id):
+    """
+    DELETE /api/retailer/cart/items/<item_id>/delete/
+
+    Phase 4 â€” Removes an item from Retailer Cart and releases reserved stock back to FPOQuote.
+    """
+    from django.db import transaction
+    from decimal import Decimal
+    from .models import RetailerCartItem
+
+    retailer = request.user.user_obj
+
+    with transaction.atomic():
+        cart_item = get_object_or_404(RetailerCartItem.objects.select_related('quote'), pk=item_id, retailer=retailer)
+        quote = FPOQuote.objects.select_for_update().get(pk=cart_item.quote_id)
+
+        quote.available_quantity += cart_item.selected_quantity
+        quote.reserved_quantity = max(Decimal('0'), quote.reserved_quantity - cart_item.selected_quantity)
+        quote.save()
+
+        cart_item.delete()
+
+    return Response({'message': 'Item removed from cart and reserved stock released.'})
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated, IsRetailer])
+def retailer_cart_clear_view(request):
+    """
+    DELETE /api/retailer/cart/clear/
+
+    Phase 4 â€” Clears all cart items for authenticated Retailer and releases reserved stock.
+    """
+    from django.db import transaction
+    from decimal import Decimal
+    from .models import RetailerCartItem
+
+    retailer = request.user.user_obj
+
+    with transaction.atomic():
+        cart_items = RetailerCartItem.objects.filter(retailer=retailer).select_related('quote')
+        for item in cart_items:
+            quote = FPOQuote.objects.select_for_update().get(pk=item.quote_id)
+            if quote.available_quantity is None:
+                quote.available_quantity = quote.quantity - (quote.reserved_quantity or Decimal('0'))
+            quote.available_quantity += item.selected_quantity
+            quote.reserved_quantity = max(Decimal('0'), quote.reserved_quantity - item.selected_quantity)
+            quote.save()
+            item.delete()
+
+    return Response({'message': 'Retailer cart cleared successfully.'})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsRetailer])
+def retailer_order_create_from_cart_view(request):
+    """
+    POST /api/retailer/orders/create-from-cart/
+
+    Phase 4 â€” Converts active Retailer Cart items into commercial RetailerOrder records with complete multi-farmer provenance.
+    Body: { "notes": <optional notes> }
+    """
+    from django.db import transaction
+    from decimal import Decimal
+    import uuid
+    from .models import RetailerCartItem, RetailerOrder, RetailerOrderAllocation
+    from .serializers import RetailerOrderSerializer
+
+    retailer = request.user.user_obj
+    notes = request.data.get('notes', '')
+
+    cart_items = RetailerCartItem.objects.filter(retailer=retailer).select_related(
+        'quote', 'quote__fpo'
+    ).prefetch_related('quote__allocations', 'quote__allocations__farmer', 'quote__allocations__crop_passport')
+
+    if not cart_items.exists():
+        return Response({'error': 'Your Retailer Cart is empty. Please add items to your cart before proceeding to order.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    created_orders = []
+
+    with transaction.atomic():
+        for item in cart_items:
+            quote = item.quote
+            fpo = quote.fpo
+            total_price = (quote.price_per_unit or Decimal('0')) * item.selected_quantity
+            order_num = f"ORD-RET-{uuid.uuid4().hex[:10].upper()}"
+
+            order = RetailerOrder.objects.create(
+                order_number=order_num,
+                retailer=retailer,
+                fpo=fpo,
+                quote=quote,
+                product_name=quote.product_name,
+                category=quote.category or 'General',
+                quantity=item.selected_quantity,
+                unit=quote.unit,
+                price_per_unit=quote.price_per_unit or Decimal('0'),
+                total_price=total_price,
+                status='created',
+                notes=notes
+            )
+
+            # Copy multi-farmer provenance allocations to RetailerOrderAllocation
+            quote_allocations = quote.allocations.all()
+            if quote_allocations.exists():
+                quote_total_qty = quote.quantity if quote.quantity > Decimal('0') else item.selected_quantity
+                ratio = item.selected_quantity / quote_total_qty
+
+                for alloc in quote_allocations:
+                    allocated_order_qty = alloc.allocated_quantity * ratio
+                    RetailerOrderAllocation.objects.create(
+                        order=order,
+                        inventory_lot=alloc.inventory_lot,
+                        farmer=alloc.farmer,
+                        crop_passport=alloc.crop_passport,
+                        allocated_quantity=allocated_order_qty
+                    )
+
+            item.delete()
+            created_orders.append(order)
+
+    serializer = RetailerOrderSerializer(created_orders, many=True)
+    return Response({
+        'message': f'Created {len(created_orders)} order(s) successfully with full multi-farmer provenance!',
+        'orders': serializer.data
+    }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsRetailer])
+def retailer_orders_my_view(request):
+    """
+    GET /api/retailer/orders/my/
+
+    Phase 4 â€” Lists all commercial orders placed by authenticated Retailer.
+    """
+    from .models import RetailerOrder
+    from .serializers import RetailerOrderSerializer
+
+    retailer = request.user.user_obj
+    orders = RetailerOrder.objects.filter(retailer=retailer).select_related(
+        'fpo', 'quote'
+    ).prefetch_related(
+        'allocations', 'allocations__farmer', 'allocations__crop_passport'
+    ).order_by('-created_at')
+
+    serializer = RetailerOrderSerializer(orders, many=True)
+    return Response({'orders': serializer.data})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsRetailer])
+def retailer_inventory_my_view(request):
+    """
+    GET /api/retailer/inventory/
+
+    Lists all purchased crop inventory lots owned by the authenticated Retailer
+    with complete multi-step supply chain provenance.
+    """
+    from .models import RetailerInventoryLot
+    from .serializers import RetailerInventoryLotSerializer
+
+    retailer = request.user.user_obj
+    lots = RetailerInventoryLot.objects.filter(retailer=retailer).select_related(
+        'fpo', 'farmer', 'crop_passport', 'inventory_lot', 'escrow'
+    ).order_by('-created_at')
+
+    serializer = RetailerInventoryLotSerializer(lots, many=True)
+    return Response({'inventory': serializer.data})
 
 
 ================================================
@@ -10335,7 +12750,114 @@ Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in posi
 ================================================
 FILE: frontend/src/components/common/MarketplaceFilterBar.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8d in position 3037: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8d in position 3540: character maps to <undefined>
+
+
+================================================
+FILE: frontend/src/components/common/NegotiationModal.jsx
+================================================
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 7468: character maps to <undefined>
+
+
+================================================
+FILE: frontend/src/components/common/ProvenanceCard.jsx
+================================================
+import React from "react";
+
+export default function ProvenanceCard({ allocations = [], provenanceSummary, fpoName, compact = false }) {
+  if (!allocations || allocations.length === 0) {
+    return (
+      <div className="p-3 bg-slate-50 border border-slate-200/60 rounded-2xl text-xs text-slate-500 font-medium">
+        <span className="font-semibold">🏢 FPO Stock Lot</span> {fpoName ? `(${fpoName})` : ""} — Direct inventory lot.
+      </div>
+    );
+  }
+
+  const farmersCount = provenanceSummary?.total_farmers_count || new Set(allocations.map((a) => a.farmer_name || a.farmer?.name)).size;
+  const passportsCount = provenanceSummary?.total_passports_count || allocations.filter((a) => a.crop_passport_id || a.crop_passport || a.crop_passport_details).length;
+
+  return (
+    <div className="p-3.5 bg-purple-50/70 border border-purple-200/90 rounded-2xl space-y-2 text-xs">
+      <div className="flex items-center justify-between text-purple-950 font-extrabold text-[11px] flex-wrap gap-1">
+        <div className="flex items-center gap-1.5">
+          <span>🔗</span>
+          <span>Verified Supply Chain Provenance:</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="bg-purple-100 text-purple-900 px-2 py-0.5 rounded-full text-[10px] font-bold">
+            {farmersCount} Farmer{farmersCount !== 1 ? "s" : ""}
+          </span>
+          <span className="bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-full text-[10px] font-bold">
+            {passportsCount} Passport{passportsCount !== 1 ? "s" : ""}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+        {allocations.map((alloc, idx) => {
+          const farmerName = alloc.farmer_name || alloc.farmer?.name || "Verified Farmer";
+          const farmerDid = alloc.farmer_did || alloc.farmer?.did || "";
+          const farmerLocation = alloc.farmer_location || (alloc.farmer ? `${alloc.farmer.city}, ${alloc.farmer.state}` : "");
+          const passportId = alloc.crop_passport_id || alloc.crop_passport?.id || alloc.crop_passport_details?.id;
+          const cpDetails = alloc.crop_passport_details || (typeof alloc.crop_passport === 'object' ? alloc.crop_passport : null);
+          const aiGrade = cpDetails?.ai_verification?.quality_grade || cpDetails?.ai_grade;
+          const isMinted = cpDetails?.is_minted;
+          const nftTokenId = cpDetails?.nft_token_id;
+          const qty = alloc.allocated_quantity || alloc.quantity;
+          const unit = alloc.unit || "unit";
+
+          return (
+            <div
+              key={alloc.id || idx}
+              className="bg-white p-2.5 rounded-xl border border-purple-100 shadow-2xs space-y-1.5 hover:border-purple-300 transition-all"
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="font-extrabold text-slate-900 text-xs">👨‍🌾 {farmerName}</p>
+                  {farmerLocation && (
+                    <p className="text-[10px] text-slate-500 font-medium">📍 {farmerLocation}</p>
+                  )}
+                </div>
+                <span className="font-mono font-extrabold text-purple-900 bg-purple-50 px-2 py-0.5 rounded-lg text-xs">
+                  {qty} {unit}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px] flex-wrap gap-1">
+                {passportId ? (
+                  <a
+                    href={`/crop-passport/${passportId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-lg border border-emerald-200 transition-all text-[10px]"
+                  >
+                    <span>📜</span>
+                    <span>View Passport #{passportId} 🔗</span>
+                  </a>
+                ) : (
+                  <span className="text-slate-400 italic">No Passport</span>
+                )}
+
+                {aiGrade && (
+                  <span className="font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-md border border-blue-200">
+                    Grade {aiGrade}
+                  </span>
+                )}
+
+                {isMinted && (
+                  <span className="font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200">
+                    NFT #{nftTokenId || passportId}
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 
 
 ================================================
@@ -12023,147 +14545,7 @@ Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in posi
 ================================================
 FILE: frontend/src/components/farmer/QuoteBids.jsx
 ================================================
-import React, { useState } from "react";
-import axios from "axios";
-import StatusBadge from "../common/StatusBadge";
-import { calculateTotalEth } from "../../utils/pricing";
-
-export default function QuoteBids({ quote, onBack, refreshHistory }) {
-  const [acceptingId, setAcceptingId] = useState(null);
-  const [feedback, setFeedback] = useState(null);
-
-  const acceptBid = async (bidId) => {
-    setAcceptingId(bidId);
-    setFeedback(null);
-    try {
-      await axios.post(
-        `/api/farmer/bids/fpo/${bidId}/accept/`,
-        {},
-        { withCredentials: true }
-      );
-      setFeedback({ type: "success", text: "✅ Bid accepted successfully! You can now create an Escrow payment." });
-      if (refreshHistory) refreshHistory();
-    } catch (err) {
-      console.error("Error accepting bid:", err);
-      const msg = err.response?.data?.error || err.response?.data?.detail || "Failed to accept bid. Please try again.";
-      setFeedback({ type: "error", text: `❌ ${msg}` });
-    } finally {
-      setAcceptingId(null);
-    }
-  };
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100 flex-wrap gap-2">
-        <div>
-          <button
-            type="button"
-            onClick={onBack}
-            className="text-xs font-bold text-slate-500 hover:text-slate-800 mb-1 flex items-center gap-1 cursor-pointer"
-          >
-            ← Back to Supply Quotes
-          </button>
-          <h3 className="text-base font-extrabold text-slate-900">
-            📦 Bids for {quote.product_name} <span className="text-xs text-slate-500 font-normal">({quote.category})</span>
-          </h3>
-        </div>
-        <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-          Lot Qty: {quote.quantity} {quote.unit}
-        </span>
-      </div>
-
-      {feedback && (
-        <div
-          className={`p-3.5 rounded-xl border text-xs font-semibold mb-4 flex items-center gap-2 animate-fade-in ${
-            feedback.type === "success"
-              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-              : "bg-rose-50 border-rose-200 text-rose-800"
-          }`}
-        >
-          <span>{feedback.text}</span>
-        </div>
-      )}
-
-      {quote.bids && quote.bids.length > 0 ? (
-        <div className="space-y-3">
-          {quote.bids.map((bid, index) => {
-            const totalValue = calculateTotalEth(bid.bid_amount, quote.quantity);
-            const isAccepted = bid.status === "accepted";
-            const isProcessing = acceptingId === bid.id;
-
-            return (
-              <div
-                key={bid.id || index}
-                className={`border rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-all ${
-                  isAccepted
-                    ? "bg-emerald-50/40 border-emerald-300 shadow-2xs"
-                    : "bg-white border-slate-200/80 hover:border-slate-300 shadow-2xs"
-                }`}
-              >
-                <div className="space-y-1.5 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-lg font-extrabold text-slate-900 font-mono">
-                      {bid.bid_amount} ETH <span className="text-xs text-slate-400 font-normal font-sans">/ {quote.unit}</span>
-                    </span>
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 font-mono">
-                      Total: {totalValue} ETH
-                    </span>
-                    <StatusBadge status={bid.status} />
-                  </div>
-
-                  <p className="text-xs text-slate-700 font-semibold">
-                    🏢 FPO Buyer: <span className="font-bold text-slate-900">{bid.fpo_name || `FPO #${bid.fpo}`}</span>
-                  </p>
-
-                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 pt-0.5">
-                    <span>⏳ Delivery Window: <strong>{bid.delivery_time_days} days</strong></span>
-                    <span>Submitted: {new Date(bid.submitted_at).toLocaleDateString()}</span>
-                  </div>
-                </div>
-
-                {/* Accept button */}
-                <div className="pt-2 sm:pt-0 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => acceptBid(bid.id)}
-                    disabled={isAccepted || isProcessing || quote.status !== 'open'}
-                    className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer ${
-                      isAccepted
-                        ? "bg-emerald-100 text-emerald-800 cursor-not-allowed border border-emerald-300"
-                        : quote.status !== 'open'
-                        ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
-                        : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20 disabled:opacity-50"
-                    }`}
-                  >
-                    <span>{isAccepted ? "✓" : "🤝"}</span>
-                    <span>
-                      {isProcessing
-                        ? "Accepting…"
-                        : isAccepted
-                        ? "Bid Accepted"
-                        : quote.status !== "open"
-                        ? "Quote Closed"
-                        : "Accept FPO Bid"}
-                    </span>
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-100">
-          <span className="text-4xl block mb-2">⏳</span>
-          <p className="text-sm font-bold text-slate-800">No Bids Received Yet</p>
-          <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-            FPO organizations are reviewing this supply quote. Submitted bids will be listed here with payment details.
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
-
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 1096: character maps to <undefined>
 
 
 ================================================
@@ -12622,6 +15004,12 @@ export default function FpoEscrowPanel() {
 
 
 ================================================
+FILE: frontend/src/components/fpo/FpoInventoryPanel.jsx
+================================================
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 1966: character maps to <undefined>
+
+
+================================================
 FILE: frontend/src/components/fpo/FpoRetailerEscrowPanel.jsx
 ================================================
 import React, { useState, useEffect, useCallback } from "react";
@@ -13025,6 +15413,29 @@ export default function FpoRetailerEscrowPanel() {
                   </div>
                 </div>
 
+                {/* Multi-Farmer Provenance Breakdown */}
+                {escrow.allocations && escrow.allocations.length > 0 && (
+                  <div className="p-3 bg-purple-50/60 border border-purple-200/80 rounded-2xl space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between text-purple-950 font-extrabold text-[11px]">
+                      <span>🔗 Verified Multi-Farmer Provenance ({escrow.allocations.length} Source Lots):</span>
+                      <span>{new Set(escrow.allocations.map(a => a.farmer_name)).size} Farmers</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px] text-slate-700">
+                      {escrow.allocations.map((alloc) => (
+                        <div key={alloc.id} className="bg-white p-2 rounded-xl border border-purple-100 flex items-center justify-between shadow-2xs">
+                          <div>
+                            <span className="font-bold text-slate-900">{alloc.farmer_name}</span>{" "}
+                            {alloc.crop_passport_id ? (
+                              <span className="text-emerald-700 font-semibold">(Passport #{alloc.crop_passport_id})</span>
+                            ) : null}
+                          </div>
+                          <span className="font-mono font-bold text-purple-800">{alloc.allocated_quantity} {alloc.unit}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Transaction Links */}
                 {(escrow.create_tx_hash || escrow.deposit_tx_hash || escrow.delivery_tx_hash || escrow.release_tx_hash) && (
                   <div className="flex flex-wrap items-center gap-3 text-xs pt-1 text-slate-500">
@@ -13091,9 +15502,21 @@ export default function FpoRetailerEscrowPanel() {
 
 
 ================================================
+FILE: frontend/src/components/fpo/FpoStockCartPanel.jsx
+================================================
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 2088: character maps to <undefined>
+
+
+================================================
 FILE: frontend/src/components/fpo/RetailerQuotes.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 1349: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 1525: character maps to <undefined>
+
+
+================================================
+FILE: frontend/src/components/retailer/RetailerCartPanel.jsx
+================================================
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 1714: character maps to <undefined>
 
 
 ================================================
@@ -13356,6 +15779,29 @@ export default function RetailerEscrowPanel() {
                   </div>
                 </div>
 
+                {/* Multi-Farmer Provenance Breakdown */}
+                {escrow.allocations && escrow.allocations.length > 0 && (
+                  <div className="p-3 bg-purple-50/60 border border-purple-200/80 rounded-2xl space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between text-purple-950 font-extrabold text-[11px]">
+                      <span>🔗 Verified Multi-Farmer Provenance ({escrow.allocations.length} Source Lots):</span>
+                      <span>{new Set(escrow.allocations.map(a => a.farmer_name)).size} Farmers</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px] text-slate-700">
+                      {escrow.allocations.map((alloc) => (
+                        <div key={alloc.id} className="bg-white p-2 rounded-xl border border-purple-100 flex items-center justify-between shadow-2xs">
+                          <div>
+                            <span className="font-bold text-slate-900">{alloc.farmer_name}</span>{" "}
+                            {alloc.crop_passport_id ? (
+                              <span className="text-emerald-700 font-semibold">(Passport #{alloc.crop_passport_id})</span>
+                            ) : null}
+                          </div>
+                          <span className="font-mono font-bold text-purple-800">{alloc.allocated_quantity} {alloc.unit}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Transaction Hashes */}
                 {(escrow.create_tx_hash || escrow.deposit_tx_hash || escrow.delivery_tx_hash || escrow.release_tx_hash) && (
                   <div className="flex flex-wrap items-center gap-3 text-xs pt-1 text-slate-500">
@@ -13443,6 +15889,18 @@ export default function RetailerEscrowPanel() {
   );
 }
 
+
+
+================================================
+FILE: frontend/src/components/retailer/RetailerInventoryPanel.jsx
+================================================
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 2060: character maps to <undefined>
+
+
+================================================
+FILE: frontend/src/components/retailer/RetailerOrdersPanel.jsx
+================================================
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 1912: character maps to <undefined>
 
 
 ================================================
@@ -14489,13 +16947,13 @@ Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in posi
 ================================================
 FILE: frontend/src/pages/fpo/FpoDashboard.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 7393: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 7919: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/pages/retailer/RetailerDashboard.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 3500: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 3292: character maps to <undefined>
 
 
 ================================================

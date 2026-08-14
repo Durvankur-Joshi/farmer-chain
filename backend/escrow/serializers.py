@@ -58,6 +58,7 @@ class RetailerEscrowTransactionSerializer(serializers.ModelSerializer):
     etherscan_deposit_url  = serializers.CharField(read_only=True)
     etherscan_release_url  = serializers.CharField(read_only=True)
     etherscan_contract_url = serializers.CharField(read_only=True)
+    allocations    = serializers.SerializerMethodField()
 
     class Meta:
         model = RetailerEscrowTransaction
@@ -72,7 +73,23 @@ class RetailerEscrowTransactionSerializer(serializers.ModelSerializer):
             'delivery_tx_hash', 'release_tx_hash',
             'etherscan_deposit_url', 'etherscan_release_url',
             'etherscan_contract_url',
+            'allocations',
             'created_at', 'funded_at',
             'delivery_confirmed_at', 'released_at',
         ]
         read_only_fields = fields
+
+    def get_allocations(self, obj):
+        if not obj.quote or not hasattr(obj.quote, 'allocations'):
+            return []
+        res = []
+        for alloc in obj.quote.allocations.all():
+            res.append({
+                'id': alloc.id,
+                'farmer_name': alloc.farmer.name if alloc.farmer else "Unknown",
+                'farmer_did': alloc.farmer.did if alloc.farmer else "",
+                'crop_passport_id': alloc.crop_passport_id,
+                'allocated_quantity': str(alloc.allocated_quantity),
+                'unit': alloc.inventory_lot.unit if alloc.inventory_lot else "unit",
+            })
+        return res

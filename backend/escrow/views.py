@@ -336,6 +336,13 @@ def escrow_released(request, escrow_pk):
     escrow.released_at = timezone.now()
     escrow.save(update_fields=['status', 'release_tx_hash', 'released_at'])
 
+    # Ensure FPO Inventory Lot exists for FPO
+    try:
+        from fpo.services import create_fpo_inventory_lot_from_deal
+        create_fpo_inventory_lot_from_deal(quote=escrow.quote, bid=escrow.bid)
+    except Exception as exc:
+        logger.error("Error creating FPOInventoryLot on escrow release: %s", exc)
+
     logger.info('Payment released: escrow=%d, tx=%s', escrow.pk, tx_hash)
 
     serializer = EscrowTransactionSerializer(escrow)
@@ -393,14 +400,14 @@ def escrow_my_list(request):
 
 # ── POST /api/escrow/retailer/create/ ─────────────────────────────────────
 @api_view(['POST'])
-@permission_classes([IsAuthenticated, IsFPO])
+@permission_classes([IsAuthenticated])
 def create_retailer_escrow(request):
     """
     Create an escrow record for an accepted FPO quote (FPO is Seller, Retailer is Buyer).
 
     Body: { "quote_id": <int> }
     """
-    fpo = request.user.user_obj
+    user_obj = request.user.user_obj
     quote_id = request.data.get('quote_id')
 
     if not quote_id:
@@ -411,22 +418,26 @@ def create_retailer_escrow(request):
 
     quote = get_object_or_404(FPOQuote, pk=quote_id)
 
-    # Ownership check
-    if quote.fpo_id != fpo.pk:
-        return Response(
-            {'error': 'You do not own this FPO quote.'},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
     # Must have an accepted bid
-    if not quote.accepted_bid:
+    bid = quote.accepted_bid
+    if not bid and hasattr(quote, 'bids'):
+        bid = quote.bids.filter(status='accepted').first()
+
+    if not bid:
         return Response(
             {'error': 'This quote does not have an accepted retailer bid yet.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    bid = quote.accepted_bid
+    fpo = quote.fpo
     retailer = bid.retailer
+
+    # Participant check: user must be either the FPO or Retailer
+    if user_obj.pk != fpo.pk and user_obj.pk != retailer.pk:
+        return Response(
+            {'error': 'You are not a participant of this accepted deal.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
     # Wallet addresses required
     if not fpo.wallet_address:
@@ -451,8 +462,20 @@ def create_retailer_escrow(request):
             status=status.HTTP_409_CONFLICT,
         )
 
-    # Calculate amount: bid_amount (price per unit) × quantity
-    amount_eth = Decimal(str(bid.bid_amount)) * Decimal(str(quote.quantity))
+    # Calculate agreed amount: check if negotiation has locked agreed_price_per_unit
+    from negotiation.models import Negotiation
+    content_type_str = f"retailer.retailerbid"
+    try:
+        from django.contrib.contenttypes.models import ContentType
+        ct = ContentType.objects.get(app_label='retailer', model='retailerbid')
+        neg = Negotiation.objects.filter(content_type=ct, object_id=bid.id, status='accepted').first()
+    except Exception:
+        neg = None
+
+    price = neg.agreed_price_per_unit if (neg and neg.agreed_price_per_unit) else bid.bid_amount
+    qty = neg.agreed_quantity if (neg and neg.agreed_quantity) else quote.quantity
+
+    amount_eth = Decimal(str(price)) * Decimal(str(qty))
     if amount_eth <= 0:
         return Response(
             {'error': 'Calculated escrow amount must be greater than zero.'},
@@ -483,7 +506,7 @@ def create_retailer_escrow(request):
     serializer = RetailerEscrowTransactionSerializer(escrow)
     return Response(
         {
-            'message': 'Retailer escrow created. Proceed to create on-chain escrow via MetaMask.',
+            'message': 'Retailer escrow created. Proceed to create/fund on-chain escrow via MetaMask.',
             'escrow': serializer.data,
             'contract_address': contract_address,
             'fpo_wallet': fpo.wallet_address,
@@ -497,17 +520,17 @@ def create_retailer_escrow(request):
 
 # ── POST /api/escrow/retailer/<id>/created-onchain/ ───────────────────────
 @api_view(['POST'])
-@permission_classes([IsAuthenticated, IsFPO])
+@permission_classes([IsAuthenticated])
 def retailer_escrow_created_onchain(request, escrow_pk):
     """
-    Record the on-chain escrow creation tx hash and escrow ID by the FPO.
+    Record the on-chain escrow creation tx hash and escrow ID by FPO or Retailer.
 
     Body: { "tx_hash": "0x...", "escrow_id": <int>, "contract_address": "0x..." }
     """
-    fpo = request.user.user_obj
+    user_obj = request.user.user_obj
     escrow = get_object_or_404(RetailerEscrowTransaction, pk=escrow_pk)
 
-    if escrow.fpo_id != fpo.pk:
+    if escrow.fpo_id != user_obj.pk and escrow.retailer_id != user_obj.pk:
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
     tx_hash = request.data.get('tx_hash', '')
@@ -683,6 +706,42 @@ def retailer_escrow_released(request, escrow_pk):
     escrow.release_tx_hash = tx_hash
     escrow.released_at = timezone.now()
     escrow.save(update_fields=['status', 'release_tx_hash', 'released_at'])
+
+    # ── Move stock into RetailerInventoryLot with 100% Provenance ───────
+    try:
+        from retailer.models import RetailerInventoryLot
+        quote = escrow.quote
+        if quote and hasattr(quote, 'allocations'):
+            price = quote.price_per_unit or (escrow.amount_eth / quote.quantity if quote.quantity else Decimal('0'))
+            for alloc in quote.allocations.all():
+                # 1. Update FPO Inventory Lot
+                lot = alloc.inventory_lot
+                if lot:
+                    qty = alloc.allocated_quantity
+                    lot.reserved_quantity = max(Decimal('0'), (lot.reserved_quantity or Decimal('0')) - qty)
+                    lot.original_quantity = max(Decimal('0'), (lot.original_quantity or Decimal('0')) - qty)
+                    if lot.available_quantity <= 0 and lot.reserved_quantity <= 0:
+                        lot.status = 'depleted'
+                    lot.save()
+
+                # 2. Create Retailer Inventory Lot
+                RetailerInventoryLot.objects.create(
+                    retailer=escrow.retailer,
+                    fpo=escrow.fpo,
+                    farmer=alloc.farmer,
+                    crop_passport=alloc.crop_passport,
+                    inventory_lot=alloc.inventory_lot,
+                    escrow=escrow,
+                    product_name=quote.product_name,
+                    crop_category=quote.category,
+                    quantity=alloc.allocated_quantity,
+                    unit=quote.unit,
+                    purchase_price_per_unit=price,
+                    total_price=alloc.allocated_quantity * price,
+                    status='in_stock',
+                )
+    except Exception as exc:
+        logger.error("Error creating RetailerInventoryLot for escrow #%d: %s", escrow.pk, exc)
 
     logger.info('Retailer escrow payment released: escrow=%d, tx=%s', escrow.pk, tx_hash)
 

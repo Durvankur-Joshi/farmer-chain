@@ -255,6 +255,29 @@ export default function RetailerEscrowPanel() {
                   </div>
                 </div>
 
+                {/* Multi-Farmer Provenance Breakdown */}
+                {escrow.allocations && escrow.allocations.length > 0 && (
+                  <div className="p-3 bg-purple-50/60 border border-purple-200/80 rounded-2xl space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between text-purple-950 font-extrabold text-[11px]">
+                      <span>🔗 Verified Multi-Farmer Provenance ({escrow.allocations.length} Source Lots):</span>
+                      <span>{new Set(escrow.allocations.map(a => a.farmer_name)).size} Farmers</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px] text-slate-700">
+                      {escrow.allocations.map((alloc) => (
+                        <div key={alloc.id} className="bg-white p-2 rounded-xl border border-purple-100 flex items-center justify-between shadow-2xs">
+                          <div>
+                            <span className="font-bold text-slate-900">{alloc.farmer_name}</span>{" "}
+                            {alloc.crop_passport_id ? (
+                              <span className="text-emerald-700 font-semibold">(Passport #{alloc.crop_passport_id})</span>
+                            ) : null}
+                          </div>
+                          <span className="font-mono font-bold text-purple-800">{alloc.allocated_quantity} {alloc.unit}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Transaction Hashes */}
                 {(escrow.create_tx_hash || escrow.deposit_tx_hash || escrow.delivery_tx_hash || escrow.release_tx_hash) && (
                   <div className="flex flex-wrap items-center gap-3 text-xs pt-1 text-slate-500">

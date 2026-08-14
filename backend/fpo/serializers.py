@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import FPO, FPOBid, FPOQuote, FPOInventoryLot
+from .models import FPO, FPOBid, FPOQuote, FPOQuoteAllocation, FPOInventoryLot, FPOStockCartItem
 
 class FPOSerializer(serializers.ModelSerializer):
     class Meta:
@@ -52,20 +52,113 @@ class FPOBidSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Delivery time must be greater than zero.")
         return value
 
+
+class FPOQuoteAllocationSerializer(serializers.ModelSerializer):
+    """
+    Phase 3 — FPO Retailer Quote Inventory Allocation Serializer.
+    Exposes individual farmer & crop passport allocations for a wholesale market quote.
+    """
+    farmer_name = serializers.CharField(source='farmer.name', read_only=True)
+    farmer_did = serializers.CharField(source='farmer.did', read_only=True)
+    farmer_location = serializers.SerializerMethodField()
+    crop_passport_details = serializers.SerializerMethodField()
+    unit = serializers.ReadOnlyField(source='inventory_lot.unit')
+    acquisition_price = serializers.ReadOnlyField(source='inventory_lot.acquisition_price')
+
+    class Meta:
+        model = FPOQuoteAllocation
+        fields = [
+            'id', 'quote', 'inventory_lot', 'farmer', 'farmer_name', 'farmer_did',
+            'farmer_location', 'crop_passport', 'crop_passport_details',
+            'allocated_quantity', 'unit', 'acquisition_price', 'created_at'
+        ]
+
+    def get_farmer_location(self, obj):
+        if obj.farmer:
+            return f"{obj.farmer.city}, {obj.farmer.state}"
+        return ""
+
+    def get_crop_passport_details(self, obj):
+        cp = obj.crop_passport
+        if not cp:
+            return None
+        ai = cp.latest_ai_verification
+        return {
+            'id': cp.id,
+            'crop_name': cp.crop_name,
+            'crop_category': cp.crop_category,
+            'status': cp.status,
+            'is_minted': cp.is_minted,
+            'harvest_date': str(cp.harvest_date),
+            'location': cp.location,
+            'nft_token_id': cp.nft_token_id,
+            'primary_image_url': cp.primary_image_url,
+            'ai_verification': {
+                'quality_grade': ai.quality_grade,
+                'quality_score': float(ai.quality_score) if ai.quality_score is not None else None,
+                'verification_status': ai.verification_status,
+                'image_gateway_url': ai.image_gateway_url,
+            } if ai else None,
+        }
+
+
 class FPOQuoteSerializer(serializers.ModelSerializer):
     fpo_name = serializers.CharField(source='fpo.name', read_only=True)
     fpo_email = serializers.CharField(source='fpo.email', read_only=True)
+    fpo_did = serializers.CharField(source='fpo.did', read_only=True)
+    fpo_location = serializers.SerializerMethodField()
     bids = serializers.SerializerMethodField()
+    allocations = FPOQuoteAllocationSerializer(many=True, read_only=True)
+    provenance_summary = serializers.SerializerMethodField()
     
     class Meta:
         model = FPOQuote
         fields = [
-            'id', 'fpo', 'product_name', 'category', 'description', 
+            'id', 'fpo', 'fpo_name', 'fpo_email', 'fpo_did', 'fpo_location',
+            'product_name', 'category', 'description', 
             'quantity', 'unit', 'price_per_unit', 'status', 'deadline', 
-            'created_at', 'accepted_bid', 'fpo_name', 'fpo_email',
-            'bids'
+            'created_at', 'accepted_bid', 'bids', 'allocations', 'provenance_summary'
         ]
         read_only_fields = ('fpo', 'status', 'created_at', 'accepted_bid')
+
+    def get_fpo_location(self, obj):
+        if obj.fpo:
+            return f"{obj.fpo.city}, {obj.fpo.state}"
+        return ""
+
+    def get_provenance_summary(self, obj):
+        allocations = obj.allocations.all()
+        farmers_set = set()
+        passports_set = set()
+        farmers_list = []
+        passports_list = []
+
+        for alloc in allocations:
+            if alloc.farmer:
+                farmers_set.add(alloc.farmer_id)
+                farmers_list.append({
+                    'id': alloc.farmer.id,
+                    'name': alloc.farmer.name,
+                    'did': alloc.farmer.did,
+                    'location': f"{alloc.farmer.city}, {alloc.farmer.state}",
+                    'allocated_quantity': str(alloc.allocated_quantity),
+                })
+            if alloc.crop_passport:
+                passports_set.add(alloc.crop_passport_id)
+                passports_list.append({
+                    'id': alloc.crop_passport.id,
+                    'crop_name': alloc.crop_passport.crop_name,
+                    'is_minted': alloc.crop_passport.is_minted,
+                    'ai_grade': alloc.crop_passport.latest_ai_verification.quality_grade if alloc.crop_passport.latest_ai_verification else None,
+                    'allocated_quantity': str(alloc.allocated_quantity),
+                })
+
+        return {
+            'total_farmers_count': len(farmers_set),
+            'total_passports_count': len(passports_set),
+            'farmers_list': farmers_list,
+            'passports_list': passports_list,
+        }
     
     def get_bids(self, obj):
         """
@@ -206,3 +299,31 @@ class FPOInventoryLotSerializer(serializers.ModelSerializer):
             'acquired_at': str(obj.created_at),
             'acquisition_price_eth': str(obj.acquisition_price) if obj.acquisition_price else None,
         }
+
+
+class FPOStockCartItemSerializer(serializers.ModelSerializer):
+    """
+    Phase 2 — FPO Stock Cart Item Serializer.
+    Exposes selected cart quantity and full inventory lot provenance details.
+    """
+    inventory_lot_details = FPOInventoryLotSerializer(source='inventory_lot', read_only=True)
+    remaining_quantity = serializers.DecimalField(
+        source='inventory_lot.available_quantity',
+        read_only=True,
+        max_digits=18,
+        decimal_places=8
+    )
+
+    class Meta:
+        model = FPOStockCartItem
+        fields = [
+            'id', 'fpo', 'inventory_lot', 'inventory_lot_details',
+            'selected_quantity', 'remaining_quantity',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ('fpo', 'created_at', 'updated_at')
+
+    def validate_selected_quantity(self, value):
+        if value is None or value <= 0:
+            raise serializers.ValidationError("Selected quantity must be greater than zero.")
+        return value
