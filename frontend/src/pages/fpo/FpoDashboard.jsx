@@ -13,7 +13,7 @@ import DidIdentityCard from "../../components/common/DidIdentityCard";
 import DashboardNavbar from "../../components/common/DashboardNavbar";
 
 export default function FpoDashboard() {
-  const [activeTab, setActiveTab] = useState("farmer");
+  const [activeTab, setActiveTab] = useState("inventory");
   const [escrowSubTab, setEscrowSubTab] = useState("farmer");
   const navigate = useNavigate();
   const [didInfo, setDidInfo] = useState(null);

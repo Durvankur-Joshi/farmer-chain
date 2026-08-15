@@ -18,7 +18,7 @@ export default function FarmerDashboard() {
   const navigate = useNavigate();
   const [history, setHistory] = useState([]);
   const [quotesLoading, setQuotesLoading] = useState(true);
-  const [activePage, setActivePage] = useState("history");
+  const [activePage, setActivePage] = useState("crops");
   const [selectedQuote, setSelectedQuote] = useState(null);
   const [didInfo, setDidInfo] = useState(null);
   const [crops, setCrops] = useState([]);
@@ -212,28 +212,6 @@ export default function FarmerDashboard() {
         <div className="bg-white border border-slate-200/80 rounded-2xl p-1.5 shadow-2xs flex flex-wrap gap-1">
           <button
             type="button"
-            onClick={() => setActivePage("history")}
-            className={`flex-1 min-w-[130px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              activePage === "history" || activePage === "newQuote" || activePage === "bids"
-                ? "bg-emerald-600 text-white shadow-sm"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-            }`}
-          >
-            <span>📜</span>
-            <span>Supply Quotes</span>
-            {history.length > 0 && (
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
-                activePage === "history" || activePage === "newQuote" || activePage === "bids"
-                  ? "bg-emerald-700/80 text-white"
-                  : "bg-slate-100 text-slate-600"
-              }`}>
-                {history.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            type="button"
             onClick={() => setActivePage("crops")}
             className={`flex-1 min-w-[130px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
               activePage === "crops" || activePage === "newCrop"
@@ -241,7 +219,7 @@ export default function FarmerDashboard() {
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
           >
-            <span>🌾</span>
+            <span>📜</span>
             <span>Crop Passports</span>
             {crops.length > 0 && (
               <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
@@ -250,6 +228,28 @@ export default function FarmerDashboard() {
                   : "bg-slate-100 text-slate-600"
               }`}>
                 {crops.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActivePage("history")}
+            className={`flex-1 min-w-[130px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activePage === "history" || activePage === "newQuote" || activePage === "bids"
+                ? "bg-emerald-600 text-white shadow-sm"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            }`}
+          >
+            <span>🌾</span>
+            <span>Supply Quotes & FPO Bids</span>
+            {history.length > 0 && (
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                activePage === "history" || activePage === "newQuote" || activePage === "bids"
+                  ? "bg-emerald-700/80 text-white"
+                  : "bg-slate-100 text-slate-600"
+              }`}>
+                {history.length}
               </span>
             )}
           </button>

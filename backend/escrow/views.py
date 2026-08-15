@@ -409,10 +409,17 @@ def create_retailer_escrow(request):
     """
     user_obj = request.user.user_obj
     quote_id = request.data.get('quote_id')
+    bid_id = request.data.get('bid_id')
+
+    if not quote_id and bid_id:
+        from retailer.models import RetailerBid
+        bid_obj = RetailerBid.objects.filter(pk=bid_id).first()
+        if bid_obj:
+            quote_id = bid_obj.quote_id
 
     if not quote_id:
         return Response(
-            {'error': 'quote_id is required.'},
+            {'error': 'quote_id or bid_id is required.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 

@@ -89,9 +89,11 @@ class CropPassport(models.Model):
 
     STATUS_REGISTERED = 'registered'
     STATUS_MINTED = 'minted'
+    STATUS_SOLD = 'sold'
     STATUS_CHOICES = [
         (STATUS_REGISTERED, 'Registered'),
         (STATUS_MINTED, 'Minted'),
+        (STATUS_SOLD, 'Sold / Completed'),
     ]
 
     UNIT_CHOICES = [
@@ -113,6 +115,8 @@ class CropPassport(models.Model):
     crop_category = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     quantity = models.DecimalField(max_digits=18, decimal_places=8)
+    available_quantity = models.DecimalField(max_digits=18, decimal_places=8, null=True, blank=True)
+    sold_quantity = models.DecimalField(max_digits=18, decimal_places=8, default=0)
     unit = models.CharField(max_length=20, choices=UNIT_CHOICES, default='kg')
     cultivation_date = models.DateField()
     harvest_date = models.DateField()
@@ -152,6 +156,12 @@ class CropPassport(models.Model):
                 self.location = f"{f.city}, {f.state}"
             except Exception:
                 pass
+        from decimal import Decimal
+        if self.available_quantity is None and self.quantity is not None:
+            self.available_quantity = Decimal(str(self.quantity)) - Decimal(str(self.sold_quantity or '0'))
+        if self.available_quantity is not None and Decimal(str(self.available_quantity)) <= Decimal('0'):
+            if self.status != self.STATUS_MINTED:
+                self.status = self.STATUS_SOLD
         super().save(*args, **kwargs)
 
     @property

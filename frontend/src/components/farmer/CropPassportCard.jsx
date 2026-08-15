@@ -112,8 +112,14 @@ export default function CropPassportCard({ crop, onMintSuccess, onDeleteSuccess 
       {/* ── Crop Details 4-Column Grid ─────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
         <div className="bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
-          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Lot Quantity</span>
-          <span className="font-extrabold text-slate-900 font-mono mt-0.5 block">{crop.quantity} {crop.unit}</span>
+          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Available / Total Qty</span>
+          <span className={`font-extrabold font-mono mt-0.5 block ${
+            crop.status === "sold" || (crop.available_quantity !== undefined && parseFloat(crop.available_quantity) <= 0)
+              ? "text-emerald-700"
+              : "text-slate-900"
+          }`}>
+            {crop.available_quantity !== undefined ? crop.available_quantity : crop.quantity} / {crop.quantity} {crop.unit}
+          </span>
         </div>
         <div className="bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Farm Location</span>

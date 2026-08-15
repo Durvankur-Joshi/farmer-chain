@@ -165,7 +165,29 @@ class FarmerQuoteListCreateView(generics.ListCreateAPIView):
         return qs.order_by('-created_at')
 
     def perform_create(self, serializer):
-        serializer.save(farmer=self.request.user.user_obj)
+        from decimal import Decimal
+        from rest_framework import serializers
+        farmer = self.request.user.user_obj
+        
+        # Check passport available quantity before saving
+        passport = serializer.validated_data.get('crop_passport')
+        quote_qty = serializer.validated_data.get('quantity')
+        if passport:
+            avail = passport.available_quantity if passport.available_quantity is not None else passport.quantity
+            if avail is not None and Decimal(str(avail)) < Decimal(str(quote_qty)):
+                raise serializers.ValidationError(
+                    f"Quote quantity ({quote_qty} {passport.unit}) exceeds remaining passport available stock ({avail} {passport.unit})."
+                )
+
+        quote = serializer.save(farmer=farmer)
+
+        if passport:
+            avail = passport.available_quantity if passport.available_quantity is not None else passport.quantity
+            passport.available_quantity = max(Decimal('0'), Decimal(str(avail)) - Decimal(str(quote.quantity)))
+            passport.sold_quantity = Decimal(str(passport.sold_quantity or '0')) + Decimal(str(quote.quantity))
+            if passport.available_quantity <= Decimal('0') and passport.status != 'minted':
+                passport.status = 'sold'
+            passport.save()
 
 class FarmerQuoteDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = FarmerQuoteSerializer

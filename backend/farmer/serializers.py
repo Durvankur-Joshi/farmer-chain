@@ -177,7 +177,7 @@ class CropPassportSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'farmer', 'farmer_name', 'farmer_did', 'farmer_wallet',
             'crop_name', 'crop_category', 'description',
-            'quantity', 'unit',
+            'quantity', 'available_quantity', 'sold_quantity', 'unit',
             'cultivation_date', 'harvest_date', 'location',
             'status', 'is_minted', 'created_at', 'updated_at',
             'nft_token_id', 'nft_contract_address',
@@ -241,7 +241,7 @@ class PublicCropPassportSerializer(serializers.ModelSerializer):
         model = CropPassport
         fields = [
             'id', 'crop_name', 'crop_category', 'description',
-            'quantity', 'unit',
+            'quantity', 'available_quantity', 'sold_quantity', 'unit',
             'cultivation_date', 'harvest_date', 'location',
             'farmer_did', 'farmer_wallet', 'farmer_location',
             'status',
