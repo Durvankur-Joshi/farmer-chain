@@ -13,7 +13,6 @@ env/
 *.log
 *.pot
 *.pyc
-db.sqlite3-journal
 
 # Ignore all migration files across apps (optional)
 # Comment this out if you want to track migrations
@@ -41,6 +40,3 @@ htmlcov/
 # System files
 .DS_Store
 Thumbs.db
-
-
-db.sqlite3
