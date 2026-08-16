@@ -14,14 +14,22 @@ load_dotenv(BASE_DIR / ".env")
 
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-dpnys$4w$)hz7(e*v+21#4itdn)@p0qjn$3=#akf%kj4)$dp89'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-dpnys$4w$)hz7(e*v+21#4itdn)@p0qjn$3=#akf%kj4)$dp89')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False # <-- CHANGED: Enabled for development and integration
+DEBUG = os.environ.get("DEBUG", "False") == "True"
 
-ALLOWED_HOSTS = [
-    "*",
-    "https://farmer-chain-brown.vercel.app/"]   # For development, allow all. Change for production.
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"]
+render_hostname = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+if render_hostname:
+    ALLOWED_HOSTS.append(render_hostname)
+
+env_allowed_hosts = os.environ.get("ALLOWED_HOSTS")
+if env_allowed_hosts:
+    for host in env_allowed_hosts.split(","):
+        clean_host = host.strip().replace("https://", "").replace("http://", "").rstrip("/")
+        if clean_host and clean_host not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(clean_host)
 
 # Application definition
 INSTALLED_APPS = [
@@ -51,8 +59,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    "corsheaders.middleware.CorsMiddleware",   # helps in prod
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -109,6 +118,7 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / "static"]   # for React build files
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / "media"
@@ -133,11 +143,21 @@ SIMPLE_JWT = {
 
 
 # CORS (React frontend)
-CORS_ALLOW_ALL_ORIGINS = True
-# Or restrict like:
+CORS_ALLOW_ALL_ORIGINS = os.environ.get("CORS_ALLOW_ALL_ORIGINS", "False") == "True"
+
 CORS_ALLOWED_ORIGINS = [
-    "https://farmer-chain-brown.vercel.app/"
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://farmer-chain-brown.vercel.app",
 ]
+
+frontend_url = os.environ.get("FRONTEND_URL")
+if frontend_url:
+    clean_url = frontend_url.strip().rstrip("/")
+    if clean_url and clean_url not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(clean_url)
 
 
 # Default primary key field type
