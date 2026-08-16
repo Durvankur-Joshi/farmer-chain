@@ -17,9 +17,11 @@ load_dotenv(BASE_DIR / ".env")
 SECRET_KEY = 'django-insecure-dpnys$4w$)hz7(e*v+21#4itdn)@p0qjn$3=#akf%kj4)$dp89'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True # <-- CHANGED: Enabled for development and integration
+DEBUG = False # <-- CHANGED: Enabled for development and integration
 
-ALLOWED_HOSTS = ["*"]   # For development, allow all. Change for production.
+ALLOWED_HOSTS = [
+    "*",
+    "https://farmer-chain-brown.vercel.app/"]   # For development, allow all. Change for production.
 
 # Application definition
 INSTALLED_APPS = [
@@ -133,10 +135,9 @@ SIMPLE_JWT = {
 # CORS (React frontend)
 CORS_ALLOW_ALL_ORIGINS = True
 # Or restrict like:
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:3000",
-#     "http://127.0.0.1:3000",
-# ]
+CORS_ALLOWED_ORIGINS = [
+    "https://farmer-chain-brown.vercel.app/"
+]
 
 
 # Default primary key field type
