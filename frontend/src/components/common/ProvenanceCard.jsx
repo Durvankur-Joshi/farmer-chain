@@ -47,14 +47,14 @@ export default function ProvenanceCard({ allocations = [], provenanceSummary, fp
               key={alloc.id || idx}
               className="bg-white p-2.5 rounded-xl border border-purple-100 shadow-2xs space-y-1.5 hover:border-purple-300 transition-all"
             >
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="font-extrabold text-slate-900 text-xs">👨‍🌾 {farmerName}</p>
+              <div className="flex justify-between items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="font-extrabold text-slate-900 text-xs truncate">👨‍🌾 {farmerName}</p>
                   {farmerLocation && (
-                    <p className="text-[10px] text-slate-500 font-medium">📍 {farmerLocation}</p>
+                    <p className="text-[10px] text-slate-500 font-medium truncate">📍 {farmerLocation}</p>
                   )}
                 </div>
-                <span className="font-mono font-extrabold text-purple-900 bg-purple-50 px-2 py-0.5 rounded-lg text-xs">
+                <span className="font-mono font-extrabold text-purple-900 bg-purple-50 px-2 py-0.5 rounded-lg text-xs shrink-0">
                   {qty} {unit}
                 </span>
               </div>

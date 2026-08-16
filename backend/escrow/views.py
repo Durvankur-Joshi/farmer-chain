@@ -717,38 +717,73 @@ def retailer_escrow_released(request, escrow_pk):
     # ── Move stock into RetailerInventoryLot with 100% Provenance ───────
     try:
         from retailer.models import RetailerInventoryLot
-        quote = escrow.quote
-        if quote and hasattr(quote, 'allocations'):
-            price = quote.price_per_unit or (escrow.amount_eth / quote.quantity if quote.quantity else Decimal('0'))
-            for alloc in quote.allocations.all():
-                # 1. Update FPO Inventory Lot
-                lot = alloc.inventory_lot
-                if lot:
-                    qty = alloc.allocated_quantity
-                    lot.reserved_quantity = max(Decimal('0'), (lot.reserved_quantity or Decimal('0')) - qty)
-                    lot.original_quantity = max(Decimal('0'), (lot.original_quantity or Decimal('0')) - qty)
-                    if lot.available_quantity <= 0 and lot.reserved_quantity <= 0:
-                        lot.status = 'depleted'
-                    lot.save()
+        import traceback
 
-                # 2. Create Retailer Inventory Lot
-                RetailerInventoryLot.objects.create(
-                    retailer=escrow.retailer,
-                    fpo=escrow.fpo,
-                    farmer=alloc.farmer,
-                    crop_passport=alloc.crop_passport,
-                    inventory_lot=alloc.inventory_lot,
-                    escrow=escrow,
-                    product_name=quote.product_name,
-                    crop_category=quote.category,
-                    quantity=alloc.allocated_quantity,
-                    unit=quote.unit,
-                    purchase_price_per_unit=price,
-                    total_price=alloc.allocated_quantity * price,
-                    status='in_stock',
+        # Prevent duplicate inventory creation on repeated calls
+        existing_lots = RetailerInventoryLot.objects.filter(escrow=escrow).count()
+        if existing_lots > 0:
+            logger.info('RetailerInventoryLot already exists for escrow #%d, skipping creation.', escrow.pk)
+        else:
+            quote = escrow.quote
+            if quote and hasattr(quote, 'allocations'):
+                price = quote.price_per_unit or (
+                    escrow.amount_eth / quote.quantity if quote.quantity else Decimal('0')
                 )
+                allocations = list(quote.allocations.select_related(
+                    'inventory_lot', 'farmer', 'crop_passport'
+                ).all())
+
+                if allocations:
+                    for alloc in allocations:
+                        # 1. Update FPO Inventory Lot — reduce available_quantity only
+                        #    (original_quantity is the historical record and must stay > 0)
+                        lot = alloc.inventory_lot
+                        if lot:
+                            qty = alloc.allocated_quantity
+                            lot.available_quantity = max(
+                                Decimal('0'),
+                                (lot.available_quantity or Decimal('0')) - qty
+                            )
+                            lot.reserved_quantity = max(
+                                Decimal('0'),
+                                (lot.reserved_quantity or Decimal('0')) - qty
+                            )
+                            # Status auto-updates via save() method
+                            lot.save()
+
+                        # 2. Create Retailer Inventory Lot
+                        RetailerInventoryLot.objects.create(
+                            retailer=escrow.retailer,
+                            fpo=escrow.fpo,
+                            farmer=alloc.farmer,
+                            crop_passport=alloc.crop_passport,
+                            inventory_lot=alloc.inventory_lot,
+                            escrow=escrow,
+                            product_name=quote.product_name,
+                            crop_category=quote.category,
+                            quantity=alloc.allocated_quantity,
+                            unit=quote.unit,
+                            purchase_price_per_unit=price,
+                            total_price=alloc.allocated_quantity * price,
+                            status='in_stock',
+                        )
+                    logger.info(
+                        'Created %d RetailerInventoryLot(s) for escrow #%d from allocations.',
+                        len(allocations), escrow.pk,
+                    )
+                else:
+                    # Fallback: quote has no allocations — this shouldn't happen in
+                    # normal flow but log a warning for investigation
+                    logger.warning(
+                        'Escrow #%d released but quote #%d has no FPOQuoteAllocations. '
+                        'RetailerInventoryLot not created — provenance data missing.',
+                        escrow.pk, quote.pk,
+                    )
     except Exception as exc:
-        logger.error("Error creating RetailerInventoryLot for escrow #%d: %s", escrow.pk, exc)
+        logger.error(
+            "Error creating RetailerInventoryLot for escrow #%d: %s\n%s",
+            escrow.pk, exc, traceback.format_exc(),
+        )
 
     logger.info('Retailer escrow payment released: escrow=%d, tx=%s', escrow.pk, tx_hash)
 

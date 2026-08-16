@@ -167,8 +167,8 @@ export default function NegotiationModal({
   const status = negotiation?.status || "active";
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl max-w-2xl w-full p-6 space-y-4 shadow-2xl border border-slate-200 animate-fade-in max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-white rounded-3xl max-w-2xl w-full p-4 sm:p-6 space-y-4 shadow-2xl border border-slate-200 animate-fade-in max-h-[92vh] flex flex-col my-auto">
         {/* Modal Header */}
         <div className="flex justify-between items-start border-b border-slate-100 pb-3 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -379,13 +379,13 @@ export default function NegotiationModal({
                 </div>
 
                 {/* Final Decision Action Buttons */}
-                <div className="flex justify-between items-center pt-2 border-t border-slate-100">
-                  <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2 pt-2 border-t border-slate-100">
+                  <div className="flex gap-2 justify-between sm:justify-start">
                     <button
                       type="button"
                       onClick={handleReject}
                       disabled={submitting}
-                      className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-xl text-xs cursor-pointer"
+                      className="flex-1 sm:flex-none px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-xl text-xs cursor-pointer text-center"
                     >
                       Reject ✕
                     </button>
@@ -393,7 +393,7 @@ export default function NegotiationModal({
                       type="button"
                       onClick={handleWithdraw}
                       disabled={submitting}
-                      className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold rounded-xl text-xs cursor-pointer"
+                      className="flex-1 sm:flex-none px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold rounded-xl text-xs cursor-pointer text-center"
                     >
                       Withdraw ⚠️
                     </button>
@@ -403,7 +403,7 @@ export default function NegotiationModal({
                     type="button"
                     onClick={handleAccept}
                     disabled={submitting}
-                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs cursor-pointer shadow-sm flex items-center gap-1"
+                    className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs cursor-pointer shadow-sm flex items-center justify-center gap-1"
                   >
                     <span>🤝</span>
                     <span>Accept & Lock Agreement</span>

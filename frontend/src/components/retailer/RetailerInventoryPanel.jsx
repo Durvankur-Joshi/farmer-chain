@@ -106,9 +106,22 @@ export default function RetailerInventoryPanel() {
                     <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Paid</span>
                     <span className="font-extrabold text-emerald-700 mt-0.5 block">{lot.total_price} ETH</span>
                   </div>
+                  {lot.escrow && (
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Escrow ID</span>
+                      <span className="font-semibold text-slate-700 mt-0.5 block">#{lot.escrow}</span>
+                    </div>
+                  )}
+                  {lot.created_at && (
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Purchased</span>
+                      <span className="font-semibold text-slate-700 mt-0.5 block">{new Date(lot.created_at).toLocaleDateString()}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Single Farmer & Passport Breakdown for this lot */}
+                {lot.farmer_name && (
                 <div className="p-3 bg-purple-50/70 border border-purple-200/80 rounded-xl space-y-2 text-xs">
                   <div className="flex justify-between items-start">
                     <div>
@@ -141,6 +154,7 @@ export default function RetailerInventoryPanel() {
                     </div>
                   )}
                 </div>
+                )}
               </div>
             );
           })}

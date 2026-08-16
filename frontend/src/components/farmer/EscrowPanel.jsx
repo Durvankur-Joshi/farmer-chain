@@ -39,7 +39,7 @@ function EscrowProgressStepper({ status }) {
 
   return (
     <div className="py-2">
-      <div className="grid grid-cols-4 gap-1 sm:gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
         {ESCROW_STEPS.map((step, idx) => {
           const isDone = currentIdx > idx || currentIdx === 3;
           const isCurrent = currentIdx === idx && currentIdx !== 3;

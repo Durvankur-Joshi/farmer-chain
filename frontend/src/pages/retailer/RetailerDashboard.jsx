@@ -774,7 +774,7 @@ export default function RetailerDashboard() {
                 Fund verified on-chain escrow agreements via MetaMask and release payment once bulk delivery is confirmed
               </p>
             </div>
-            <RetailerEscrowPanel />
+            <RetailerEscrowPanel onPaymentReleased={() => setActiveTab("inventory")} />
           </div>
         )}
 
