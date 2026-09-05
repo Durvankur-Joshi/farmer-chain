@@ -5,7 +5,7 @@ import EscrowABI from "../../utils/EscrowABI.json";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
 
-const ESCROW_CONTRACT = import.meta.env.ESCROW_CONTRACT_ADDRESS;
+const ESCROW_CONTRACT = __ENV_ESCROW_CONTRACT_ADDRESS__;
 const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111
 
 const ESCROW_STEPS = [

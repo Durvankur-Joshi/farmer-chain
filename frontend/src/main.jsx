@@ -7,8 +7,18 @@ import axios from "axios";
 import Cookies from "js-cookie";
 
 // Configure axios base URL for production (Render backend) and local dev (Vite proxy)
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
-axios.defaults.baseURL = API_BASE_URL;
+// __ENV_API_BASE_URL__ is injected at build time by vite.config.js `define` option
+const API_BASE_URL = __ENV_API_BASE_URL__;
+
+if (import.meta.env.PROD && !API_BASE_URL) {
+  throw new Error(
+    "Backend API URL is not configured. Please set API_BASE_URL in the Vercel Production environment and redeploy."
+  );
+}
+
+console.log("FarmerChain API base URL:", API_BASE_URL);
+
+axios.defaults.baseURL = API_BASE_URL || "";
 
 // Configure axios to include credentials (cookies) and Authorization header for all requests
 axios.defaults.withCredentials = true;

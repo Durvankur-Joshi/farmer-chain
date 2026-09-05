@@ -5,7 +5,7 @@ import { ethers } from "ethers";
 import CropPassportABI from "../../utils/CropPassportABI.json";
 import StatusBadge from "../common/StatusBadge";
 
-const CONTRACT_ADDRESS = import.meta.env.CROP_PASSPORT_CONTRACT;
+const CONTRACT_ADDRESS = __ENV_CROP_PASSPORT_CONTRACT__;
 const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111 in hex
 
 export default function MintButton({ crop, onMintSuccess }) {

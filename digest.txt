@@ -8325,6 +8325,10 @@ import { BrowserRouter } from "react-router-dom";
 import axios from "axios";
 import Cookies from "js-cookie";
 
+// Configure axios base URL for production (Render backend) and local dev (Vite proxy)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+axios.defaults.baseURL = API_BASE_URL;
+
 // Configure axios to include credentials (cookies) and Authorization header for all requests
 axios.defaults.withCredentials = true;
 
@@ -10118,11 +10122,10 @@ export default function EscrowPanel() {
                       type="button"
                       onClick={() => createEscrow(quote)}
                       disabled={tx.loading}
-                      className={`px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
-                        tx.loading
+                      className={`px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${tx.loading
                           ? "bg-slate-400 cursor-not-allowed"
                           : "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20"
-                      }`}
+                        }`}
                     >
                       <span>🔐</span>
                       <span>{tx.loading ? "Initializing Escrow…" : "Create Smart Escrow"}</span>
@@ -10288,11 +10291,10 @@ export default function EscrowPanel() {
                       type="button"
                       onClick={() => confirmDelivery(escrow)}
                       disabled={deliveryTx.loading}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
-                        deliveryTx.loading
+                      className={`px-4 py-2 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${deliveryTx.loading
                           ? "bg-slate-400 cursor-not-allowed"
                           : "bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20"
-                      }`}
+                        }`}
                     >
                       <span>📦</span>
                       <span>{deliveryTx.loading ? "Confirming Delivery…" : "Confirm Delivery Handover"}</span>
@@ -10324,7 +10326,7 @@ export default function EscrowPanel() {
 ================================================
 FILE: frontend/src/components/farmer/MintButton.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 4091: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 4086: character maps to <undefined>
 
 
 ================================================
@@ -10713,11 +10715,10 @@ export default function FpoEscrowPanel() {
                       type="button"
                       onClick={() => fundEscrow(escrow)}
                       disabled={fundTx.loading}
-                      className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
-                        fundTx.loading
+                      className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${fundTx.loading
                           ? "bg-slate-400 cursor-not-allowed"
                           : "bg-blue-600 hover:bg-blue-500 shadow-blue-600/20"
-                      }`}
+                        }`}
                     >
                       <span>💰</span>
                       <span>{fundTx.loading ? "Depositing ETH…" : `Deposit ${escrow.amount_eth} ETH into Escrow`}</span>
@@ -10757,11 +10758,10 @@ export default function FpoEscrowPanel() {
                   type="button"
                   onClick={() => releasePayment(escrow)}
                   disabled={releaseTx.loading}
-                  className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
-                    releaseTx.loading
+                  className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${releaseTx.loading
                       ? "bg-slate-400 cursor-not-allowed"
                       : "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20"
-                  }`}
+                    }`}
                 >
                   <span>💸</span>
                   <span>{releaseTx.loading ? "Releasing Payment…" : "Release Payment to Farmer"}</span>
@@ -10962,7 +10962,7 @@ export default function FpoRetailerEscrowPanel() {
                 return id.toNumber ? id.toNumber() : parseInt(id.toString(), 10);
               }
             }
-          } catch {}
+          } catch { }
         }
       }
     }
