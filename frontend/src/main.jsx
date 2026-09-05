@@ -6,6 +6,10 @@ import { BrowserRouter } from "react-router-dom";
 import axios from "axios";
 import Cookies from "js-cookie";
 
+// Configure axios base URL for production (Render backend) and local dev (Vite proxy)
+const API_BASE_URL = import.meta.env.API_BASE_URL || "";
+axios.defaults.baseURL = API_BASE_URL;
+
 // Configure axios to include credentials (cookies) and Authorization header for all requests
 axios.defaults.withCredentials = true;
 

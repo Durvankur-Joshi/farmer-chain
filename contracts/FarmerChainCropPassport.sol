@@ -14,7 +14,7 @@ pragma solidity ^0.8.20;
 //      - Switch MetaMask to Sepolia
 //      - Click Deploy
 //   5. Copy the deployed contract address
-//   6. Put it in frontend/.env as VITE_CROP_PASSPORT_CONTRACT=0x...
+//   6. Put it in frontend/.env as CROP_PASSPORT_CONTRACT=0x...
 //
 // Authorization model:
 //   - Any wallet may call mintCropPassport() for itself.

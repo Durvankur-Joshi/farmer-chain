@@ -5,7 +5,7 @@ import { ethers } from "ethers";
 import CropPassportABI from "../../utils/CropPassportABI.json";
 import StatusBadge from "../common/StatusBadge";
 
-const CONTRACT_ADDRESS = import.meta.env.VITE_CROP_PASSPORT_CONTRACT;
+const CONTRACT_ADDRESS = import.meta.env.CROP_PASSPORT_CONTRACT;
 const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111 in hex
 
 export default function MintButton({ crop, onMintSuccess }) {
@@ -190,11 +190,10 @@ export default function MintButton({ crop, onMintSuccess }) {
         type="button"
         onClick={handleMint}
         disabled={minting || !isReadyToMint}
-        className={`text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-xs flex items-center gap-2 ${
-          isReadyToMint
+        className={`text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-xs flex items-center gap-2 ${isReadyToMint
             ? "bg-purple-600 hover:bg-purple-500 text-white cursor-pointer shadow-purple-900/20"
             : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
-        }`}
+          }`}
       >
         <span>{isReadyToMint ? "🪙" : "🔒"}</span>
         <span>{minting ? "Minting on Sepolia…" : isReadyToMint ? "Mint NFT Digital Twin" : "Minting Gated (Complete Checklist)"}</span>

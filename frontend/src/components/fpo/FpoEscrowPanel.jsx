@@ -5,7 +5,7 @@ import EscrowABI from "../../utils/EscrowABI.json";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
 
-const ESCROW_CONTRACT = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS;
+const ESCROW_CONTRACT = import.meta.env.ESCROW_CONTRACT_ADDRESS;
 const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111
 
 const ESCROW_STEPS = [
@@ -114,7 +114,7 @@ export default function FpoEscrowPanel() {
   };
 
   const getSignerAndContract = async () => {
-    if (!ESCROW_CONTRACT) throw new Error("Escrow contract address not configured. Please set VITE_ESCROW_CONTRACT_ADDRESS.");
+    if (!ESCROW_CONTRACT) throw new Error("Escrow contract address not configured. Please set ESCROW_CONTRACT_ADDRESS.");
     await ensureSepolia();
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     await provider.send("eth_requestAccounts", []);
@@ -351,11 +351,10 @@ export default function FpoEscrowPanel() {
                       type="button"
                       onClick={() => fundEscrow(escrow)}
                       disabled={fundTx.loading}
-                      className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
-                        fundTx.loading
+                      className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${fundTx.loading
                           ? "bg-slate-400 cursor-not-allowed"
                           : "bg-blue-600 hover:bg-blue-500 shadow-blue-600/20"
-                      }`}
+                        }`}
                     >
                       <span>💰</span>
                       <span>{fundTx.loading ? "Depositing ETH…" : `Deposit ${escrow.amount_eth} ETH into Escrow`}</span>
@@ -395,11 +394,10 @@ export default function FpoEscrowPanel() {
                   type="button"
                   onClick={() => releasePayment(escrow)}
                   disabled={releaseTx.loading}
-                  className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
-                    releaseTx.loading
+                  className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${releaseTx.loading
                       ? "bg-slate-400 cursor-not-allowed"
                       : "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20"
-                  }`}
+                    }`}
                 >
                   <span>💸</span>
                   <span>{releaseTx.loading ? "Releasing Payment…" : "Release Payment to Farmer"}</span>

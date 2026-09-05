@@ -3,6 +3,7 @@ Directory structure:
     ├── README.md
     ├── render.yaml
     ├── backend/
+    │   ├── build.sh
     │   ├── manage.py
     │   ├── requirements.txt
     │   ├── test.py
@@ -293,6 +294,17 @@ services:
 
 
 ================================================
+FILE: backend/build.sh
+================================================
+#!/usr/bin/env bash
+set -o errexit
+
+pip install -r requirements.txt
+python manage.py collectstatic --no-input
+python manage.py migrate
+
+
+================================================
 FILE: backend/manage.py
 ================================================
 #!/usr/bin/env python
@@ -323,14 +335,14 @@ if __name__ == '__main__':
 ================================================
 FILE: backend/requirements.txt
 ================================================
-Django==5.2.4
-djangorestframework==3.16.0
-djangorestframework-simplejwt==5.5.0
-django-cors-headers==4.7.0
-web3
-python-dotenv
-pillow
-requests
+Django>=5.0.0
+djangorestframework>=3.14.0
+djangorestframework-simplejwt>=5.3.0
+django-cors-headers>=4.3.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+whitenoise>=6.6.0
+gunicorn>=21.2.0
 
 
 ================================================
@@ -2452,38 +2464,73 @@ def retailer_escrow_released(request, escrow_pk):
     # â”€â”€ Move stock into RetailerInventoryLot with 100% Provenance â”€â”€â”€â”€â”€â”€â”€
     try:
         from retailer.models import RetailerInventoryLot
-        quote = escrow.quote
-        if quote and hasattr(quote, 'allocations'):
-            price = quote.price_per_unit or (escrow.amount_eth / quote.quantity if quote.quantity else Decimal('0'))
-            for alloc in quote.allocations.all():
-                # 1. Update FPO Inventory Lot
-                lot = alloc.inventory_lot
-                if lot:
-                    qty = alloc.allocated_quantity
-                    lot.reserved_quantity = max(Decimal('0'), (lot.reserved_quantity or Decimal('0')) - qty)
-                    lot.original_quantity = max(Decimal('0'), (lot.original_quantity or Decimal('0')) - qty)
-                    if lot.available_quantity <= 0 and lot.reserved_quantity <= 0:
-                        lot.status = 'depleted'
-                    lot.save()
+        import traceback
 
-                # 2. Create Retailer Inventory Lot
-                RetailerInventoryLot.objects.create(
-                    retailer=escrow.retailer,
-                    fpo=escrow.fpo,
-                    farmer=alloc.farmer,
-                    crop_passport=alloc.crop_passport,
-                    inventory_lot=alloc.inventory_lot,
-                    escrow=escrow,
-                    product_name=quote.product_name,
-                    crop_category=quote.category,
-                    quantity=alloc.allocated_quantity,
-                    unit=quote.unit,
-                    purchase_price_per_unit=price,
-                    total_price=alloc.allocated_quantity * price,
-                    status='in_stock',
+        # Prevent duplicate inventory creation on repeated calls
+        existing_lots = RetailerInventoryLot.objects.filter(escrow=escrow).count()
+        if existing_lots > 0:
+            logger.info('RetailerInventoryLot already exists for escrow #%d, skipping creation.', escrow.pk)
+        else:
+            quote = escrow.quote
+            if quote and hasattr(quote, 'allocations'):
+                price = quote.price_per_unit or (
+                    escrow.amount_eth / quote.quantity if quote.quantity else Decimal('0')
                 )
+                allocations = list(quote.allocations.select_related(
+                    'inventory_lot', 'farmer', 'crop_passport'
+                ).all())
+
+                if allocations:
+                    for alloc in allocations:
+                        # 1. Update FPO Inventory Lot â€” reduce available_quantity only
+                        #    (original_quantity is the historical record and must stay > 0)
+                        lot = alloc.inventory_lot
+                        if lot:
+                            qty = alloc.allocated_quantity
+                            lot.available_quantity = max(
+                                Decimal('0'),
+                                (lot.available_quantity or Decimal('0')) - qty
+                            )
+                            lot.reserved_quantity = max(
+                                Decimal('0'),
+                                (lot.reserved_quantity or Decimal('0')) - qty
+                            )
+                            # Status auto-updates via save() method
+                            lot.save()
+
+                        # 2. Create Retailer Inventory Lot
+                        RetailerInventoryLot.objects.create(
+                            retailer=escrow.retailer,
+                            fpo=escrow.fpo,
+                            farmer=alloc.farmer,
+                            crop_passport=alloc.crop_passport,
+                            inventory_lot=alloc.inventory_lot,
+                            escrow=escrow,
+                            product_name=quote.product_name,
+                            crop_category=quote.category,
+                            quantity=alloc.allocated_quantity,
+                            unit=quote.unit,
+                            purchase_price_per_unit=price,
+                            total_price=alloc.allocated_quantity * price,
+                            status='in_stock',
+                        )
+                    logger.info(
+                        'Created %d RetailerInventoryLot(s) for escrow #%d from allocations.',
+                        len(allocations), escrow.pk,
+                    )
+                else:
+                    # Fallback: quote has no allocations â€” this shouldn't happen in
+                    # normal flow but log a warning for investigation
+                    logger.warning(
+                        'Escrow #%d released but quote #%d has no FPOQuoteAllocations. '
+                        'RetailerInventoryLot not created â€” provenance data missing.',
+                        escrow.pk, quote.pk,
+                    )
     except Exception as exc:
-        logger.error("Error creating RetailerInventoryLot for escrow #%d: %s", escrow.pk, exc)
+        logger.error(
+            "Error creating RetailerInventoryLot for escrow #%d: %s\n%s",
+            escrow.pk, exc, traceback.format_exc(),
+        )
 
     logger.info('Retailer escrow payment released: escrow=%d, tx=%s', escrow.pk, tx_hash)
 
@@ -3468,12 +3515,22 @@ load_dotenv(BASE_DIR / ".env")
 
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-dpnys$4w$)hz7(e*v+21#4itdn)@p0qjn$3=#akf%kj4)$dp89'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-dpnys$4w$)hz7(e*v+21#4itdn)@p0qjn$3=#akf%kj4)$dp89')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True # <-- CHANGED: Enabled for development and integration
+DEBUG = os.environ.get("DEBUG", "False") == "True"
 
-ALLOWED_HOSTS = ["*"]   # For development, allow all. Change for production.
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"]
+render_hostname = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+if render_hostname:
+    ALLOWED_HOSTS.append(render_hostname)
+
+env_allowed_hosts = os.environ.get("ALLOWED_HOSTS")
+if env_allowed_hosts:
+    for host in env_allowed_hosts.split(","):
+        clean_host = host.strip().replace("https://", "").replace("http://", "").rstrip("/")
+        if clean_host and clean_host not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(clean_host)
 
 # Application definition
 INSTALLED_APPS = [
@@ -3503,8 +3560,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    "corsheaders.middleware.CorsMiddleware",   # helps in prod
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -3561,6 +3619,7 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / "static"]   # for React build files
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / "media"
@@ -3585,12 +3644,21 @@ SIMPLE_JWT = {
 
 
 # CORS (React frontend)
-CORS_ALLOW_ALL_ORIGINS = True
-# Or restrict like:
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:3000",
-#     "http://127.0.0.1:3000",
-# ]
+CORS_ALLOW_ALL_ORIGINS = os.environ.get("CORS_ALLOW_ALL_ORIGINS", "False") == "True"
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://farmer-chain-brown.vercel.app",
+]
+
+frontend_url = os.environ.get("FRONTEND_URL")
+if frontend_url:
+    clean_url = frontend_url.strip().rstrip("/")
+    if clean_url and clean_url not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(clean_url)
 
 
 # Default primary key field type
@@ -7474,7 +7542,7 @@ pragma solidity ^0.8.20;
 //      - Switch MetaMask to Sepolia
 //      - Click Deploy
 //   5. Copy the deployed contract address
-//   6. Put it in frontend/.env as VITE_CROP_PASSPORT_CONTRACT=0x...
+//   6. Put it in frontend/.env as CROP_PASSPORT_CONTRACT=0x...
 //
 // Authorization model:
 //   - Any wallet may call mintCropPassport() for itself.
@@ -7555,7 +7623,7 @@ pragma solidity ^0.8.20;
 //      - Switch MetaMask to Sepolia
 //      - Click Deploy
 //   5. Copy the deployed contract address
-//   6. Put it in frontend/.env as VITE_ESCROW_CONTRACT_ADDRESS=0x...
+//   6. Put it in frontend/.env as ESCROW_CONTRACT_ADDRESS=0x...
 //      and in backend/.env as ESCROW_CONTRACT_ADDRESS=0x...
 //
 // Authorization:
@@ -8027,20 +8095,20 @@ export default defineConfig({
 ================================================
 FILE: frontend/.env_sample
 ================================================
-VITE_API_BASE_URL=
+API_BASE_URL=
 
-VITE_FACTORY_CONTRACT=
+FACTORY_CONTRACT=
 
-VITE_CHAIN_ID=
+CHAIN_ID=
 
-VITE_NETWORK=
+NETWORK=
 
 # Phase 2.2 â€” NFT Crop Passport contract deployed on Sepolia
-VITE_CROP_PASSPORT_CONTRACT=
+CROP_PASSPORT_CONTRACT=
 
 # Phase 2.5 â€” Escrow contract deployed on Sepolia via Remix
 # Deploy contracts/FarmerChainEscrow.sol, then paste the address here
-VITE_ESCROW_CONTRACT_ADDRESS=
+ESCROW_CONTRACT_ADDRESS=
 
 
 
@@ -8132,7 +8200,9 @@ FILE: frontend/src/index.css
 @import "tailwindcss";
 
 @layer base {
-  body {
+  html, body {
+    max-width: 100%;
+    overflow-x: hidden;
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     color: #0f172a;
     background-color: #f8fafc;
@@ -8142,6 +8212,7 @@ FILE: frontend/src/index.css
 
   code, pre, .font-mono {
     font-family: 'JetBrains Mono', monospace;
+    word-break: break-word;
   }
 }
 
@@ -8470,7 +8541,7 @@ Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8d in posi
 ================================================
 FILE: frontend/src/components/common/NegotiationModal.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 7468: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 7506: character maps to <undefined>
 
 
 ================================================
@@ -8525,14 +8596,14 @@ export default function ProvenanceCard({ allocations = [], provenanceSummary, fp
               key={alloc.id || idx}
               className="bg-white p-2.5 rounded-xl border border-purple-100 shadow-2xs space-y-1.5 hover:border-purple-300 transition-all"
             >
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="font-extrabold text-slate-900 text-xs">👨‍🌾 {farmerName}</p>
+              <div className="flex justify-between items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="font-extrabold text-slate-900 text-xs truncate">👨‍🌾 {farmerName}</p>
                   {farmerLocation && (
-                    <p className="text-[10px] text-slate-500 font-medium">📍 {farmerLocation}</p>
+                    <p className="text-[10px] text-slate-500 font-medium truncate">📍 {farmerLocation}</p>
                   )}
                 </div>
-                <span className="font-mono font-extrabold text-purple-900 bg-purple-50 px-2 py-0.5 rounded-lg text-xs">
+                <span className="font-mono font-extrabold text-purple-900 bg-purple-50 px-2 py-0.5 rounded-lg text-xs shrink-0">
                   {qty} {unit}
                 </span>
               </div>
@@ -9591,7 +9662,7 @@ import EscrowABI from "../../utils/EscrowABI.json";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
 
-const ESCROW_CONTRACT = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS;
+const ESCROW_CONTRACT = import.meta.env.ESCROW_CONTRACT_ADDRESS;
 const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111
 
 const ESCROW_STEPS = [
@@ -9625,7 +9696,7 @@ function EscrowProgressStepper({ status }) {
 
   return (
     <div className="py-2">
-      <div className="grid grid-cols-4 gap-1 sm:gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
         {ESCROW_STEPS.map((step, idx) => {
           const isDone = currentIdx > idx || currentIdx === 3;
           const isCurrent = currentIdx === idx && currentIdx !== 3;
@@ -9716,7 +9787,7 @@ export default function EscrowPanel() {
   };
 
   const getContract = async () => {
-    if (!ESCROW_CONTRACT) throw new Error("Escrow contract address is not configured. Please set VITE_ESCROW_CONTRACT_ADDRESS.");
+    if (!ESCROW_CONTRACT) throw new Error("Escrow contract address is not configured. Please set ESCROW_CONTRACT_ADDRESS.");
     await ensureSepolia();
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     await provider.send("eth_requestAccounts", []);
@@ -10296,7 +10367,7 @@ import EscrowABI from "../../utils/EscrowABI.json";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
 
-const ESCROW_CONTRACT = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS;
+const ESCROW_CONTRACT = import.meta.env.ESCROW_CONTRACT_ADDRESS;
 const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111
 
 const ESCROW_STEPS = [
@@ -10330,7 +10401,7 @@ function FpoEscrowProgressStepper({ status }) {
 
   return (
     <div className="py-2">
-      <div className="grid grid-cols-4 gap-1 sm:gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
         {ESCROW_STEPS.map((step, idx) => {
           const isDone = currentIdx > idx || currentIdx === 3;
           const isCurrent = currentIdx === idx && currentIdx !== 3;
@@ -10405,7 +10476,7 @@ export default function FpoEscrowPanel() {
   };
 
   const getSignerAndContract = async () => {
-    if (!ESCROW_CONTRACT) throw new Error("Escrow contract address not configured. Please set VITE_ESCROW_CONTRACT_ADDRESS.");
+    if (!ESCROW_CONTRACT) throw new Error("Escrow contract address not configured. Please set ESCROW_CONTRACT_ADDRESS.");
     await ensureSepolia();
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     await provider.send("eth_requestAccounts", []);
@@ -10733,7 +10804,7 @@ import EscrowABI from "../../utils/EscrowABI.json";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
 
-const ESCROW_CONTRACT = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS;
+const ESCROW_CONTRACT = import.meta.env.ESCROW_CONTRACT_ADDRESS;
 const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111
 
 const ESCROW_STEPS = [
@@ -10767,7 +10838,7 @@ function RetailerEscrowProgressStepper({ status }) {
 
   return (
     <div className="py-2">
-      <div className="grid grid-cols-4 gap-1 sm:gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
         {ESCROW_STEPS.map((step, idx) => {
           const isDone = currentIdx > idx || currentIdx === 3;
           const isCurrent = currentIdx === idx && currentIdx !== 3;
@@ -11243,7 +11314,7 @@ import EscrowABI from "../../utils/EscrowABI.json";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
 
-const ESCROW_CONTRACT = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS;
+const ESCROW_CONTRACT = import.meta.env.ESCROW_CONTRACT_ADDRESS;
 const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111
 
 const ESCROW_STEPS = [
@@ -11277,7 +11348,7 @@ function RetailerEscrowProgressStepper({ status }) {
 
   return (
     <div className="py-2">
-      <div className="grid grid-cols-4 gap-1 sm:gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
         {ESCROW_STEPS.map((step, idx) => {
           const isDone = currentIdx > idx || currentIdx === 3;
           const isCurrent = currentIdx === idx && currentIdx !== 3;
@@ -11314,7 +11385,7 @@ function RetailerEscrowProgressStepper({ status }) {
   );
 }
 
-export default function RetailerEscrowPanel() {
+export default function RetailerEscrowPanel({ onPaymentReleased }) {
   const [escrows, setEscrows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [txStatus, setTxStatus] = useState({});
@@ -11418,8 +11489,9 @@ export default function RetailerEscrowPanel() {
         { withCredentials: true }
       );
 
-      setTx(key, { loading: false, error: null, success: "✅ Payment released to FPO successfully on Sepolia!" });
+      setTx(key, { loading: false, error: null, success: "✅ Payment released to FPO! Your purchased crop has been added to your Inventory." });
       fetchEscrows();
+      if (onPaymentReleased) onPaymentReleased();
     } catch (err) {
       console.error("Release payment error:", err);
       const msg = err.response?.data?.error || err.message || "Failed to release payment.";

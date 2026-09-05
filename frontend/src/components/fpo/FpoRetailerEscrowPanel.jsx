@@ -5,7 +5,7 @@ import EscrowABI from "../../utils/EscrowABI.json";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
 
-const ESCROW_CONTRACT = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS;
+const ESCROW_CONTRACT = import.meta.env.ESCROW_CONTRACT_ADDRESS;
 const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111
 
 const ESCROW_STEPS = [
@@ -163,7 +163,7 @@ export default function FpoRetailerEscrowPanel() {
                 return id.toNumber ? id.toNumber() : parseInt(id.toString(), 10);
               }
             }
-          } catch {}
+          } catch { }
         }
       }
     }

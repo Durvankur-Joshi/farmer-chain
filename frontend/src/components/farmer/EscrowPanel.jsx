@@ -5,7 +5,7 @@ import EscrowABI from "../../utils/EscrowABI.json";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
 
-const ESCROW_CONTRACT = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS;
+const ESCROW_CONTRACT = import.meta.env.ESCROW_CONTRACT_ADDRESS;
 const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111
 
 const ESCROW_STEPS = [
@@ -130,7 +130,7 @@ export default function EscrowPanel() {
   };
 
   const getContract = async () => {
-    if (!ESCROW_CONTRACT) throw new Error("Escrow contract address is not configured. Please set VITE_ESCROW_CONTRACT_ADDRESS.");
+    if (!ESCROW_CONTRACT) throw new Error("Escrow contract address is not configured. Please set ESCROW_CONTRACT_ADDRESS.");
     await ensureSepolia();
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     await provider.send("eth_requestAccounts", []);
@@ -461,11 +461,10 @@ export default function EscrowPanel() {
                       type="button"
                       onClick={() => createEscrow(quote)}
                       disabled={tx.loading}
-                      className={`px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
-                        tx.loading
+                      className={`px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${tx.loading
                           ? "bg-slate-400 cursor-not-allowed"
                           : "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20"
-                      }`}
+                        }`}
                     >
                       <span>🔐</span>
                       <span>{tx.loading ? "Initializing Escrow…" : "Create Smart Escrow"}</span>
@@ -631,11 +630,10 @@ export default function EscrowPanel() {
                       type="button"
                       onClick={() => confirmDelivery(escrow)}
                       disabled={deliveryTx.loading}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
-                        deliveryTx.loading
+                      className={`px-4 py-2 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${deliveryTx.loading
                           ? "bg-slate-400 cursor-not-allowed"
                           : "bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20"
-                      }`}
+                        }`}
                     >
                       <span>📦</span>
                       <span>{deliveryTx.loading ? "Confirming Delivery…" : "Confirm Delivery Handover"}</span>
