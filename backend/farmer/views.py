@@ -34,7 +34,7 @@ class FarmerRegistrationView(generics.CreateAPIView):
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(
-            {"message": "Registration successful. Please wait for admin approval.", "data": serializer.data},
+            {"message": "Registration successful.", "data": serializer.data},
             status=status.HTTP_201_CREATED,
             headers=headers
         )

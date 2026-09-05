@@ -35,10 +35,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         if role == "farmer":
             try:
                 user = Farmer.objects.get(email=user_identifier)
-                if user.approval_status == 'pending':
-                    raise serializers.ValidationError("Account pending admin approval.")
-                elif user.approval_status == 'rejected':
-                    raise serializers.ValidationError("Account rejected by admin.")
                 user_data = {
                     'id': user.id,
                     'username': user.email,
@@ -50,10 +46,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         elif role == "fpo":
             try:
                 user = FPO.objects.get(email=user_identifier)
-                if user.approval_status == 'pending':
-                    raise serializers.ValidationError("Account pending admin approval.")
-                elif user.approval_status == 'rejected':
-                    raise serializers.ValidationError("Account rejected by admin.")
                 user_data = {
                     'id': user.id,
                     'username': user.email,
@@ -65,10 +57,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         elif role == "retailer":
             try:
                 user = Retailer.objects.get(email=user_identifier)
-                if user.approval_status == 'pending':
-                    raise serializers.ValidationError("Account pending admin approval.")
-                elif user.approval_status == 'rejected':
-                    raise serializers.ValidationError("Account rejected by admin.")
                 user_data = {
                     'id': user.id,
                     'username': user.email,

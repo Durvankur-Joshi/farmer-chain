@@ -4,33 +4,18 @@ from rest_framework.permissions import BasePermission
 class IsFarmer(BasePermission):
     def has_permission(self, request, view):
         user = request.user
-        if not (user and getattr(user, "role", None) == "farmer"):
-            return False
-        
-        # Check approval status on the attached user object, avoiding a DB query
-        farmer = getattr(user, "user_obj", None)
-        return farmer and farmer.approval_status == 'approved'
+        return bool(user and getattr(user, "role", None) == "farmer")
 
 class IsFPO(BasePermission):
     def has_permission(self, request, view):
         user = request.user
-        if not (user and getattr(user, "role", None) == "fpo"):
-            return False
-        
-        # Check approval status on the attached user object
-        fpo = getattr(user, "user_obj", None)
-        return fpo and fpo.approval_status == 'approved'
+        return bool(user and getattr(user, "role", None) == "fpo")
 
 class IsRetailer(BasePermission):
     def has_permission(self, request, view):
         user = request.user
-        if not (user and getattr(user, "role", None) == "retailer"):
-            return False
-        
-        # Check approval status on the attached user object
-        retailer = getattr(user, "user_obj", None)
-        return retailer and retailer.approval_status == 'approved'
+        return bool(user and getattr(user, "role", None) == "retailer")
 
 class IsAdminApp(BasePermission):
     def has_permission(self, request, view):
-        return request.user and getattr(request.user, "role", None) == "admin"
+        return bool(request.user and getattr(request.user, "role", None) == "admin")

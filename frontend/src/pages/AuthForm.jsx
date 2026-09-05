@@ -116,7 +116,7 @@ export default function AuthForm() {
       } else if (err.response?.data?.non_field_errors) {
         msg = err.response.data.non_field_errors[0];
       } else {
-        msg = isLogin ? "Invalid email, password, or unapproved account." : "Registration failed. Check details and wallet uniqueness.";
+        msg = isLogin ? "Invalid email or password." : "Registration failed. Check details and wallet uniqueness.";
       }
       setErrorMsg(msg);
     } finally {
@@ -156,18 +156,18 @@ export default function AuthForm() {
 
       {/* Main Content */}
       <main className="flex-1 flex items-center justify-center p-4 z-10">
-        {/* Pending Approval Modal */}
+        {/* Registration Success Modal */}
         {pendingApproval && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
             <div className="bg-slate-800 border border-slate-700 max-w-md w-full rounded-2xl p-6 text-center shadow-2xl">
-              <div className="w-14 h-14 mx-auto rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-2xl mb-4">
-                ⏳
+              <div className="w-14 h-14 mx-auto rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-2xl mb-4">
+                ✅
               </div>
               <h3 className="text-lg font-bold text-white mb-2">
-                Registration Submitted!
+                Registration Successful!
               </h3>
               <p className="text-sm text-slate-300 mb-6 leading-relaxed">
-                Your account is currently <span className="text-amber-400 font-semibold">Pending Admin Approval</span>. Once approved by the administrator, your DID will be active and you will be able to log in.
+                Your account has been created successfully. You can now proceed to log in to access your dashboard.
               </p>
               <button
                 type="button"
