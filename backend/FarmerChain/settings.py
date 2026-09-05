@@ -60,8 +60,8 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -159,6 +159,34 @@ if frontend_url:
     if clean_url and clean_url not in CORS_ALLOWED_ORIGINS:
         CORS_ALLOWED_ORIGINS.append(clean_url)
 
+# Required for cross-origin requests with credentials (withCredentials: true)
+CORS_ALLOW_CREDENTIALS = True
+
+
+# CSRF trusted origins (required for cookie-based auth from cross-origin frontend)
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://farmer-chain-brown.vercel.app",
+]
+
+if frontend_url:
+    clean_url = frontend_url.strip().rstrip("/")
+    if clean_url and clean_url not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(clean_url)
+
+
+# Cross-site cookie settings for production (Vercel frontend ↔ Render backend)
+# SameSite=None + Secure=True is required for cross-origin credentialed requests.
+# In development (DEBUG=True), use 'Lax' for normal localhost behavior.
+if not DEBUG:
+    SESSION_COOKIE_SAMESITE = "None"
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SAMESITE = "None"
+    CSRF_COOKIE_SECURE = True
+
 
 # Default primary key field type
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

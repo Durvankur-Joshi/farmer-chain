@@ -162,13 +162,18 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
         response = Response(response_data)
 
+        # Cross-site cookies require SameSite=None + Secure in production
+        # (Vercel frontend and Render backend are different domains)
+        cookie_samesite = 'Lax' if settings.DEBUG else 'None'
+        cookie_secure = not settings.DEBUG
+
         # 🔹 Set tokens in cookies
         response.set_cookie(
             key='access_token',
             value=token_data['access'],
             httponly=True,
-            secure=not settings.DEBUG,
-            samesite='Lax',
+            secure=cookie_secure,
+            samesite=cookie_samesite,
             max_age=60 * 30
         )
         
@@ -176,8 +181,8 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             key='refresh_token',
             value=token_data['refresh'],
             httponly=True,
-            secure=not settings.DEBUG,
-            samesite='Lax',
+            secure=cookie_secure,
+            samesite=cookie_samesite,
             max_age=60 * 60 * 24
         )
 
@@ -186,9 +191,10 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             key='role',
             value=token_data['role'],
             httponly=False,  # must be readable in JS for ProtectedRoute
-            secure=not settings.DEBUG,
-            samesite='Lax',
+            secure=cookie_secure,
+            samesite=cookie_samesite,
             max_age=60 * 60 * 24
         )
 
         return response
+
