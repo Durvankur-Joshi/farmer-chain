@@ -14,10 +14,8 @@ env/
 *.pot
 *.pyc
 
-# Ignore all migration files across apps (optional)
-# Comment this out if you want to track migrations
-*/migrations/
-!*/migrations/__init__.py
+
+
 
 # Media and static files
 /media/

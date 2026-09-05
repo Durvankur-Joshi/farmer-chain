@@ -3561,8 +3561,8 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -3660,9 +3660,38 @@ if frontend_url:
     if clean_url and clean_url not in CORS_ALLOWED_ORIGINS:
         CORS_ALLOWED_ORIGINS.append(clean_url)
 
+# Required for cross-origin requests with credentials (withCredentials: true)
+CORS_ALLOW_CREDENTIALS = True
+
+
+# CSRF trusted origins (required for cookie-based auth from cross-origin frontend)
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://farmer-chain-brown.vercel.app",
+]
+
+if frontend_url:
+    clean_url = frontend_url.strip().rstrip("/")
+    if clean_url and clean_url not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(clean_url)
+
+
+# Cross-site cookie settings for production (Vercel frontend â†” Render backend)
+# SameSite=None + Secure=True is required for cross-origin credentialed requests.
+# In development (DEBUG=True), use 'Lax' for normal localhost behavior.
+if not DEBUG:
+    SESSION_COOKIE_SAMESITE = "None"
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SAMESITE = "None"
+    CSRF_COOKIE_SECURE = True
+
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
 
 
 ================================================
@@ -7349,13 +7378,18 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
         response = Response(response_data)
 
+        # Cross-site cookies require SameSite=None + Secure in production
+        # (Vercel frontend and Render backend are different domains)
+        cookie_samesite = 'Lax' if settings.DEBUG else 'None'
+        cookie_secure = not settings.DEBUG
+
         # ðŸ”¹ Set tokens in cookies
         response.set_cookie(
             key='access_token',
             value=token_data['access'],
             httponly=True,
-            secure=not settings.DEBUG,
-            samesite='Lax',
+            secure=cookie_secure,
+            samesite=cookie_samesite,
             max_age=60 * 30
         )
         
@@ -7363,8 +7397,8 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             key='refresh_token',
             value=token_data['refresh'],
             httponly=True,
-            secure=not settings.DEBUG,
-            samesite='Lax',
+            secure=cookie_secure,
+            samesite=cookie_samesite,
             max_age=60 * 60 * 24
         )
 
@@ -7373,12 +7407,13 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             key='role',
             value=token_data['role'],
             httponly=False,  # must be readable in JS for ProtectedRoute
-            secure=not settings.DEBUG,
-            samesite='Lax',
+            secure=cookie_secure,
+            samesite=cookie_samesite,
             max_age=60 * 60 * 24
         )
 
         return response
+
 
 
 
@@ -7491,14 +7526,18 @@ class CookieTokenRefreshView(APIView):
             access_token = str(refresh.access_token)
             
             response = Response({"message": "Token refreshed successfully"})
+
+            # Cross-site cookies require SameSite=None + Secure in production
+            cookie_samesite = 'Lax' if settings.DEBUG else 'None'
+            cookie_secure = not settings.DEBUG
             
             # Set new access token cookie
             response.set_cookie(
                 key='access_token',
                 value=access_token,
                 httponly=True,
-                secure=not settings.DEBUG,
-                samesite='Lax',
+                secure=cookie_secure,
+                samesite=cookie_samesite,
                 max_age=60 * 30  # 30 minutes
             )
             
@@ -7514,12 +7553,16 @@ class CookieTokenRefreshView(APIView):
 class LogoutView(APIView):
     def post(self, request):
         response = Response({"message": "Logged out successfully"})
+
+        # SameSite must match the value used when setting the cookie
+        cookie_samesite = 'Lax' if settings.DEBUG else 'None'
         
         # Clear cookies with path and samesite
-        response.delete_cookie('access_token', path='/', samesite='Lax')
-        response.delete_cookie('refresh_token', path='/', samesite='Lax')
+        response.delete_cookie('access_token', path='/', samesite=cookie_samesite)
+        response.delete_cookie('refresh_token', path='/', samesite=cookie_samesite)
         
         return response
+
 
 
 
@@ -8072,22 +8115,39 @@ FILE: frontend/vercel.json
 ================================================
 FILE: frontend/vite.config.js
 ================================================
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
+export default defineConfig(({ mode }) => {
+  // Load .env files for the current mode (reads .env, .env.local, etc.)
+  // The third argument '' means load ALL env vars, not just VITE_-prefixed ones.
+  const env = loadEnv(mode, process.cwd(), '')
 
-  server: {
-    proxy: {
-        "/api": {
-            target: "http://127.0.0.1:8000",
-            changeOrigin: true,
-        },
+  return {
+    plugins: [react(), tailwindcss()],
+
+    // Inject non-VITE_ environment variables into the browser bundle at build time.
+    // Only public configuration values â€” no secrets.
+    define: {
+      '__ENV_API_BASE_URL__': JSON.stringify(env.API_BASE_URL || ''),
+      '__ENV_FACTORY_CONTRACT__': JSON.stringify(env.FACTORY_CONTRACT || ''),
+      '__ENV_CHAIN_ID__': JSON.stringify(env.CHAIN_ID || ''),
+      '__ENV_NETWORK__': JSON.stringify(env.NETWORK || ''),
+      '__ENV_CROP_PASSPORT_CONTRACT__': JSON.stringify(env.CROP_PASSPORT_CONTRACT || ''),
+      '__ENV_ESCROW_CONTRACT_ADDRESS__': JSON.stringify(env.ESCROW_CONTRACT_ADDRESS || ''),
     },
-  },
+
+    server: {
+      proxy: {
+        "/api": {
+          target: "http://127.0.0.1:8000",
+          changeOrigin: true,
+        },
+      },
+    },
+  }
 })
 
 
@@ -8326,8 +8386,18 @@ import axios from "axios";
 import Cookies from "js-cookie";
 
 // Configure axios base URL for production (Render backend) and local dev (Vite proxy)
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
-axios.defaults.baseURL = API_BASE_URL;
+// __ENV_API_BASE_URL__ is injected at build time by vite.config.js `define` option
+const API_BASE_URL = __ENV_API_BASE_URL__;
+
+if (import.meta.env.PROD && !API_BASE_URL) {
+  throw new Error(
+    "Backend API URL is not configured. Please set API_BASE_URL in the Vercel Production environment and redeploy."
+  );
+}
+
+console.log("FarmerChain API base URL:", API_BASE_URL);
+
+axios.defaults.baseURL = API_BASE_URL || "";
 
 // Configure axios to include credentials (cookies) and Authorization header for all requests
 axios.defaults.withCredentials = true;
@@ -9666,7 +9736,7 @@ import EscrowABI from "../../utils/EscrowABI.json";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
 
-const ESCROW_CONTRACT = import.meta.env.ESCROW_CONTRACT_ADDRESS;
+const ESCROW_CONTRACT = __ENV_ESCROW_CONTRACT_ADDRESS__;
 const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111
 
 const ESCROW_STEPS = [
@@ -10326,7 +10396,7 @@ export default function EscrowPanel() {
 ================================================
 FILE: frontend/src/components/farmer/MintButton.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 4086: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 4078: character maps to <undefined>
 
 
 ================================================
@@ -10369,7 +10439,7 @@ import EscrowABI from "../../utils/EscrowABI.json";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
 
-const ESCROW_CONTRACT = import.meta.env.ESCROW_CONTRACT_ADDRESS;
+const ESCROW_CONTRACT = __ENV_ESCROW_CONTRACT_ADDRESS__;
 const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111
 
 const ESCROW_STEPS = [
@@ -10804,7 +10874,7 @@ import EscrowABI from "../../utils/EscrowABI.json";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
 
-const ESCROW_CONTRACT = import.meta.env.ESCROW_CONTRACT_ADDRESS;
+const ESCROW_CONTRACT = __ENV_ESCROW_CONTRACT_ADDRESS__;
 const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111
 
 const ESCROW_STEPS = [
@@ -11314,7 +11384,7 @@ import EscrowABI from "../../utils/EscrowABI.json";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
 
-const ESCROW_CONTRACT = import.meta.env.ESCROW_CONTRACT_ADDRESS;
+const ESCROW_CONTRACT = __ENV_ESCROW_CONTRACT_ADDRESS__;
 const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111
 
 const ESCROW_STEPS = [
