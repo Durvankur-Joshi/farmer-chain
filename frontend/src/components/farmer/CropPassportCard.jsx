@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from "react";
 import axios from "axios";
 import { QRCodeCanvas } from "qrcode.react";
+import { useRefresh } from "../../context/useRefresh";
 import MintButton from "./MintButton";
 import DocumentUploader from "./DocumentUploader";
 import DocumentList from "./DocumentList";
@@ -8,7 +9,8 @@ import AIVerification from "./AIVerification";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
 
-export default function CropPassportCard({ crop, onMintSuccess, onDeleteSuccess }) {
+export default function CropPassportCard({ crop, onMintSuccess, onDeleteSuccess, onPassportUpdated }) {
+  const { refresh } = useRefresh();
   const isMinted = crop.status === "minted";
 
   const [showUploader, setShowUploader] = useState(false);
@@ -36,6 +38,8 @@ export default function CropPassportCard({ crop, onMintSuccess, onDeleteSuccess 
   const handleUploadSuccess = () => {
     setShowUploader(false);
     setDocRefresh((n) => n + 1);
+    if (onPassportUpdated) onPassportUpdated();
+    refresh(["farmer", "provenance"]);
   };
 
   const handleDelete = async () => {
@@ -48,6 +52,7 @@ export default function CropPassportCard({ crop, onMintSuccess, onDeleteSuccess 
       });
       setShowDeleteModal(false);
       onDeleteSuccess && onDeleteSuccess();
+      refresh(["farmer", "quotes", "inventory", "deals"]);
     } catch (err) {
       console.error("Error deleting crop passport:", err.response?.data || err);
       const msg =
@@ -60,23 +65,19 @@ export default function CropPassportCard({ crop, onMintSuccess, onDeleteSuccess 
     }
   };
 
-  // Determine trust milestones based on actual existing data
-  const hasDocuments = crop.documents && crop.documents.length > 0;
-  const hasAI = !!crop.ai_verification;
-
   return (
     <div
-      className={`rounded-3xl border transition-all p-5 sm:p-6 mb-5 shadow-xs bg-white space-y-5 ${
+      className={`rounded-2xl border transition-all p-4 sm:p-5 mb-4 shadow-2xs bg-white space-y-4 ${
         isMinted
           ? "border-purple-200/90 hover:border-purple-300 shadow-purple-500/5"
           : "border-slate-200/90 hover:border-slate-300"
       }`}
     >
       {/* ── Top Header ────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-4 border-b border-slate-100">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-3.5 border-b border-slate-100">
         <div className="space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-lg font-extrabold text-slate-900">
+            <span className="text-base sm:text-lg font-extrabold text-slate-900">
               🌾 {crop.crop_name}
             </span>
             <span className="text-xs font-semibold px-2.5 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
@@ -91,7 +92,7 @@ export default function CropPassportCard({ crop, onMintSuccess, onDeleteSuccess 
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
           <StatusBadge status={crop.status} />
           <button
             type="button"
@@ -107,13 +108,11 @@ export default function CropPassportCard({ crop, onMintSuccess, onDeleteSuccess 
         </div>
       </div>
 
-
-
       {/* ── Crop Details 4-Column Grid ─────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
-        <div className="bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+        <div className="bg-slate-50/80 p-2.5 sm:p-3 rounded-xl border border-slate-100 min-w-0">
           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Available / Total Qty</span>
-          <span className={`font-extrabold font-mono mt-0.5 block ${
+          <span className={`font-extrabold font-mono mt-0.5 block truncate ${
             crop.status === "sold" || (crop.available_quantity !== undefined && parseFloat(crop.available_quantity) <= 0)
               ? "text-emerald-700"
               : "text-slate-900"
@@ -121,17 +120,17 @@ export default function CropPassportCard({ crop, onMintSuccess, onDeleteSuccess 
             {crop.available_quantity !== undefined ? crop.available_quantity : crop.quantity} / {crop.quantity} {crop.unit}
           </span>
         </div>
-        <div className="bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
+        <div className="bg-slate-50/80 p-2.5 sm:p-3 rounded-xl border border-slate-100 min-w-0">
           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Farm Location</span>
           <span className="font-semibold text-slate-800 mt-0.5 block truncate">{crop.location || "Maharashtra"}</span>
         </div>
-        <div className="bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
+        <div className="bg-slate-50/80 p-2.5 sm:p-3 rounded-xl border border-slate-100 min-w-0">
           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Cultivation Date</span>
-          <span className="font-medium text-slate-700 mt-0.5 block">{crop.cultivation_date}</span>
+          <span className="font-medium text-slate-700 mt-0.5 block truncate">{crop.cultivation_date}</span>
         </div>
-        <div className="bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
+        <div className="bg-slate-50/80 p-2.5 sm:p-3 rounded-xl border border-slate-100 min-w-0">
           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Harvest Date</span>
-          <span className="font-medium text-slate-700 mt-0.5 block">{crop.harvest_date}</span>
+          <span className="font-medium text-slate-700 mt-0.5 block truncate">{crop.harvest_date}</span>
         </div>
       </div>
 
@@ -144,24 +143,24 @@ export default function CropPassportCard({ crop, onMintSuccess, onDeleteSuccess 
       {/* ── On-Chain ERC-721 NFT Certificate Section ──────────────── */}
       {isMinted ? (
         <div className="bg-gradient-to-r from-purple-50/60 via-indigo-50/40 to-purple-50/60 border border-purple-200 rounded-2xl p-4 sm:p-5 space-y-3">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <span className="text-base">🪙</span>
               <span className="font-extrabold text-purple-950 text-xs uppercase tracking-wider">
                 Sepolia ERC-721 Blockchain Certificate
               </span>
             </div>
-            <span className="font-mono text-purple-800 font-extrabold text-xs px-2 py-0.5 rounded-md bg-purple-100 border border-purple-300">
+            <span className="font-mono text-purple-800 font-extrabold text-xs px-2 py-0.5 rounded-md bg-purple-100 border border-purple-300 shrink-0">
               Token #{crop.nft_token_id}
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1 border-t border-purple-200/60">
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col gap-0.5 min-w-0">
               <span className="text-slate-500 font-semibold text-[11px]">Contract Address</span>
               <AddressCopy value={crop.nft_contract_address} etherscanType="address" className="text-purple-900" />
             </div>
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col gap-0.5 min-w-0">
               <span className="text-slate-500 font-semibold text-[11px]">Mint Transaction Hash</span>
               <AddressCopy value={crop.nft_transaction_hash} etherscanType="tx" className="text-purple-900" />
             </div>
@@ -258,7 +257,13 @@ export default function CropPassportCard({ crop, onMintSuccess, onDeleteSuccess 
       {/* Only show standalone AI verification when no verification exists yet (avoid duplicate upload) */}
       {!crop.primary_image_url && !crop.latest_ai_verification && (
         <div className="border-t border-slate-100 pt-4">
-          <AIVerification cropId={crop.id} cropName={crop.crop_name} />
+          <AIVerification
+            cropId={crop.id}
+            cropName={crop.crop_name}
+            onVerificationSuccess={() => {
+              if (onPassportUpdated) onPassportUpdated();
+            }}
+          />
         </div>
       )}
 
@@ -298,8 +303,8 @@ export default function CropPassportCard({ crop, onMintSuccess, onDeleteSuccess 
 
       {/* ── Delete Confirmation Modal ──────────────────────────────── */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-slate-200 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-md w-full border border-slate-200 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center gap-3 text-rose-600">
               <span className="text-3xl">⚠️</span>
               <div>

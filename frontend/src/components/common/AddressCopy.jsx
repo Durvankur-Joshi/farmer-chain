@@ -8,6 +8,8 @@ function shorten(str, start = 6, end = 4) {
 
 export default function AddressCopy({
   value,
+  address,
+  truncateLength,
   label,
   etherscanType = null, // 'address' | 'tx'
   truncate = true,
@@ -15,44 +17,53 @@ export default function AddressCopy({
 }) {
   const [copied, setCopied] = useState(false);
 
-  if (!value) return <span className="text-slate-400 font-mono text-xs">—</span>;
+  const actualValue = value || address;
+
+  if (!actualValue) return <span className="text-slate-400 font-mono text-xs">—</span>;
 
   const handleCopy = (e) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(value).then(() => {
+    navigator.clipboard.writeText(actualValue).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     });
   };
 
-  const displayText = truncate ? shorten(value) : value;
+  let displayText = actualValue;
+  if (truncateLength && actualValue.length > truncateLength) {
+    const half = Math.max(3, Math.floor((truncateLength - 3) / 2));
+    displayText = shorten(actualValue, half, half);
+  } else if (truncate) {
+    displayText = shorten(actualValue);
+  }
+
   const etherscanUrl = etherscanType
-    ? `https://sepolia.etherscan.io/${etherscanType}/${value}`
+    ? `https://sepolia.etherscan.io/${etherscanType}/${actualValue}`
     : null;
 
   return (
-    <span className={`inline-flex items-center gap-1.5 font-mono text-xs ${className}`}>
-      {label && <span className="font-sans font-medium text-slate-500">{label}:</span>}
+    <span className={`inline-flex items-center gap-1.5 font-mono text-xs max-w-full min-w-0 ${className}`}>
+      {label && <span className="font-sans font-medium text-slate-500 shrink-0">{label}:</span>}
       {etherscanUrl ? (
         <a
           href={etherscanUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-600 hover:text-blue-700 hover:underline transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500 rounded"
-          title={`View on Sepolia Etherscan: ${value}`}
-          aria-label={`View on Sepolia Etherscan for ${value}`}
+          className="text-blue-600 hover:text-blue-700 hover:underline transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500 rounded truncate min-w-0"
+          title={`View on Sepolia Etherscan: ${actualValue}`}
+          aria-label={`View on Sepolia Etherscan for ${actualValue}`}
         >
           {displayText}
         </a>
       ) : (
-        <span className="text-slate-800" title={value}>
+        <span className={`text-slate-800 ${truncate ? "truncate" : "break-all"} min-w-0`} title={actualValue}>
           {displayText}
         </span>
       )}
       <button
         type="button"
         onClick={handleCopy}
-        className="p-1 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-100 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-400"
+        className="p-1 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-100 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-400 shrink-0"
         title="Copy full value to clipboard"
         aria-label="Copy to clipboard"
       >

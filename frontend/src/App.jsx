@@ -1,4 +1,6 @@
 import { Routes, Route } from "react-router-dom";
+import { SocketProvider } from "./context/SocketContext";
+import { RefreshProvider } from "./context/RefreshContext";
 import AuthForm from "./pages/AuthForm";
 import FarmerDashboard from "./pages/farmer/FarmerDashboard";
 import FPODashboard from "./pages/fpo/FpoDashboard";
@@ -11,7 +13,9 @@ import CropPassportPage from "./pages/CropPassportPage";
 
 function App() {
   return (
-    <Routes>
+    <SocketProvider>
+      <RefreshProvider>
+        <Routes>
       <Route path="/contract/:address" element={<Contract/>} />
       {/* Phase 2.2 — Public Crop Passport verification (no auth required) */}
       <Route path="/crop-passport/:id" element={<CropPassportPage />} />
@@ -57,6 +61,8 @@ function App() {
       {/* Default redirect */}
       <Route path="*" element={<AuthForm />} />
     </Routes>
+      </RefreshProvider>
+    </SocketProvider>
   );
 }
 

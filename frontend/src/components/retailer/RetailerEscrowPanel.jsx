@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { ethers } from "ethers";
+import { useRefresh, useRefreshSubscription } from "../../context/useRefresh";
 import EscrowABI from "../../utils/EscrowABI.json";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
@@ -76,7 +77,8 @@ function RetailerEscrowProgressStepper({ status }) {
   );
 }
 
-export default function RetailerEscrowPanel({ onPaymentReleased }) {
+export default function RetailerEscrowPanel({ onPaymentReleased, onEscrowUpdated }) {
+  const { refresh } = useRefresh();
   const [escrows, setEscrows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [txStatus, setTxStatus] = useState({});
@@ -95,6 +97,8 @@ export default function RetailerEscrowPanel({ onPaymentReleased }) {
   useEffect(() => {
     fetchEscrows();
   }, [fetchEscrows]);
+
+  useRefreshSubscription(["escrow", "deals", "quotes", "retailer", "fpo"], fetchEscrows);
 
   const ensureSepolia = async () => {
     if (!window.ethereum) throw new Error("MetaMask is required.");
@@ -152,7 +156,9 @@ export default function RetailerEscrowPanel({ onPaymentReleased }) {
       );
 
       setTx(key, { loading: false, error: null, success: `✅ ${escrow.amount_eth} ETH locked in Sepolia escrow! FPO will now dispatch the lot.` });
-      fetchEscrows();
+      await fetchEscrows();
+      if (onEscrowUpdated) onEscrowUpdated();
+      refresh(["escrow", "deals", "quotes", "retailer", "fpo"]);
     } catch (err) {
       console.error("Fund escrow error:", err);
       const msg = err.response?.data?.error || err.message || "Failed to fund escrow.";
@@ -181,8 +187,10 @@ export default function RetailerEscrowPanel({ onPaymentReleased }) {
       );
 
       setTx(key, { loading: false, error: null, success: "✅ Payment released to FPO! Your purchased crop has been added to your Inventory." });
-      fetchEscrows();
+      await fetchEscrows();
+      if (onEscrowUpdated) onEscrowUpdated();
       if (onPaymentReleased) onPaymentReleased();
+      refresh(["escrow", "deals", "quotes", "retailer", "fpo", "inventory", "transactions"]);
     } catch (err) {
       console.error("Release payment error:", err);
       const msg = err.response?.data?.error || err.message || "Failed to release payment.";
@@ -215,18 +223,18 @@ export default function RetailerEscrowPanel({ onPaymentReleased }) {
             return (
               <div
                 key={escrow.id}
-                className="bg-white border border-slate-200/90 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xs hover:border-purple-300 transition-all"
+                className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 space-y-4 shadow-2xs hover:border-purple-300 transition-all"
               >
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-base font-extrabold text-slate-900">
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
+                    <span className="text-base font-extrabold text-slate-900 truncate">
                       🌾 {escrow.product_name}
                     </span>
-                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-800 border border-purple-200">
+                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-800 border border-purple-200 shrink-0">
                       {escrow.escrow_id ? `On-Chain Escrow #${escrow.escrow_id}` : "Pending Initial Setup"}
                     </span>
-                    <span className="text-xs font-mono text-slate-400">
+                    <span className="text-xs font-mono text-slate-400 shrink-0">
                       Lot #{escrow.quote_id}
                     </span>
                   </div>
@@ -237,76 +245,87 @@ export default function RetailerEscrowPanel({ onPaymentReleased }) {
                 <RetailerEscrowProgressStepper status={escrow.status} />
 
                 {/* Details Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 text-xs bg-slate-50/80 p-3.5 rounded-2xl border border-slate-100">
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Amount Due</span>
-                    <span className="font-extrabold text-purple-900 font-mono text-sm mt-0.5 block">{escrow.amount_eth} ETH</span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-slate-50/80 p-2.5 sm:p-3 rounded-xl border border-slate-100">
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block truncate">Amount Due</span>
+                    <span className="font-extrabold text-purple-900 font-mono text-sm mt-0.5 block truncate">{escrow.amount_eth} ETH</span>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Lot Quantity</span>
-                    <span className="font-semibold text-slate-800 mt-0.5 block">{escrow.quantity} {escrow.unit}</span>
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block truncate">Lot Quantity</span>
+                    <span className="font-semibold text-slate-800 mt-0.5 block truncate">{escrow.quantity} {escrow.unit}</span>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Seller (FPO)</span>
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block truncate">Seller (FPO)</span>
                     <span className="font-semibold text-slate-800 mt-0.5 block truncate">{escrow.fpo_name}</span>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">FPO Wallet</span>
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block truncate">FPO Wallet</span>
                     <AddressCopy value={escrow.fpo_wallet} etherscanType="address" />
                   </div>
                 </div>
 
                 {/* Multi-Farmer Provenance Breakdown */}
                 {escrow.allocations && escrow.allocations.length > 0 && (
-                  <div className="p-3 bg-purple-50/60 border border-purple-200/80 rounded-2xl space-y-1.5 text-xs">
-                    <div className="flex items-center justify-between text-purple-950 font-extrabold text-[11px]">
+                  <div className="p-3 bg-purple-50/60 border border-purple-200/80 rounded-xl space-y-1.5 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-1 text-purple-950 font-extrabold text-[11px]">
                       <span>🔗 Verified Multi-Farmer Provenance ({escrow.allocations.length} Source Lots):</span>
                       <span>{new Set(escrow.allocations.map(a => a.farmer_name)).size} Farmers</span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px] text-slate-700">
                       {escrow.allocations.map((alloc) => (
                         <div key={alloc.id} className="bg-white p-2 rounded-xl border border-purple-100 flex items-center justify-between shadow-2xs">
-                          <div>
-                            <span className="font-bold text-slate-900">{alloc.farmer_name}</span>{" "}
+                          <div className="min-w-0">
+                            <span className="font-bold text-slate-900 truncate block">{alloc.farmer_name}</span>{" "}
                             {alloc.crop_passport_id ? (
                               <span className="text-emerald-700 font-semibold">(Passport #{alloc.crop_passport_id})</span>
                             ) : null}
                           </div>
-                          <span className="font-mono font-bold text-purple-800">{alloc.allocated_quantity} {alloc.unit}</span>
+                          <span className="font-mono font-bold text-purple-800 shrink-0 ml-2">{alloc.allocated_quantity} {alloc.unit}</span>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Transaction Hashes */}
+                {/* Collapsible Blockchain Transaction Hashes */}
                 {(escrow.create_tx_hash || escrow.deposit_tx_hash || escrow.delivery_tx_hash || escrow.release_tx_hash) && (
-                  <div className="flex flex-wrap items-center gap-3 text-xs pt-1 text-slate-500">
-                    {escrow.create_tx_hash && (
-                      <div className="flex items-center gap-1">
-                        <span className="font-semibold text-slate-600">Created:</span>
-                        <AddressCopy value={escrow.create_tx_hash} etherscanType="tx" />
-                      </div>
-                    )}
-                    {escrow.deposit_tx_hash && (
-                      <div className="flex items-center gap-1">
-                        <span className="font-semibold text-slate-600">Funded:</span>
-                        <AddressCopy value={escrow.deposit_tx_hash} etherscanType="tx" />
-                      </div>
-                    )}
-                    {escrow.delivery_tx_hash && (
-                      <div className="flex items-center gap-1">
-                        <span className="font-semibold text-slate-600">Delivered:</span>
-                        <AddressCopy value={escrow.delivery_tx_hash} etherscanType="tx" />
-                      </div>
-                    )}
-                    {escrow.release_tx_hash && (
-                      <div className="flex items-center gap-1">
-                        <span className="font-semibold text-slate-600">Released:</span>
-                        <AddressCopy value={escrow.release_tx_hash} etherscanType="tx" />
-                      </div>
-                    )}
-                  </div>
+                  <details className="group border border-slate-200/80 rounded-xl p-3 bg-slate-50/60 text-xs">
+                    <summary className="font-bold text-slate-700 cursor-pointer flex items-center justify-between select-none">
+                      <span className="flex items-center gap-1.5 text-xs text-slate-700">
+                        <span>⛓️</span>
+                        <span>On-Chain Contract & Transaction Proofs</span>
+                      </span>
+                      <span className="text-[10px] text-slate-400 group-open:rotate-180 transition-transform font-bold">
+                        ▼
+                      </span>
+                    </summary>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2.5 mt-2 border-t border-slate-200/60 text-slate-500">
+                      {escrow.create_tx_hash && (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                          <span className="font-semibold text-slate-600 text-[11px]">Created Tx:</span>
+                          <AddressCopy value={escrow.create_tx_hash} etherscanType="tx" />
+                        </div>
+                      )}
+                      {escrow.deposit_tx_hash && (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                          <span className="font-semibold text-slate-600 text-[11px]">Funded Tx:</span>
+                          <AddressCopy value={escrow.deposit_tx_hash} etherscanType="tx" />
+                        </div>
+                      )}
+                      {escrow.delivery_tx_hash && (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                          <span className="font-semibold text-slate-600 text-[11px]">Delivered Tx:</span>
+                          <AddressCopy value={escrow.delivery_tx_hash} etherscanType="tx" />
+                        </div>
+                      )}
+                      {escrow.release_tx_hash && (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                          <span className="font-semibold text-slate-600 text-[11px]">Released Tx:</span>
+                          <AddressCopy value={escrow.release_tx_hash} etherscanType="tx" />
+                        </div>
+                      )}
+                    </div>
+                  </details>
                 )}
 
                 {/* Funding Action Row */}
@@ -319,7 +338,7 @@ export default function RetailerEscrowPanel({ onPaymentReleased }) {
                       type="button"
                       onClick={() => handleFundEscrow(escrow)}
                       disabled={fundState.loading || !escrow.escrow_id}
-                      className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+                      className="w-full sm:w-auto px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
                     >
                       <span>💰</span>
                       <span>{fundState.loading ? "Depositing…" : `Fund Escrow (${escrow.amount_eth} ETH)`}</span>
@@ -337,7 +356,7 @@ export default function RetailerEscrowPanel({ onPaymentReleased }) {
                       type="button"
                       onClick={() => handleReleasePayment(escrow)}
                       disabled={releaseState.loading}
-                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+                      className="w-full sm:w-auto px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
                     >
                       <span>💸</span>
                       <span>{releaseState.loading ? "Releasing…" : "Release Payment to FPO"}</span>

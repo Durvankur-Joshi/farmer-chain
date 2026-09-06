@@ -1,10 +1,12 @@
 import React, { useState } from "react";
 import axios from "axios";
+import { useRefresh } from "../../context/useRefresh";
 import StatusBadge from "../common/StatusBadge";
 import { calculateTotalEth } from "../../utils/pricing";
 import NegotiationModal from "../common/NegotiationModal";
 
-export default function QuoteBids({ quote, onBack, refreshHistory }) {
+export default function QuoteBids({ quote, onBack, refreshHistory, onQuoteUpdated }) {
+  const { refresh } = useRefresh();
   const [acceptingId, setAcceptingId] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [negotiatingBid, setNegotiatingBid] = useState(null);
@@ -19,7 +21,9 @@ export default function QuoteBids({ quote, onBack, refreshHistory }) {
         { withCredentials: true }
       );
       setFeedback({ type: "success", text: "✅ Bid accepted successfully! You can now create an Escrow payment." });
+      if (onQuoteUpdated) onQuoteUpdated(bidId);
       if (refreshHistory) refreshHistory();
+      refresh(["quotes", "bids", "deals", "farmer", "fpo", "escrow"]);
     } catch (err) {
       console.error("Error accepting bid:", err);
       const msg = err.response?.data?.error || err.response?.data?.detail || "Failed to accept bid. Please try again.";
@@ -99,11 +103,11 @@ export default function QuoteBids({ quote, onBack, refreshHistory }) {
                 </div>
 
                 {/* Accept & Negotiate buttons */}
-                <div className="pt-2 sm:pt-0 shrink-0 flex items-center gap-2">
+                <div className="pt-2 sm:pt-0 shrink-0 flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
                   <button
                     type="button"
                     onClick={() => setNegotiatingBid({ bid: bid, contentType: 'fpo.fpobid' })}
-                    className="px-3.5 py-2.5 bg-purple-100 hover:bg-purple-200 text-purple-900 font-bold rounded-xl text-xs border border-purple-300 transition-all cursor-pointer flex items-center gap-1"
+                    className="flex-1 sm:flex-none px-3.5 py-2 sm:py-2.5 bg-purple-100 hover:bg-purple-200 text-purple-900 font-bold rounded-xl text-xs border border-purple-300 transition-all cursor-pointer flex items-center justify-center gap-1"
                   >
                     <span>💬</span>
                     <span>Negotiate</span>
@@ -112,7 +116,7 @@ export default function QuoteBids({ quote, onBack, refreshHistory }) {
                     type="button"
                     onClick={() => acceptBid(bid.id)}
                     disabled={isAccepted || isProcessing || quote.status !== 'open'}
-                    className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer ${
+                    className={`flex-1 sm:flex-none px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer ${
                       isAccepted
                         ? "bg-emerald-100 text-emerald-800 cursor-not-allowed border border-emerald-300"
                         : quote.status !== 'open'
@@ -152,7 +156,11 @@ export default function QuoteBids({ quote, onBack, refreshHistory }) {
           contentType={negotiatingBid.contentType}
           currentUserRole="farmer"
           onClose={() => setNegotiatingBid(null)}
-          onNegotiationUpdated={() => refreshHistory && refreshHistory()}
+          onNegotiationUpdated={() => {
+            if (refreshHistory) refreshHistory();
+            if (onQuoteUpdated) onQuoteUpdated();
+            refresh(["quotes", "bids", "deals", "farmer", "fpo"]);
+          }}
         />
       )}
     </div>

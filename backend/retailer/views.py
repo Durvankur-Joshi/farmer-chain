@@ -1,4 +1,5 @@
 from rest_framework import generics, status
+from common.events import emit_event
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
@@ -148,6 +149,7 @@ class RetailerBidCreateView(generics.CreateAPIView):
             raise serializers.ValidationError("You have already placed a bid on this quote.")
             
         serializer.save(retailer=retailer, quote=quote)
+        emit_event("bid_updated", {"quote_id": quote.pk})
 
 class MyBidsListView(generics.ListAPIView):
     serializer_class = MyBidSerializer
@@ -277,6 +279,8 @@ def retailer_cart_add_item_view(request):
             )
 
     serializer = RetailerCartItemSerializer(cart_item)
+    emit_event("inventory_updated", {"retailer_id": retailer.pk})
+
     return Response({
         'message': f'Reserved {requested_qty} {quote.unit} from Quote #{quote.id} into your cart.',
         'item': serializer.data
@@ -332,6 +336,9 @@ def retailer_cart_update_item_view(request, item_id):
         cart_item.save()
 
     serializer = RetailerCartItemSerializer(cart_item)
+
+    emit_event("inventory_updated", {"retailer_id": retailer.pk})
+
     return Response({
         'message': f'Cart item updated to {new_qty} {quote.unit}.',
         'item': serializer.data
@@ -362,6 +369,8 @@ def retailer_cart_delete_item_view(request, item_id):
 
         cart_item.delete()
 
+    emit_event("inventory_updated", {"retailer_id": retailer.pk})
+
     return Response({'message': 'Item removed from cart and reserved stock released.'})
 
 
@@ -389,6 +398,8 @@ def retailer_cart_clear_view(request):
             quote.reserved_quantity = max(Decimal('0'), quote.reserved_quantity - item.selected_quantity)
             quote.save()
             item.delete()
+
+    emit_event("inventory_updated", {"retailer_id": retailer.pk})
 
     return Response({'message': 'Retailer cart cleared successfully.'})
 
@@ -462,6 +473,10 @@ def retailer_order_create_from_cart_view(request):
             created_orders.append(order)
 
     serializer = RetailerOrderSerializer(created_orders, many=True)
+
+    emit_event("deal_updated", {"retailer_id": retailer.pk})
+    emit_event("inventory_updated", {"retailer_id": retailer.pk})
+
     return Response({
         'message': f'Created {len(created_orders)} order(s) successfully with full multi-farmer provenance!',
         'orders': serializer.data

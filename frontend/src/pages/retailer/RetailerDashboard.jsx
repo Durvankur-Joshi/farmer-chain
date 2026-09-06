@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import Cookies from "js-cookie";
 import { useNavigate } from "react-router-dom";
+import { useRefresh, useRefreshSubscription } from "../../context/useRefresh";
 import TrustReputationCard from "../../components/common/TrustReputationCard";
 import DidIdentityCard from "../../components/common/DidIdentityCard";
 import DashboardNavbar from "../../components/common/DashboardNavbar";
@@ -16,6 +17,7 @@ import NegotiationModal from "../../components/common/NegotiationModal";
 import ProvenanceCard from "../../components/common/ProvenanceCard";
 
 export default function RetailerDashboard() {
+  const { refresh } = useRefresh();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState("quotes");
@@ -30,6 +32,7 @@ export default function RetailerDashboard() {
   const [didInfo, setDidInfo] = useState(null);
   const [currentFilters, setCurrentFilters] = useState({});
   const [negotiatingBid, setNegotiatingBid] = useState(null);
+  const [showIdentity, setShowIdentity] = useState(false);
 
   // Phase 4 Retailer Cart & Order state
   const [cartCount, setCartCount] = useState(0);
@@ -91,6 +94,7 @@ export default function RetailerDashboard() {
       alert(`🎉 ${res.data?.message || "Reserved quote stock into your cart!"}`);
       fetchCartCount();
       fetchFpoQuotes(currentFilters);
+      refresh(["retailer", "inventory"]);
     } catch (err) {
       console.error("Error adding quote to cart:", err.response?.data || err);
       const msg = err.response?.data?.error || "Failed to add item to cart.";
@@ -143,6 +147,16 @@ export default function RetailerDashboard() {
     fetchCartCount();
   }, [fetchFpoQuotes, fetchMyBids, fetchDid, fetchCartCount]);
 
+  useRefreshSubscription(
+    ["retailer", "fpo", "quotes", "bids", "deals", "inventory", "escrow", "transactions"],
+    () => {
+      fetchFpoQuotes(currentFilters);
+      fetchMyBids();
+      fetchDid();
+      fetchCartCount();
+    }
+  );
+
   const handleFilterChange = useCallback((newFilters) => {
     setCurrentFilters(newFilters);
     fetchFpoQuotes(newFilters);
@@ -191,6 +205,8 @@ export default function RetailerDashboard() {
       setBids((prev) => ({ ...prev, [quoteId]: "" }));
       setDeliveryTimes((prev) => ({ ...prev, [quoteId]: "" }));
       fetchMyBids();
+      fetchFpoQuotes(currentFilters);
+      refresh(["retailer", "bids", "quotes", "fpo"]);
     } catch (err) {
       console.error("Error placing bid:", err.response?.data || err);
       const msg = err.response?.data?.error || err.response?.data?.detail || "Failed to place bid. Please try again.";
@@ -218,10 +234,10 @@ export default function RetailerDashboard() {
       <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8 flex-1 space-y-6">
 
         {/* ── Welcome & Overview Banner ─────────────────────────────── */}
-        <div className="bg-gradient-to-r from-purple-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
+        <div className="bg-gradient-to-r from-purple-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-5 sm:p-7 shadow-xl relative overflow-hidden">
           <div className="absolute top-[-20%] right-[-10%] w-[40%] h-[140%] rounded-full bg-purple-500/10 blur-2xl pointer-events-none" />
           
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5 sm:gap-6">
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-700/80 border border-purple-500/40 text-purple-100">
@@ -237,11 +253,11 @@ export default function RetailerDashboard() {
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 w-full sm:w-auto shrink-0">
               <button
                 type="button"
                 onClick={() => setActiveTab("quotes")}
-                className="bg-purple-500 hover:bg-purple-400 text-slate-950 text-xs font-extrabold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-purple-950/30 flex items-center gap-1.5 cursor-pointer"
+                className="flex-1 sm:flex-none justify-center bg-purple-500 hover:bg-purple-400 text-slate-950 text-xs font-extrabold px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all shadow-md shadow-purple-950/30 flex items-center gap-1.5 cursor-pointer"
               >
                 <span>🏢</span>
                 <span>Browse FPO Lots</span>
@@ -249,7 +265,7 @@ export default function RetailerDashboard() {
               <button
                 type="button"
                 onClick={() => setActiveTab("bids")}
-                className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all border border-slate-700 shadow-md flex items-center gap-1.5 cursor-pointer"
+                className="flex-1 sm:flex-none justify-center bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all border border-slate-700 shadow-md flex items-center gap-1.5 cursor-pointer"
               >
                 <span>📑</span>
                 <span>My Bids ({myBids.length})</span>
@@ -257,7 +273,7 @@ export default function RetailerDashboard() {
               <button
                 type="button"
                 onClick={() => setActiveTab("escrow")}
-                className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                className="w-full sm:w-auto justify-center bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
               >
                 <span>🔐</span>
                 <span>Escrow Deals</span>
@@ -267,81 +283,98 @@ export default function RetailerDashboard() {
         </div>
 
         {/* ── Summary Key Metrics Bar (Real Loaded Data Only) ─────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs hover:border-purple-200 transition-all">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs hover:border-purple-200 transition-all min-w-0">
             <div className="flex justify-between items-start">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Available FPO Lots</span>
-              <span className="text-lg">🏢</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate">Available Lots</span>
+              <span className="text-lg shrink-0">🏢</span>
             </div>
             <p className="text-2xl font-extrabold text-slate-900 mt-1 tracking-tight">
               {fpoQuotes.length}
             </p>
-            <p className="text-[11px] text-purple-600 font-semibold mt-0.5">
+            <p className="text-[11px] text-purple-600 font-semibold mt-0.5 truncate">
               Open for Bidding
             </p>
           </div>
 
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs hover:border-blue-200 transition-all">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs hover:border-blue-200 transition-all min-w-0">
             <div className="flex justify-between items-start">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">My Placed Bids</span>
-              <span className="text-lg">📑</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate">Placed Bids</span>
+              <span className="text-lg shrink-0">📑</span>
             </div>
             <p className="text-2xl font-extrabold text-slate-900 mt-1 tracking-tight">
               {myBids.length}
             </p>
-            <p className="text-[11px] text-blue-600 font-semibold mt-0.5">
+            <p className="text-[11px] text-blue-600 font-semibold mt-0.5 truncate">
               Submitted to FPOs
             </p>
           </div>
 
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs hover:border-emerald-200 transition-all">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs hover:border-emerald-200 transition-all min-w-0">
             <div className="flex justify-between items-start">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Accepted Deals</span>
-              <span className="text-lg">🤝</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate">Accepted Deals</span>
+              <span className="text-lg shrink-0">🤝</span>
             </div>
             <p className="text-2xl font-extrabold text-slate-900 mt-1 tracking-tight">
               {acceptedBidsCount}
             </p>
-            <p className="text-[11px] text-emerald-600 font-semibold mt-0.5">
+            <p className="text-[11px] text-emerald-600 font-semibold mt-0.5 truncate">
               Approved by FPOs
             </p>
           </div>
-
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs hover:border-amber-200 transition-all">
-            <div className="flex justify-between items-start">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Identity Status</span>
-              <span className="text-lg">🛡️</span>
-            </div>
-            <p className="text-base font-extrabold text-slate-900 mt-2 truncate">
-              {didInfo?.did ? "W3C Verified Retailer" : "Pending DID"}
-            </p>
-            <p className="text-[11px] text-amber-600 font-semibold mt-0.5">
-              Role: Commercial Retailer
-            </p>
-          </div>
         </div>
 
-        {/* ── DID & Trust Score Side-by-Side Grid ───────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <DidIdentityCard didInfo={didInfo} accentColor="purple" />
-          <TrustReputationCard accentColor="purple" />
+        {/* ── Collapsible Commercial Digital Identity & Trust Profile ──── */}
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-3 sm:p-4 shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="text-2xl shrink-0">🏪</span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">
+                    {didInfo?.name || "Retailer"} Commercial Identity
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 shrink-0">
+                    {didInfo?.did ? "W3C DID Verified" : "Pending DID"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 font-mono truncate max-w-lg mt-0.5">
+                  {didInfo?.did || "Decentralized Identifier"}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowIdentity(!showIdentity)}
+              className="text-xs font-bold text-purple-700 hover:text-purple-800 px-3 py-1.5 rounded-xl border border-purple-200 hover:bg-purple-50/50 transition-all cursor-pointer shrink-0 self-start sm:self-auto"
+            >
+              {showIdentity ? "Hide Identity & Trust ▲" : "View Identity & Trust ▼"}
+            </button>
+          </div>
+
+          {showIdentity && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4 pt-4 border-t border-slate-100">
+              <DidIdentityCard didInfo={didInfo} accentColor="purple" />
+              <TrustReputationCard accentColor="purple" />
+            </div>
+          )}
         </div>
 
         {/* ── Segmented Tab Navigation ──────────────────────────────── */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-1.5 shadow-2xs flex flex-wrap gap-1">
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-1.5 shadow-2xs grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5">
           <button
             type="button"
-            className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === "quotes"
-                ? "bg-purple-600 text-white shadow-sm"
+                ? "bg-purple-600 text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
             onClick={() => setActiveTab("quotes")}
           >
             <span>🛍️</span>
-            <span>FPO Marketplace</span>
+            <span className="truncate">Marketplace</span>
             {fpoQuotes.length > 0 && (
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] shrink-0 ${
                 activeTab === "quotes" ? "bg-purple-700/80 text-white" : "bg-slate-100 text-slate-600"
               }`}>
                 {fpoQuotes.length}
@@ -351,48 +384,17 @@ export default function RetailerDashboard() {
 
           <button
             type="button"
-            className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              activeTab === "cart"
-                ? "bg-purple-600 text-white shadow-sm"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-            }`}
-            onClick={() => setActiveTab("cart")}
-          >
-            <span>🛒</span>
-            <span>Retailer Cart</span>
-            {cartCount > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-purple-100 text-purple-900 font-extrabold border border-purple-200">
-                {cartCount}
-              </span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              activeTab === "orders"
-                ? "bg-purple-600 text-white shadow-sm"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-            }`}
-            onClick={() => setActiveTab("orders")}
-          >
-            <span>📦</span>
-            <span>Commercial Orders</span>
-          </button>
-
-          <button
-            type="button"
-            className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === "bids"
-                ? "bg-purple-600 text-white shadow-sm"
+                ? "bg-purple-600 text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
             onClick={() => setActiveTab("bids")}
           >
             <span>📑</span>
-            <span>My Submitted Bids</span>
+            <span className="truncate">My Bids</span>
             {myBids.length > 0 && (
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] shrink-0 ${
                 activeTab === "bids" ? "bg-purple-700/80 text-white" : "bg-slate-100 text-slate-600"
               }`}>
                 {myBids.length}
@@ -402,34 +404,65 @@ export default function RetailerDashboard() {
 
           <button
             type="button"
-            className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              activeTab === "cart"
+                ? "bg-purple-600 text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            }`}
+            onClick={() => setActiveTab("cart")}
+          >
+            <span>🛒</span>
+            <span className="truncate">Cart</span>
+            {cartCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-100 text-purple-900 font-extrabold border border-purple-200 shrink-0">
+                {cartCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              activeTab === "orders"
+                ? "bg-purple-600 text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            }`}
+            onClick={() => setActiveTab("orders")}
+          >
+            <span>📦</span>
+            <span className="truncate">Orders</span>
+          </button>
+
+          <button
+            type="button"
+            className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              activeTab === "inventory"
+                ? "bg-purple-600 text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            }`}
+            onClick={() => setActiveTab("inventory")}
+          >
+            <span>🏪</span>
+            <span className="truncate">Inventory</span>
+          </button>
+
+          <button
+            type="button"
+            className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === "escrow"
-                ? "bg-amber-600 text-white shadow-sm"
+                ? "bg-amber-600 text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
             onClick={() => setActiveTab("escrow")}
           >
             <span>🔐</span>
-            <span>Escrow Deals</span>
-          </button>
-
-          <button
-            type="button"
-            className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              activeTab === "inventory"
-                ? "bg-purple-600 text-white shadow-sm"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-            }`}
-            onClick={() => setActiveTab("inventory")}
-          >
-            <span>📦</span>
-            <span>Purchased Inventory</span>
+            <span className="truncate">Escrow</span>
           </button>
         </div>
 
         {/* ── Open FPO Quotes Tab ────────────────────────────────────── */}
         {activeTab === "quotes" && (
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-xs">
             <div className="mb-5 pb-3 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-extrabold text-slate-900">🏢 Open FPO Bulk Procurement Quotes</h3>
@@ -472,12 +505,12 @@ export default function RetailerDashboard() {
                     return (
                       <div
                         key={quote.id}
-                        className="border border-slate-200/80 rounded-2xl p-5 hover:border-purple-300 hover:shadow-xs transition-all bg-white space-y-3"
+                        className="border border-slate-200/80 rounded-2xl p-4 sm:p-5 hover:border-purple-300 hover:shadow-xs transition-all bg-white space-y-3"
                       >
                         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                          <div className="space-y-1.5 flex-1">
+                          <div className="space-y-1.5 flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-base font-extrabold text-slate-900">
+                              <span className="text-base font-extrabold text-slate-900 truncate">
                                 {quote.product_name}
                               </span>
                               <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
@@ -489,12 +522,12 @@ export default function RetailerDashboard() {
                             </div>
 
                             {quote.description && (
-                              <p className="text-xs text-slate-600">
+                              <p className="text-xs text-slate-600 line-clamp-2">
                                 {quote.description}
                               </p>
                             )}
 
-                            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 pt-1">
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-slate-500 pt-1">
                               <span className="bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 font-medium">
                                 <strong className="text-slate-700">Lot Quantity:</strong> {quote.quantity} {quote.unit}
                               </span>
@@ -517,13 +550,13 @@ export default function RetailerDashboard() {
                           </div>
 
                           {/* Quote Actions: Reserve in Cart & Place Bid */}
-                          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 pt-3 border-t border-slate-100 lg:border-t-0 lg:pt-0 shrink-0">
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-3 border-t border-slate-100 lg:border-t-0 lg:pt-0 shrink-0 w-full lg:w-auto">
                             {/* Quantity Selection & Add to Cart */}
                             <div className="p-3 bg-purple-50/60 border border-purple-200/80 rounded-2xl space-y-2 flex-1 sm:flex-none">
                               <label className="block text-[10px] font-extrabold text-purple-900 uppercase tracking-wider">
                                 Select Purchase Qty ({quote.unit})
                               </label>
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5">
                                 <input
                                   type="number"
                                   step="any"
@@ -531,13 +564,13 @@ export default function RetailerDashboard() {
                                   max={quote.available_quantity || quote.quantity}
                                   value={cartQuantities[quote.id] ?? (quote.available_quantity || quote.quantity)}
                                   onChange={(e) => handleCartQuantityChange(quote.id, e.target.value)}
-                                  className="w-28 px-3 py-1.5 bg-white border border-purple-200 rounded-xl text-xs font-mono font-extrabold text-purple-950 focus:border-purple-500 outline-none"
+                                  className="w-full sm:w-28 px-3 py-1.5 bg-white border border-purple-200 rounded-xl text-xs font-mono font-extrabold text-purple-950 focus:border-purple-500 outline-none"
                                 />
                                 <button
                                   type="button"
                                   onClick={() => handleAddToCart(quote)}
                                   disabled={addingToCartMap[quote.id]}
-                                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer shrink-0 disabled:opacity-50"
+                                  className="w-full sm:w-auto px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer shrink-0 disabled:opacity-50"
                                 >
                                   <span>🛒</span>
                                   <span>{addingToCartMap[quote.id] ? "Reserving…" : "Add to Cart"}</span>
@@ -549,9 +582,9 @@ export default function RetailerDashboard() {
                             </div>
 
                             {/* Bidding Controls */}
-                            <div className="flex items-start gap-2">
-                              <div className="relative w-32">
-                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                            <div className="flex flex-wrap sm:flex-nowrap items-end gap-2 p-3 bg-slate-50/80 border border-slate-200/80 rounded-2xl sm:bg-transparent sm:border-0 sm:p-0 flex-1 sm:flex-none">
+                              <div className="flex-1 sm:w-32 min-w-[100px]">
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 truncate">
                                   Offer (ETH/{quote.unit})
                                 </label>
                                 <input
@@ -569,8 +602,8 @@ export default function RetailerDashboard() {
                                 />
                               </div>
 
-                              <div className="relative w-24">
-                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                              <div className="flex-1 sm:w-24 min-w-[70px]">
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 truncate">
                                   Delivery
                                 </label>
                                 <input
@@ -587,7 +620,7 @@ export default function RetailerDashboard() {
                                 />
                               </div>
 
-                              <div className="pt-4">
+                              <div className="w-full sm:w-auto">
                                 <button
                                   type="button"
                                   onClick={() => submitBid(quote.id)}
@@ -598,7 +631,7 @@ export default function RetailerDashboard() {
                                     !deliveryTimes[quote.id] ||
                                     Number(deliveryTimes[quote.id]) < 1
                                   }
-                                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                                  className="w-full sm:w-auto px-3.5 py-2 sm:py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                                 >
                                   <span>💰</span>
                                   <span>{isLoading ? "…" : "Bid"}</span>
@@ -649,7 +682,7 @@ export default function RetailerDashboard() {
 
         {/* ── Retailer Cart Tab ───────────────────────────────────────── */}
         {activeTab === "cart" && (
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-xs">
             <RetailerCartPanel
               onCartUpdated={() => {
                 fetchCartCount();
@@ -665,14 +698,14 @@ export default function RetailerDashboard() {
 
         {/* ── Commercial Orders Tab ───────────────────────────────────── */}
         {activeTab === "orders" && (
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-xs">
             <RetailerOrdersPanel />
           </div>
         )}
 
         {/* ── My Submitted Bids Tab ──────────────────────────────────── */}
         {activeTab === "bids" && (
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-xs">
             <div className="mb-5 pb-3 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-extrabold text-slate-900">📑 My Submitted Procurement Bids</h3>
@@ -765,7 +798,7 @@ export default function RetailerDashboard() {
 
         {/* ── Smart Contract Escrow Deals Tab ────────────────────────── */}
         {activeTab === "escrow" && (
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-xs">
             <div className="mb-5 pb-3 border-b border-slate-100">
               <h2 className="text-base font-extrabold text-amber-900">
                 🔐 Smart Contract Escrow Deals (FPO ↔ Retailer)
@@ -774,13 +807,19 @@ export default function RetailerDashboard() {
                 Fund verified on-chain escrow agreements via MetaMask and release payment once bulk delivery is confirmed
               </p>
             </div>
-            <RetailerEscrowPanel onPaymentReleased={() => setActiveTab("inventory")} />
+            <RetailerEscrowPanel
+              onPaymentReleased={() => setActiveTab("inventory")}
+              onEscrowUpdated={() => {
+                fetchMyBids();
+                fetchFpoQuotes(currentFilters);
+              }}
+            />
           </div>
         )}
 
         {/* ── Purchased Retailer Inventory Tab ────────────────────────── */}
         {activeTab === "inventory" && (
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-xs">
             <RetailerInventoryPanel />
           </div>
         )}
@@ -792,7 +831,11 @@ export default function RetailerDashboard() {
           contentType={negotiatingBid.contentType}
           currentUserRole="retailer"
           onClose={() => setNegotiatingBid(null)}
-          onNegotiationUpdated={() => fetchMyBids()}
+          onNegotiationUpdated={() => {
+            fetchMyBids();
+            fetchFpoQuotes(currentFilters);
+            refresh(["retailer", "bids", "quotes", "deals", "fpo"]);
+          }}
         />
       )}
     </div>

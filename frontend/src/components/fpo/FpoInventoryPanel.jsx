@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import { useRefresh, useRefreshSubscription } from "../../context/useRefresh";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
 
@@ -11,7 +12,8 @@ const STATUS_OPTIONS = [
   { value: "depleted", label: "Depleted" },
 ];
 
-export default function FpoInventoryPanel({ onCartUpdated }) {
+export default function FpoInventoryPanel({ onCartUpdated, refreshTrigger }) {
+  const { refresh } = useRefresh();
   const [lots, setLots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -46,7 +48,9 @@ export default function FpoInventoryPanel({ onCartUpdated }) {
 
   useEffect(() => {
     fetchInventory();
-  }, [fetchInventory]);
+  }, [fetchInventory, refreshTrigger]);
+
+  useRefreshSubscription(["inventory", "fpo", "deals", "quotes"], fetchInventory);
 
   const handleAddToCart = async (lot) => {
     const qty = selectedQtyInputs[lot.id];
@@ -76,6 +80,7 @@ export default function FpoInventoryPanel({ onCartUpdated }) {
       setSelectedQtyInputs((prev) => ({ ...prev, [lot.id]: "" }));
       fetchInventory();
       if (onCartUpdated) onCartUpdated();
+      refresh(["inventory", "fpo"]);
     } catch (err) {
       console.error("Error adding to stock cart:", err.response?.data || err.message);
       const msg = err.response?.data?.error || "Failed to reserve stock in cart.";
@@ -201,7 +206,6 @@ export default function FpoInventoryPanel({ onCartUpdated }) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {lots.map((lot) => {
-            const p = lot.provenance || {};
             const cp = lot.crop_passport_details;
             const isAvailable = lot.status === "available";
 
@@ -212,22 +216,22 @@ export default function FpoInventoryPanel({ onCartUpdated }) {
               >
                 {/* Lot Header */}
                 <div className="flex items-start justify-between gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-extrabold text-slate-900">{lot.product_name}</span>
+                      <span className="text-sm font-extrabold text-slate-900 truncate">{lot.product_name}</span>
                       {lot.crop_category && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
                           {lot.crop_category}
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
+                    <p className="text-[11px] text-slate-500 mt-0.5 truncate">
                       Lot #{lot.id} · Acquired from {lot.farmer_name}
                     </p>
                   </div>
 
                   <span
-                    className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border ${
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border shrink-0 ${
                       isAvailable
                         ? "bg-emerald-50 text-emerald-800 border-emerald-300"
                         : lot.status === "reserved"
@@ -240,22 +244,22 @@ export default function FpoInventoryPanel({ onCartUpdated }) {
                 </div>
 
                 {/* Stock Quantities & Unit */}
-                <div className="grid grid-cols-3 gap-2.5 bg-slate-50/80 p-3 rounded-xl border border-slate-100 text-xs">
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Available</span>
-                    <span className="font-extrabold text-emerald-700 font-mono mt-0.5 block">
+                <div className="grid grid-cols-3 gap-2 bg-slate-50/80 p-2.5 sm:p-3 rounded-xl border border-slate-100 text-xs">
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Available</span>
+                    <span className="font-extrabold text-emerald-700 font-mono mt-0.5 block truncate">
                       {lot.available_quantity} {lot.unit}
                     </span>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Original</span>
-                    <span className="font-semibold text-slate-700 font-mono mt-0.5 block">
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Original</span>
+                    <span className="font-semibold text-slate-700 font-mono mt-0.5 block truncate">
                       {lot.original_quantity} {lot.unit}
                     </span>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Acq. Price</span>
-                    <span className="font-semibold text-purple-700 font-mono mt-0.5 block">
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Acq. Price</span>
+                    <span className="font-semibold text-purple-700 font-mono mt-0.5 block truncate">
                       {lot.acquisition_price ? `${lot.acquisition_price} ETH/${lot.unit}` : "N/A"}
                     </span>
                   </div>
@@ -263,22 +267,22 @@ export default function FpoInventoryPanel({ onCartUpdated }) {
 
                 {/* Provenance Quick Badges */}
                 <div className="space-y-2 border-t border-slate-100 pt-3 text-xs">
-                  <div className="flex items-center justify-between text-slate-600">
+                  <div className="flex flex-wrap items-center justify-between gap-1 text-slate-600">
                     <span className="text-[11px] font-semibold text-slate-400">Source Farmer:</span>
-                    <span className="font-bold text-slate-800">{lot.farmer_name} ({lot.farmer_city}, {lot.farmer_state})</span>
+                    <span className="font-bold text-slate-800 text-right">{lot.farmer_name} ({lot.farmer_city}, {lot.farmer_state})</span>
                   </div>
 
                   {lot.farmer_did && (
-                    <div className="flex items-center justify-between text-slate-600">
+                    <div className="flex flex-wrap items-center justify-between gap-1 text-slate-600">
                       <span className="text-[11px] font-semibold text-slate-400">Farmer DID:</span>
-                      <AddressCopy address={lot.farmer_did} truncateLength={14} />
+                      <AddressCopy value={lot.farmer_did} address={lot.farmer_did} truncateLength={14} />
                     </div>
                   )}
 
                   {cp ? (
-                    <div className="flex items-center justify-between text-slate-600">
+                    <div className="flex flex-wrap items-center justify-between gap-1 text-slate-600">
                       <span className="text-[11px] font-semibold text-slate-400">Crop Passport:</span>
-                      <span className="inline-flex items-center gap-1 text-emerald-700 font-bold">
+                      <span className="inline-flex items-center gap-1 text-emerald-700 font-bold flex-wrap">
                         <span>✓ Passport #{cp.id}</span>
                         {cp.is_minted && <span className="text-[10px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded border border-purple-200">NFT</span>}
                         {cp.ai_verification?.quality_grade && (
@@ -297,8 +301,8 @@ export default function FpoInventoryPanel({ onCartUpdated }) {
                 </div>
 
                 {/* Stock Allocation & Cart Reservation Controls */}
-                <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 flex-1">
+                <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1">
                     <input
                       type="number"
                       step="any"
@@ -308,13 +312,13 @@ export default function FpoInventoryPanel({ onCartUpdated }) {
                       value={selectedQtyInputs[lot.id] || ""}
                       onChange={(e) => setSelectedQtyInputs({ ...selectedQtyInputs, [lot.id]: e.target.value })}
                       disabled={parseFloat(lot.available_quantity) <= 0 || reservingId === lot.id}
-                      className="w-32 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:bg-white focus:border-blue-500 outline-none disabled:opacity-50"
+                      className="w-full sm:w-32 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:bg-white focus:border-blue-500 outline-none disabled:opacity-50"
                     />
                     <button
                       type="button"
                       onClick={() => handleAddToCart(lot)}
                       disabled={parseFloat(lot.available_quantity) <= 0 || reservingId === lot.id}
-                      className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                      className="w-full sm:w-auto px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 whitespace-nowrap"
                     >
                       <span>🛒</span>
                       <span>{reservingId === lot.id ? "Reserving…" : "Reserve in Cart"}</span>
@@ -324,7 +328,7 @@ export default function FpoInventoryPanel({ onCartUpdated }) {
                   <button
                     type="button"
                     onClick={() => setActiveProvenanceLot(lot)}
-                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 border border-blue-200 shrink-0"
+                    className="w-full sm:w-auto px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 border border-blue-200 shrink-0"
                   >
                     <span>🔍</span>
                     <span>Trace Provenance</span>
@@ -338,8 +342,8 @@ export default function FpoInventoryPanel({ onCartUpdated }) {
 
       {/* ── Provenance Traceability Modal ─────────────────────────── */}
       {activeProvenanceLot && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-6 space-y-5 shadow-2xl border border-slate-200 animate-fade-in max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-4 sm:p-6 space-y-4 sm:space-y-5 shadow-2xl border border-slate-200 animate-fade-in max-h-[92vh] overflow-y-auto">
             <div className="flex justify-between items-start border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <span className="text-2xl">🔗</span>
@@ -400,9 +404,9 @@ export default function FpoInventoryPanel({ onCartUpdated }) {
                 </div>
               </div>
               {activeProvenanceLot.farmer_did && (
-                <div className="text-xs pt-1 border-t border-emerald-200/60 flex items-center justify-between">
+                <div className="text-xs pt-1 border-t border-emerald-200/60 flex flex-wrap items-center justify-between gap-1">
                   <span className="text-[10px] text-slate-400 font-bold uppercase">Farmer W3C DID:</span>
-                  <AddressCopy address={activeProvenanceLot.farmer_did} truncateLength={22} />
+                  <AddressCopy value={activeProvenanceLot.farmer_did} address={activeProvenanceLot.farmer_did} truncateLength={22} />
                 </div>
               )}
             </div>

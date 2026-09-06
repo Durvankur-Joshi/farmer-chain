@@ -15,7 +15,16 @@ export default defineConfig([
     ],
     languageOptions: {
       ecmaVersion: 2020,
-      globals: globals.browser,
+      globals: {
+        ...globals.browser,
+        process: 'readonly',
+        __ENV_API_BASE_URL__: 'readonly',
+        __ENV_FACTORY_CONTRACT__: 'readonly',
+        __ENV_CHAIN_ID__: 'readonly',
+        __ENV_NETWORK__: 'readonly',
+        __ENV_CROP_PASSPORT_CONTRACT__: 'readonly',
+        __ENV_ESCROW_CONTRACT_ADDRESS__: 'readonly',
+      },
       parserOptions: {
         ecmaVersion: 'latest',
         ecmaFeatures: { jsx: true },

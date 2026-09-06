@@ -1,4 +1,5 @@
 from rest_framework import generics, status
+from common.events import emit_event
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
@@ -179,6 +180,7 @@ class FPOBidCreateView(generics.CreateAPIView):
             raise serializers.ValidationError("You have already placed a bid on this quote.")
             
         serializer.save(fpo=self.request.user.user_obj, quote=quote)
+        emit_event("bid_updated", {"quote_id": quote.pk})
 
 class FPOQuoteListCreateView(generics.ListCreateAPIView):
     serializer_class = FPOQuoteSerializer
@@ -261,6 +263,10 @@ def create_fpo_quote_from_cart_view(request):
             item.delete()
 
     serializer = FPOQuoteSerializer(quote)
+
+    emit_event("quote_updated", {"quote_id": quote.pk})
+    emit_event("inventory_updated", {"fpo_id": fpo.pk})
+
     return Response({
         'message': f'Wholesale market quote published successfully to retailers with {quote.allocations.count()} provenance allocations.',
         'quote': serializer.data
@@ -285,6 +291,9 @@ def accept_retailer_bid(request, bid_pk):
     quote.accepted_bid = bid
     quote.save()
     
+    emit_event("bid_updated", {"bid_id": bid.pk, "quote_id": quote.id})
+    emit_event("deal_updated", {"quote_id": quote.id})
+
     return Response({
         "message": "Retailer bid accepted successfully.",
         "bid_id": bid.pk,
@@ -474,6 +483,9 @@ def fpo_stock_cart_add_item_view(request):
             )
 
     serializer = FPOStockCartItemSerializer(cart_item)
+
+    emit_event("inventory_updated", {"fpo_id": fpo.pk})
+
     return Response({
         'message': f'Reserved {requested_qty} {lot.unit} in stock cart.',
         'cart_item': serializer.data
@@ -525,6 +537,9 @@ def fpo_stock_cart_update_item_view(request, item_id):
         item.save()
 
     serializer = FPOStockCartItemSerializer(item)
+
+    emit_event("inventory_updated", {"fpo_id": fpo.pk})
+
     return Response({
         'message': 'Cart item quantity updated.',
         'cart_item': serializer.data
@@ -557,6 +572,8 @@ def fpo_stock_cart_delete_item_view(request, item_id):
 
         item.delete()
 
+    emit_event("inventory_updated", {"fpo_id": fpo.pk})
+
     return Response({
         'message': f'Removed lot from stock cart and released {qty_to_release} {lot.unit} back to available inventory.'
     }, status=status.HTTP_200_OK)
@@ -582,5 +599,7 @@ def fpo_stock_cart_clear_view(request):
             lot.reserved_quantity -= item.selected_quantity
             lot.save()
             item.delete()
+
+    emit_event("inventory_updated", {"fpo_id": fpo.pk})
 
     return Response({'message': 'Stock cart cleared and all reserved inventory released.'}, status=status.HTTP_200_OK)

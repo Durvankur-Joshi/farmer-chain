@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import { useRefreshSubscription } from "../../context/useRefresh";
 import ProvenanceCard from "../common/ProvenanceCard";
 
 export default function RetailerInventoryPanel() {
@@ -25,21 +26,23 @@ export default function RetailerInventoryPanel() {
     fetchInventory();
   }, [fetchInventory]);
 
+  useRefreshSubscription(["retailer", "inventory", "deals", "escrow"], fetchInventory);
+
   return (
     <div className="space-y-6">
       {/* Panel Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-purple-900 to-indigo-900 text-white p-6 rounded-3xl shadow-md">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-purple-900 to-indigo-900 text-white p-4 sm:p-6 rounded-2xl shadow-md">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xl">📦</span>
-            <h2 className="text-lg font-extrabold">Purchased Retailer Stock Inventory</h2>
+            <h2 className="text-base sm:text-lg font-extrabold">Purchased Retailer Stock Inventory</h2>
           </div>
           <p className="text-xs text-purple-100/80 mt-1 max-w-xl">
             Crops successfully acquired from FPOs after Sepolia smart-contract escrow payment release. Retains 100% end-to-end farmer provenance.
           </p>
         </div>
-        <div className="bg-purple-800/60 border border-purple-400/30 px-4 py-2 rounded-2xl text-center shrink-0">
-          <span className="text-[10px] text-purple-200 uppercase font-extrabold block">Acquired Stock Lots</span>
+        <div className="bg-purple-800/60 border border-purple-400/30 px-4 py-2 rounded-xl text-center shrink-0 self-start sm:self-auto">
+          <span className="text-[10px] text-purple-200 uppercase font-extrabold block">Acquired Lots</span>
           <span className="text-xl font-extrabold font-mono text-white">{inventory.length}</span>
         </div>
       </div>
@@ -56,7 +59,7 @@ export default function RetailerInventoryPanel() {
           <p>Loading your verified stock inventory…</p>
         </div>
       ) : inventory.length === 0 ? (
-        <div className="py-12 text-center bg-slate-50 rounded-3xl border border-slate-200/80 space-y-3">
+        <div className="py-12 text-center bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
           <span className="text-4xl block">🌾</span>
           <h3 className="text-sm font-extrabold text-slate-800">No Purchased Inventory Yet</h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
@@ -70,41 +73,41 @@ export default function RetailerInventoryPanel() {
             return (
               <div
                 key={lot.id}
-                className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs hover:border-purple-300 transition-all space-y-4"
+                className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs hover:border-purple-300 transition-all space-y-4"
               >
                 {/* Header */}
                 <div className="flex items-start justify-between gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-base font-extrabold text-slate-900">{lot.product_name}</span>
+                      <span className="text-base font-extrabold text-slate-900 truncate">{lot.product_name}</span>
                       {lot.crop_category && (
-                        <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 shrink-0">
                           {lot.crop_category}
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">
+                    <p className="text-xs text-slate-500 mt-1 truncate">
                       Supplier: <strong className="text-slate-800">{lot.fpo_name}</strong>
                     </p>
                   </div>
-                  <span className="bg-emerald-50 text-emerald-800 font-extrabold text-[10px] uppercase px-2.5 py-1 rounded-full border border-emerald-300">
+                  <span className="bg-emerald-50 text-emerald-800 font-extrabold text-[10px] uppercase px-2.5 py-1 rounded-full border border-emerald-300 shrink-0">
                     In Stock
                   </span>
                 </div>
 
                 {/* Grid Info */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs font-mono">
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Quantity</span>
-                    <span className="font-extrabold text-purple-900 mt-0.5 block">{lot.quantity} {lot.unit}</span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-slate-50 p-2.5 sm:p-3 rounded-xl border border-slate-100 text-xs font-mono">
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Quantity</span>
+                    <span className="font-extrabold text-purple-900 mt-0.5 block truncate">{lot.quantity} {lot.unit}</span>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Unit Price</span>
-                    <span className="font-semibold text-blue-700 mt-0.5 block">{lot.purchase_price_per_unit} ETH</span>
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Unit Price</span>
+                    <span className="font-semibold text-blue-700 mt-0.5 block truncate">{lot.purchase_price_per_unit} ETH</span>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Paid</span>
-                    <span className="font-extrabold text-emerald-700 mt-0.5 block">{lot.total_price} ETH</span>
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Total Paid</span>
+                    <span className="font-extrabold text-emerald-700 mt-0.5 block truncate">{lot.total_price} ETH</span>
                   </div>
                   {lot.escrow && (
                     <div>

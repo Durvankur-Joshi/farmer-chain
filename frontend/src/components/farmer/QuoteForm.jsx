@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import { useRefresh, useRefreshSubscription } from "../../context/useRefresh";
 import { calculateTotalEth } from "../../utils/pricing";
 
 export default function QuoteForm({ onSuccess, onNavigateToPassports }) {
+  const { refresh } = useRefresh();
   const [passports, setPassports] = useState([]);
   const [passportsLoading, setPassportsLoading] = useState(true);
   const [selectedPassportId, setSelectedPassportId] = useState("");
@@ -18,26 +20,28 @@ export default function QuoteForm({ onSuccess, onNavigateToPassports }) {
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState(null);
 
-  // Fetch farmer's crop passports on mount
-  useEffect(() => {
-    const fetchPassports = async () => {
-      setPassportsLoading(true);
-      try {
-        const res = await axios.get("/api/farmer/crops/", { withCredentials: true });
-        const list = res.data || [];
-        setPassports(list);
-        if (list.length === 1) {
-          setSelectedPassportId(String(list[0].id));
-          setSelectedPassport(list[0]);
-        }
-      } catch (err) {
-        console.error("Error fetching farmer passports:", err);
-      } finally {
-        setPassportsLoading(false);
+  const fetchPassports = useCallback(async () => {
+    setPassportsLoading(true);
+    try {
+      const res = await axios.get("/api/farmer/crops/", { withCredentials: true });
+      const list = res.data || [];
+      setPassports(list);
+      if (list.length === 1) {
+        setSelectedPassportId(String(list[0].id));
+        setSelectedPassport(list[0]);
       }
-    };
-    fetchPassports();
+    } catch (err) {
+      console.error("Error fetching farmer passports:", err);
+    } finally {
+      setPassportsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchPassports();
+  }, [fetchPassports]);
+
+  useRefreshSubscription(["farmer", "inventory"], fetchPassports);
 
   const handlePassportSelect = (e) => {
     const passportId = e.target.value;
@@ -113,7 +117,8 @@ export default function QuoteForm({ onSuccess, onNavigateToPassports }) {
       });
       setSelectedPassportId("");
       setSelectedPassport(null);
-      onSuccess && onSuccess();
+      if (onSuccess) onSuccess();
+      refresh(["quotes", "farmer", "fpo"]);
     } catch (err) {
       if (err.response?.data) {
         setErrors(err.response.data);

@@ -21,7 +21,7 @@ export default function TrustReputationCard({ accentColor = "green" }) {
 
   if (loading) {
     return (
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 mb-6 shadow-xs animate-pulse">
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs animate-pulse">
         <div className="h-4 bg-slate-100 rounded w-1/3 mb-3"></div>
         <div className="h-2.5 bg-slate-100 rounded-full mb-3"></div>
         <div className="grid grid-cols-2 gap-3 mt-3">
@@ -59,7 +59,7 @@ export default function TrustReputationCard({ accentColor = "green" }) {
   const score = rep.trust_score || 50;
 
   return (
-    <div className={`border ${style.border} rounded-2xl shadow-xs p-5 mb-6 transition-all`}>
+    <div className={`border ${style.border} rounded-2xl shadow-2xs p-4 sm:p-5 transition-all`}>
       <div className="flex justify-between items-start flex-wrap gap-2 mb-3">
         <div className="flex items-center gap-2">
           <span className="text-lg">⭐</span>

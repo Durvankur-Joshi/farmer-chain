@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import Cookies from "js-cookie";
 import { useNavigate } from "react-router-dom";
+import { useRefreshSubscription } from "../../context/useRefresh";
 import FarmerQuotes from "../../components/fpo/FarmerQuotes";
 import RetailerQuotes from "../../components/fpo/RetailerQuotes";
 import FpoEscrowPanel from "../../components/fpo/FpoEscrowPanel";
@@ -21,6 +22,12 @@ export default function FpoDashboard() {
   const [marketQuotesCount, setMarketQuotesCount] = useState(0);
   const [escrowsCount, setEscrowsCount] = useState(0);
   const [cartItemsCount, setCartItemsCount] = useState(0);
+  const [inventoryRefreshTrigger, setInventoryRefreshTrigger] = useState(0);
+  const [showIdentity, setShowIdentity] = useState(false);
+
+  const triggerInventoryRefresh = useCallback(() => {
+    setInventoryRefreshTrigger((prev) => prev + 1);
+  }, []);
 
   const fetchCartCount = useCallback(async () => {
     try {
@@ -84,6 +91,15 @@ export default function FpoDashboard() {
     fetchOverviewMetrics();
   }, [fetchDid, fetchOverviewMetrics]);
 
+  useRefreshSubscription(
+    ["fpo", "farmer", "retailer", "quotes", "bids", "deals", "inventory", "escrow"],
+    () => {
+      fetchCartCount();
+      fetchDid();
+      fetchOverviewMetrics();
+    }
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col text-slate-900 font-sans">
       {/* ── Top Header Navbar ───────────────────────────────────────── */}
@@ -94,21 +110,21 @@ export default function FpoDashboard() {
         onLogout={logout}
       />
 
-      <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8 flex-1 space-y-6">
+      <div className="max-w-6xl mx-auto w-full px-3.5 sm:px-6 py-5 sm:py-8 flex-1 space-y-5 sm:space-y-6 min-w-0">
 
         {/* ── Welcome & Procurement Overview Banner ─────────────────── */}
-        <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
+        <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-2xl p-5 sm:p-7 shadow-lg relative overflow-hidden">
           <div className="absolute top-[-20%] right-[-10%] w-[40%] h-[140%] rounded-full bg-blue-500/10 blur-2xl pointer-events-none" />
           
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-1.5">
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+            <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-700/80 border border-blue-500/40 text-blue-100">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-blue-700/80 border border-blue-500/40 text-blue-100">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
                   Farmer Producer Organization (FPO) Portal
                 </span>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight">
                 {didInfo?.name || "FPO Procurement Center"}
               </h1>
               <p className="text-xs sm:text-sm text-blue-100/80 max-w-xl">
@@ -116,11 +132,11 @@ export default function FpoDashboard() {
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 shrink-0">
               <button
                 type="button"
                 onClick={() => setActiveTab("farmer")}
-                className="bg-blue-500 hover:bg-blue-400 text-slate-950 text-xs font-extrabold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-blue-950/30 flex items-center gap-1.5 cursor-pointer"
+                className="bg-blue-500 hover:bg-blue-400 text-slate-950 text-xs font-extrabold px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all shadow-md shadow-blue-950/30 flex items-center gap-1.5 cursor-pointer"
               >
                 <span>🌾</span>
                 <span>Procure from Farmers</span>
@@ -128,7 +144,7 @@ export default function FpoDashboard() {
               <button
                 type="button"
                 onClick={() => setActiveTab("retailer")}
-                className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-purple-900/30 flex items-center gap-1.5 cursor-pointer"
+                className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all shadow-md shadow-purple-900/30 flex items-center gap-1.5 cursor-pointer"
               >
                 <span>🛒</span>
                 <span>Publish Market Quote</span>
@@ -138,81 +154,98 @@ export default function FpoDashboard() {
         </div>
 
         {/* ── Summary Key Metrics Bar (Real Loaded Data Only) ─────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs hover:border-blue-200 transition-all">
             <div className="flex justify-between items-start">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Farmer Quotes</span>
-              <span className="text-lg">🌾</span>
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500">Farmer Quotes</span>
+              <span className="text-base sm:text-lg">🌾</span>
             </div>
-            <p className="text-2xl font-extrabold text-slate-900 mt-1 tracking-tight">
+            <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tracking-tight">
               {farmerQuotesCount}
             </p>
-            <p className="text-[11px] text-blue-600 font-semibold mt-0.5">
-              Available for Procurement Bids
+            <p className="text-[10px] sm:text-[11px] text-blue-600 font-semibold mt-0.5 truncate">
+              Available for Procurement
             </p>
           </div>
 
           <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs hover:border-purple-200 transition-all">
             <div className="flex justify-between items-start">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Market Quotes</span>
-              <span className="text-lg">🛒</span>
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500">Market Quotes</span>
+              <span className="text-base sm:text-lg">🛒</span>
             </div>
-            <p className="text-2xl font-extrabold text-slate-900 mt-1 tracking-tight">
+            <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tracking-tight">
               {marketQuotesCount}
             </p>
-            <p className="text-[11px] text-purple-600 font-semibold mt-0.5">
+            <p className="text-[10px] sm:text-[11px] text-purple-600 font-semibold mt-0.5 truncate">
               Active Wholesale Lots
             </p>
           </div>
 
           <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs hover:border-amber-200 transition-all">
             <div className="flex justify-between items-start">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Active Escrows</span>
-              <span className="text-lg">🔐</span>
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500">Active Escrows</span>
+              <span className="text-base sm:text-lg">🔐</span>
             </div>
-            <p className="text-2xl font-extrabold text-slate-900 mt-1 tracking-tight">
+            <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tracking-tight">
               {escrowsCount}
             </p>
-            <p className="text-[11px] text-amber-600 font-semibold mt-0.5">
+            <p className="text-[10px] sm:text-[11px] text-amber-600 font-semibold mt-0.5 truncate">
               Sepolia Smart Contracts
             </p>
           </div>
-
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs hover:border-emerald-200 transition-all">
-            <div className="flex justify-between items-start">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Identity Status</span>
-              <span className="text-lg">🛡️</span>
-            </div>
-            <p className="text-base font-extrabold text-slate-900 mt-2 truncate">
-              {didInfo?.did ? "W3C Verified FPO" : "Pending DID"}
-            </p>
-            <p className="text-[11px] text-emerald-600 font-semibold mt-0.5">
-              Role: FPO Organization
-            </p>
-          </div>
         </div>
 
-        {/* ── DID & Trust Score Side-by-Side Grid ───────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <DidIdentityCard didInfo={didInfo} accentColor="blue" />
-          <TrustReputationCard accentColor="blue" />
+        {/* ── Collapsible Organization Digital Identity & Trust Profile ── */}
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-3 sm:p-4 shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="text-2xl shrink-0">🏢</span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">
+                    {didInfo?.name || "FPO"} Organization Identity
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
+                    {didInfo?.did ? "W3C DID Verified" : "Pending DID"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 font-mono truncate max-w-lg mt-0.5">
+                  {didInfo?.did || "Decentralized Identifier"}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowIdentity(!showIdentity)}
+              className="text-xs font-bold text-blue-700 hover:text-blue-800 px-3 py-1.5 rounded-xl border border-blue-200 hover:bg-blue-50/50 transition-all cursor-pointer shrink-0 self-start sm:self-auto"
+            >
+              {showIdentity ? "Hide Identity & Trust ▲" : "View Identity & Trust ▼"}
+            </button>
+          </div>
+
+          {showIdentity && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4 pt-4 border-t border-slate-100">
+              <DidIdentityCard didInfo={didInfo} accentColor="blue" />
+              <TrustReputationCard accentColor="blue" />
+            </div>
+          )}
         </div>
 
         {/* ── Segmented Tab Navigation ──────────────────────────────── */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-1.5 shadow-2xs flex flex-wrap gap-1">
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-1.5 shadow-2xs grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5">
           <button
             type="button"
-            className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === "farmer"
-                ? "bg-blue-600 text-white shadow-sm"
+                ? "bg-blue-600 text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
             onClick={() => setActiveTab("farmer")}
           >
             <span>🌾</span>
-            <span>Farmer Quotes (Procure)</span>
+            <span className="truncate">Farmer Market</span>
             {farmerQuotesCount > 0 && (
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] shrink-0 ${
                 activeTab === "farmer" ? "bg-blue-700/80 text-white" : "bg-slate-100 text-slate-600"
               }`}>
                 {farmerQuotesCount}
@@ -222,30 +255,30 @@ export default function FpoDashboard() {
 
           <button
             type="button"
-            className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === "inventory"
-                ? "bg-blue-600 text-white shadow-sm"
+                ? "bg-blue-600 text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
             onClick={() => setActiveTab("inventory")}
           >
             <span>📦</span>
-            <span>Stock Inventory & Provenance</span>
+            <span className="truncate">Inventory</span>
           </button>
 
           <button
             type="button"
-            className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === "cart"
-                ? "bg-purple-600 text-white shadow-sm"
+                ? "bg-purple-600 text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
             onClick={() => setActiveTab("cart")}
           >
             <span>🛒</span>
-            <span>Stock Cart & Allocations</span>
+            <span className="truncate">Stock Cart</span>
             {cartItemsCount > 0 && (
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] shrink-0 ${
                 activeTab === "cart" ? "bg-purple-700/80 text-white" : "bg-purple-100 text-purple-700"
               }`}>
                 {cartItemsCount}
@@ -255,17 +288,17 @@ export default function FpoDashboard() {
 
           <button
             type="button"
-            className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === "retailer"
-                ? "bg-blue-600 text-white shadow-sm"
+                ? "bg-blue-600 text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
             onClick={() => setActiveTab("retailer")}
           >
-            <span>🛒</span>
-            <span>Market Quotes (Sell)</span>
+            <span>🏪</span>
+            <span className="truncate">Wholesale Market</span>
             {marketQuotesCount > 0 && (
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] shrink-0 ${
                 activeTab === "retailer" ? "bg-blue-700/80 text-white" : "bg-slate-100 text-slate-600"
               }`}>
                 {marketQuotesCount}
@@ -275,17 +308,17 @@ export default function FpoDashboard() {
 
           <button
             type="button"
-            className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`col-span-2 sm:col-span-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === "escrow"
-                ? "bg-amber-600 text-white shadow-sm"
+                ? "bg-amber-600 text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
             onClick={() => setActiveTab("escrow")}
           >
             <span>🔐</span>
-            <span>Escrow Payments</span>
+            <span className="truncate">Transactions</span>
             {escrowsCount > 0 && (
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] shrink-0 ${
                 activeTab === "escrow" ? "bg-amber-700/80 text-white" : "bg-slate-100 text-slate-600"
               }`}>
                 {escrowsCount}
@@ -295,7 +328,7 @@ export default function FpoDashboard() {
         </div>
 
         {/* ── Content Section Panels ─────────────────────────────────── */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-xs min-w-0">
           {activeTab === "farmer" && (
             <div>
               <div className="mb-5 pb-3 border-b border-slate-100">
@@ -306,13 +339,34 @@ export default function FpoDashboard() {
                   Browse open harvest lots published by verified farmers and place direct procurement bids
                 </p>
               </div>
-              <FarmerQuotes />
+              <FarmerQuotes onBidPlaced={fetchOverviewMetrics} />
             </div>
           )}
 
-          {activeTab === "inventory" && <FpoInventoryPanel onCartUpdated={fetchCartCount} />}
+          {activeTab === "inventory" && (
+            <FpoInventoryPanel 
+              onCartUpdated={() => {
+                fetchCartCount();
+                fetchOverviewMetrics();
+              }}
+              refreshTrigger={inventoryRefreshTrigger} 
+            />
+          )}
 
-          {activeTab === "cart" && <FpoStockCartPanel onCartUpdated={fetchCartCount} />}
+          {activeTab === "cart" && (
+            <FpoStockCartPanel 
+              onCartUpdated={() => {
+                fetchCartCount();
+                fetchOverviewMetrics();
+                triggerInventoryRefresh();
+              }}
+              onQuotePublished={() => {
+                fetchCartCount();
+                fetchOverviewMetrics();
+                triggerInventoryRefresh();
+              }}
+            />
+          )}
 
           {activeTab === "retailer" && (
             <div>
@@ -324,7 +378,11 @@ export default function FpoDashboard() {
                   Publish aggregated crop lots to registered retailers and manage incoming procurement bids
                 </p>
               </div>
-              <RetailerQuotes />
+              <RetailerQuotes 
+                onNavigateToCart={() => setActiveTab("cart")}
+                onBidAccepted={fetchOverviewMetrics}
+                onQuoteCreated={fetchOverviewMetrics}
+              />
             </div>
           )}
 
@@ -367,9 +425,16 @@ export default function FpoDashboard() {
               </div>
 
               {escrowSubTab === "farmer" ? (
-                <FpoEscrowPanel />
+                <FpoEscrowPanel
+                  onEscrowUpdated={() => {
+                    fetchOverviewMetrics();
+                    triggerInventoryRefresh();
+                  }}
+                />
               ) : (
-                <FpoRetailerEscrowPanel />
+                <FpoRetailerEscrowPanel
+                  onEscrowUpdated={fetchOverviewMetrics}
+                />
               )}
             </div>
           )}

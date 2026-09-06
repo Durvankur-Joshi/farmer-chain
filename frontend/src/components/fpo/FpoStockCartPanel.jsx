@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import { useRefresh, useRefreshSubscription } from "../../context/useRefresh";
 
-export default function FpoStockCartPanel({ onCartUpdated }) {
+export default function FpoStockCartPanel({ onCartUpdated, onQuotePublished }) {
+  const { refresh } = useRefresh();
   const [cartData, setCartData] = useState({ items: [], summary: {} });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -53,6 +55,8 @@ export default function FpoStockCartPanel({ onCartUpdated }) {
     fetchCart();
   }, [fetchCart]);
 
+  useRefreshSubscription(["fpo", "inventory"], fetchCart);
+
   const handleQuantityChange = (itemId, val) => {
     setQuantityInputs((prev) => ({ ...prev, [itemId]: val }));
   };
@@ -72,7 +76,9 @@ export default function FpoStockCartPanel({ onCartUpdated }) {
         { selected_quantity: newQty },
         { withCredentials: true }
       );
-      fetchCart();
+      await fetchCart();
+      if (onCartUpdated) onCartUpdated();
+      refresh(["inventory", "fpo"]);
     } catch (err) {
       console.error("Error updating cart item:", err.response?.data || err.message);
       const msg = err.response?.data?.error || "Failed to update quantity.";
@@ -91,7 +97,9 @@ export default function FpoStockCartPanel({ onCartUpdated }) {
       await axios.delete(`/api/fpo/cart/items/${itemId}/delete/`, {
         withCredentials: true,
       });
-      fetchCart();
+      await fetchCart();
+      if (onCartUpdated) onCartUpdated();
+      refresh(["inventory", "fpo"]);
     } catch (err) {
       console.error("Error deleting cart item:", err);
       alert("Failed to remove item from cart.");
@@ -107,7 +115,9 @@ export default function FpoStockCartPanel({ onCartUpdated }) {
     setLoading(true);
     try {
       await axios.delete("/api/fpo/cart/clear/", { withCredentials: true });
-      fetchCart();
+      await fetchCart();
+      if (onCartUpdated) onCartUpdated();
+      refresh(["inventory", "fpo"]);
     } catch (err) {
       console.error("Error clearing stock cart:", err);
       alert("Failed to clear cart.");
@@ -149,7 +159,10 @@ export default function FpoStockCartPanel({ onCartUpdated }) {
       alert("🎉 Wholesale market quote published successfully to retailers with full multi-farmer provenance!");
       setShowQuoteModal(false);
       setQuoteForm({ product_name: "", price_per_unit: "", deadline: "", description: "" });
-      fetchCart();
+      await fetchCart();
+      if (onCartUpdated) onCartUpdated();
+      if (onQuotePublished) onQuotePublished();
+      refresh(["quotes", "inventory", "fpo", "retailer"]);
     } catch (err) {
       console.error("Error publishing quote from cart:", err.response?.data || err);
       const msg = err.response?.data?.error || err.response?.data?.detail || "Failed to publish market quote.";
@@ -181,22 +194,22 @@ export default function FpoStockCartPanel({ onCartUpdated }) {
         </div>
 
         {items.length > 0 && (
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => {
                 setQuoteError("");
                 setShowQuoteModal(true);
               }}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+              className="flex-1 sm:flex-none px-3.5 sm:px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <span>🚀</span>
-              <span>Publish Wholesale Quote from Cart</span>
+              <span>Publish <span className="hidden xs:inline sm:inline">Wholesale Quote</span><span className="xs:hidden">Quote</span></span>
             </button>
             <button
               type="button"
               onClick={handleClearCart}
-              className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl transition-all cursor-pointer border border-rose-200 flex items-center gap-1"
+              className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl transition-all cursor-pointer border border-rose-200 flex items-center justify-center gap-1"
             >
               <span>🗑️</span>
               <span>Clear</span>
@@ -268,13 +281,13 @@ export default function FpoStockCartPanel({ onCartUpdated }) {
             return (
               <div
                 key={item.id}
-                className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs hover:border-purple-300 transition-all space-y-4"
+                className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs hover:border-purple-300 transition-all space-y-4"
               >
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                   {/* Left: Product & Provenance Details */}
-                  <div className="space-y-2 flex-1">
+                  <div className="space-y-2 flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-base font-extrabold text-slate-900">
+                      <span className="text-base font-extrabold text-slate-900 truncate">
                         {lot.product_name || "Crop Stock"}
                       </span>
                       {lot.crop_category && (
@@ -287,14 +300,14 @@ export default function FpoStockCartPanel({ onCartUpdated }) {
                       </span>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600">
-                      <div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
+                      <div className="truncate">
                         <strong className="text-slate-400 font-semibold">Source Farmer:</strong>{" "}
                         <span className="font-extrabold text-slate-800">{farmer.name || lot.farmer_name}</span>{" "}
                         <span className="text-slate-400">({farmer.city || lot.farmer_city}, {farmer.state || lot.farmer_state})</span>
                       </div>
                       {cp ? (
-                        <div className="flex items-center gap-1.5 text-emerald-700 font-bold">
+                        <div className="flex items-center gap-1.5 text-emerald-700 font-bold flex-wrap">
                           <span>✓ Passport #{cp.id}</span>
                           {cp.is_minted && <span className="text-[10px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded border border-purple-200">NFT</span>}
                           {cp.ai_verification?.quality_grade && (
@@ -309,28 +322,28 @@ export default function FpoStockCartPanel({ onCartUpdated }) {
                     </div>
 
                     {/* Stock Metrics Row */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs">
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase block">Original Lot</span>
-                        <span className="font-semibold text-slate-700 font-mono mt-0.5 block">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-2.5 sm:p-3 rounded-xl border border-slate-100 text-xs">
+                      <div className="min-w-0">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Original Lot</span>
+                        <span className="font-semibold text-slate-700 font-mono mt-0.5 block truncate">
                           {lot.original_quantity} {lot.unit}
                         </span>
                       </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase block">Available Unreserved</span>
-                        <span className="font-semibold text-emerald-700 font-mono mt-0.5 block">
+                      <div className="min-w-0">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Available</span>
+                        <span className="font-semibold text-emerald-700 font-mono mt-0.5 block truncate">
                           {lot.available_quantity} {lot.unit}
                         </span>
                       </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase block">Currently Selected</span>
-                        <span className="font-extrabold text-purple-700 font-mono mt-0.5 block">
+                      <div className="min-w-0">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Selected</span>
+                        <span className="font-extrabold text-purple-700 font-mono mt-0.5 block truncate">
                           {item.selected_quantity} {lot.unit}
                         </span>
                       </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase block">Acq. Price</span>
-                        <span className="font-semibold text-slate-700 font-mono mt-0.5 block">
+                      <div className="min-w-0">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Acq. Price</span>
+                        <span className="font-semibold text-slate-700 font-mono mt-0.5 block truncate">
                           {lot.acquisition_price ? `${lot.acquisition_price} ETH/${lot.unit}` : "N/A"}
                         </span>
                       </div>
@@ -338,8 +351,8 @@ export default function FpoStockCartPanel({ onCartUpdated }) {
                   </div>
 
                   {/* Right: Quantity Selector & Actions */}
-                  <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 shrink-0 self-end md:self-start pt-2 md:pt-0">
-                    <div className="w-36">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0 w-full sm:w-auto pt-2 md:pt-0">
+                    <div className="w-full sm:w-36">
                       <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                         Select Quantity ({lot.unit})
                       </label>
@@ -370,7 +383,7 @@ export default function FpoStockCartPanel({ onCartUpdated }) {
                       type="button"
                       onClick={() => handleRemoveItem(item.id)}
                       disabled={updatingId === item.id}
-                      className="px-3 py-2 bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1 border border-slate-200 hover:border-rose-300"
+                      className="w-full sm:w-auto px-3 py-2 bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 border border-slate-200 hover:border-rose-300 self-end sm:self-auto mt-auto"
                     >
                       <span>✕</span>
                       <span>Remove</span>
@@ -385,10 +398,10 @@ export default function FpoStockCartPanel({ onCartUpdated }) {
 
       {/* ── Publish Wholesale Market Quote Modal ────────────────────── */}
       {showQuoteModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
           <form
             onSubmit={handlePublishQuoteSubmit}
-            className="bg-white rounded-3xl max-w-xl w-full p-6 space-y-5 shadow-2xl border border-slate-200 animate-fade-in max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-3xl max-w-xl w-full p-4 sm:p-6 space-y-4 sm:space-y-5 shadow-2xl border border-slate-200 animate-fade-in max-h-[92vh] overflow-y-auto"
           >
             <div className="flex justify-between items-start border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">

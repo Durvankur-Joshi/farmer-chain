@@ -247,7 +247,7 @@ export default function AdminDashboard() {
             ],
           });
           setStatus("✅ Sepolia added and connected");
-        } catch (addError) {
+        } catch {
           setStatus("❌ Failed to add Sepolia");
         }
       }
@@ -274,7 +274,7 @@ export default function AdminDashboard() {
       } else {
         setStatus("⚠️ Connected address does not match Admin Authority address");
       }
-    } catch (e) {
+    } catch {
       setStatus("❌ Wallet connection failed");
     }
   };
@@ -285,7 +285,7 @@ export default function AdminDashboard() {
         withCredentials: true,
       });
       setPending(res.data || { farmers: [], fpos: [], retailers: [] });
-    } catch (err) {
+    } catch {
       setStatus("Error fetching pending registrations");
     }
   }, []);

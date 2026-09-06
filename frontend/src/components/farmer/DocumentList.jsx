@@ -59,7 +59,7 @@ export default function DocumentList({ cropId, refreshTrigger }) {
         { withCredentials: true }
       );
       setDocs((prev) => prev.filter((d) => d.id !== docId));
-    } catch (err) {
+    } catch {
       alert("Failed to delete document. Please try again.");
     } finally {
       setDeleting(null);

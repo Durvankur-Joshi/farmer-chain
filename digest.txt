@@ -16,7 +16,11 @@ Directory structure:
     │   │   ├── serializers.py
     │   │   ├── tests.py
     │   │   ├── urls.py
-    │   │   └── views.py
+    │   │   ├── views.py
+    │   │   └── migrations/
+    │   │       ├── 0001_initial.py
+    │   │       ├── 0002_did_fields.py
+    │   │       └── __init__.py
     │   ├── common/
     │   │   └── permissions.py
     │   ├── did_app/
@@ -30,7 +34,11 @@ Directory structure:
     │   │   ├── models.py
     │   │   ├── serializers.py
     │   │   ├── urls.py
-    │   │   └── views.py
+    │   │   ├── views.py
+    │   │   └── migrations/
+    │   │       ├── 0001_escrow_transaction.py
+    │   │       ├── 0002_retailerescrowtransaction.py
+    │   │       └── __init__.py
     │   ├── farmer/
     │   │   ├── __init__.py
     │   │   ├── admin.py
@@ -39,7 +47,24 @@ Directory structure:
     │   │   ├── serializers.py
     │   │   ├── tests.py
     │   │   ├── urls.py
-    │   │   └── views.py
+    │   │   ├── views.py
+    │   │   └── migrations/
+    │   │       ├── 0001_initial.py
+    │   │       ├── 0002_farmer_approval_status.py
+    │   │       ├── 0003_fporeviewoffarmer_farmerbid.py
+    │   │       ├── 0004_farmerbid_quote_fporeviewoffarmer_bid_and_more.py
+    │   │       ├── 0005_remove_farmerbid_farmer_remove_farmerbid_quote_and_more.py
+    │   │       ├── 0006_delete_farmerbid_delete_fporeviewoffarmer.py
+    │   │       ├── 0007_did_fields.py
+    │   │       ├── 0008_backfill_dids.py
+    │   │       ├── 0009_crop_passport.py
+    │   │       ├── 0010_reconcile_farmerquote.py
+    │   │       ├── 0011_ipfs_documents.py
+    │   │       ├── 0012_ai_quality_verification.py
+    │   │       ├── 0013_farmerquote_crop_passport.py
+    │   │       ├── 0014_alter_croppassport_quantity_and_more.py
+    │   │       ├── 0015_croppassport_available_quantity_and_more.py
+    │   │       └── __init__.py
     │   ├── FarmerChain/
     │   │   ├── __init__.py
     │   │   ├── asgi.py
@@ -55,7 +80,22 @@ Directory structure:
     │   │   ├── services.py
     │   │   ├── tests.py
     │   │   ├── urls.py
-    │   │   └── views.py
+    │   │   ├── views.py
+    │   │   └── migrations/
+    │   │       ├── 0001_initial.py
+    │   │       ├── 0002_fpo_approval_status.py
+    │   │       ├── 0003_fpoquoterequest.py
+    │   │       ├── 0004_retailerreviewoffpo_fpobid.py
+    │   │       ├── 0005_fpobid_quote_retailerreviewoffpo_bid_and_more.py
+    │   │       ├── 0006_fpoquote_remove_fpoquoterequest_accepted_bid_and_more.py
+    │   │       ├── 0007_fpoquote_accepted_bid_fpoquote_fpo_and_more.py
+    │   │       ├── 0008_did_fields.py
+    │   │       ├── 0009_fpo_inventory_lot.py
+    │   │       ├── 0010_alter_fpobid_bid_amount_and_more.py
+    │   │       ├── 0011_fpo_stock_cart_item.py
+    │   │       ├── 0012_fpo_quote_allocation.py
+    │   │       ├── 0013_fpo_quote_available_quantity.py
+    │   │       └── __init__.py
     │   ├── negotiation/
     │   │   ├── __init__.py
     │   │   ├── admin.py
@@ -64,7 +104,11 @@ Directory structure:
     │   │   ├── serializers.py
     │   │   ├── tests.py
     │   │   ├── urls.py
-    │   │   └── views.py
+    │   │   ├── views.py
+    │   │   └── migrations/
+    │   │       ├── 0001_initial.py
+    │   │       ├── 0002_negotiation_phase5.py
+    │   │       └── __init__.py
     │   ├── reputation/
     │   │   ├── __init__.py
     │   │   ├── admin.py
@@ -72,7 +116,10 @@ Directory structure:
     │   │   ├── serializers.py
     │   │   ├── services.py
     │   │   ├── urls.py
-    │   │   └── views.py
+    │   │   ├── views.py
+    │   │   └── migrations/
+    │   │       ├── 0001_initial.py
+    │   │       └── __init__.py
     │   ├── retailer/
     │   │   ├── __init__.py
     │   │   ├── admin.py
@@ -81,7 +128,17 @@ Directory structure:
     │   │   ├── serializers.py
     │   │   ├── tests.py
     │   │   ├── urls.py
-    │   │   └── views.py
+    │   │   ├── views.py
+    │   │   └── migrations/
+    │   │       ├── 0001_initial.py
+    │   │       ├── 0002_retailer_approval_status.py
+    │   │       ├── 0003_retailerquoterequest.py
+    │   │       ├── 0004_retailerbid_delete_retailerquoterequest.py
+    │   │       ├── 0005_did_fields.py
+    │   │       ├── 0006_alter_retailerbid_bid_amount.py
+    │   │       ├── 0007_retailer_cart_order.py
+    │   │       ├── 0008_retailerinventorylot.py
+    │   │       └── __init__.py
     │   ├── services/
     │   │   ├── __init__.py
     │   │   ├── ai_service.py
@@ -142,6 +199,10 @@ Directory structure:
             │       ├── RetailerEscrowPanel.jsx
             │       ├── RetailerInventoryPanel.jsx
             │       └── RetailerOrdersPanel.jsx
+            ├── context/
+            │   ├── RefreshContext.jsx
+            │   ├── refreshContextDef.js
+            │   └── useRefresh.js
             ├── contract/
             │   └── Contract.jsx
             ├── pages/
@@ -1028,6 +1089,71 @@ def reject_retailer(request, retailer_id):
 
 
 ================================================
+FILE: backend/admin_app/migrations/0001_initial.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-18 07:27
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='Admin',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('username', models.CharField(max_length=100, unique=True)),
+                ('password', models.CharField(max_length=128)),
+                ('wallet_address', models.CharField(max_length=100, unique=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/admin_app/migrations/0002_did_fields.py
+================================================
+# Generated by Django 5.2.17 on 2026-08-08 05:01
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('admin_app', '0001_initial'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='admin',
+            name='did',
+            field=models.CharField(blank=True, max_length=100, null=True, unique=True),
+        ),
+        migrations.AddField(
+            model_name='admin',
+            name='did_created_at',
+            field=models.DateTimeField(blank=True, null=True),
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/admin_app/migrations/__init__.py
+================================================
+[Empty file]
+
+
+================================================
 FILE: backend/common/permissions.py
 ================================================
 from rest_framework.permissions import BasePermission
@@ -1036,36 +1162,21 @@ from rest_framework.permissions import BasePermission
 class IsFarmer(BasePermission):
     def has_permission(self, request, view):
         user = request.user
-        if not (user and getattr(user, "role", None) == "farmer"):
-            return False
-        
-        # Check approval status on the attached user object, avoiding a DB query
-        farmer = getattr(user, "user_obj", None)
-        return farmer and farmer.approval_status == 'approved'
+        return bool(user and getattr(user, "role", None) == "farmer")
 
 class IsFPO(BasePermission):
     def has_permission(self, request, view):
         user = request.user
-        if not (user and getattr(user, "role", None) == "fpo"):
-            return False
-        
-        # Check approval status on the attached user object
-        fpo = getattr(user, "user_obj", None)
-        return fpo and fpo.approval_status == 'approved'
+        return bool(user and getattr(user, "role", None) == "fpo")
 
 class IsRetailer(BasePermission):
     def has_permission(self, request, view):
         user = request.user
-        if not (user and getattr(user, "role", None) == "retailer"):
-            return False
-        
-        # Check approval status on the attached user object
-        retailer = getattr(user, "user_obj", None)
-        return retailer and retailer.approval_status == 'approved'
+        return bool(user and getattr(user, "role", None) == "retailer")
 
 class IsAdminApp(BasePermission):
     def has_permission(self, request, view):
-        return request.user and getattr(request.user, "role", None) == "admin"
+        return bool(request.user and getattr(request.user, "role", None) == "admin")
 
 
 ================================================
@@ -2585,6 +2696,109 @@ def retailer_escrow_my_list(request):
 
 
 ================================================
+FILE: backend/escrow/migrations/0001_escrow_transaction.py
+================================================
+# Generated by Django 5.2.17 on 2026-08-08 17:37
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+        ('farmer', '0012_ai_quality_verification'),
+        ('fpo', '0008_did_fields'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='EscrowTransaction',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('escrow_id', models.PositiveIntegerField(blank=True, help_text='On-chain escrow ID from the smart contract', null=True)),
+                ('contract_address', models.CharField(blank=True, help_text='Deployed FarmerChainEscrow contract address', max_length=42)),
+                ('amount_eth', models.DecimalField(decimal_places=8, help_text='Escrow amount in ETH', max_digits=18)),
+                ('status', models.CharField(choices=[('created', 'Created'), ('funded', 'Funded'), ('delivery_confirmed', 'Delivery Confirmed'), ('released', 'Released'), ('cancelled', 'Cancelled'), ('disputed', 'Disputed')], default='created', max_length=20)),
+                ('create_tx_hash', models.CharField(blank=True, help_text='Tx hash from createEscrow()', max_length=66, null=True)),
+                ('deposit_tx_hash', models.CharField(blank=True, help_text='Tx hash from depositEscrow()', max_length=66, null=True)),
+                ('delivery_tx_hash', models.CharField(blank=True, help_text='Tx hash from confirmDelivery()', max_length=66, null=True)),
+                ('release_tx_hash', models.CharField(blank=True, help_text='Tx hash from releasePayment()', max_length=66, null=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('funded_at', models.DateTimeField(blank=True, null=True)),
+                ('delivery_confirmed_at', models.DateTimeField(blank=True, null=True)),
+                ('released_at', models.DateTimeField(blank=True, null=True)),
+                ('farmer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='escrow_transactions', to='farmer.farmer')),
+                ('fpo', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='escrow_transactions', to='fpo.fpo')),
+                ('quote', models.OneToOneField(help_text='One escrow per accepted quote', on_delete=django.db.models.deletion.CASCADE, related_name='escrow', to='farmer.farmerquote')),
+            ],
+            options={
+                'verbose_name': 'Escrow Transaction',
+                'verbose_name_plural': 'Escrow Transactions',
+                'ordering': ['-created_at'],
+            },
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/escrow/migrations/0002_retailerescrowtransaction.py
+================================================
+# Generated by Django 5.2.17 on 2026-08-11 06:37
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('escrow', '0001_escrow_transaction'),
+        ('fpo', '0008_did_fields'),
+        ('retailer', '0005_did_fields'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='RetailerEscrowTransaction',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('escrow_id', models.PositiveIntegerField(blank=True, help_text='On-chain escrow ID from the smart contract', null=True)),
+                ('contract_address', models.CharField(blank=True, help_text='Deployed FarmerChainEscrow contract address', max_length=42)),
+                ('amount_eth', models.DecimalField(decimal_places=8, help_text='Escrow amount in ETH', max_digits=18)),
+                ('status', models.CharField(choices=[('created', 'Created'), ('funded', 'Funded'), ('delivery_confirmed', 'Delivery Confirmed'), ('released', 'Released'), ('cancelled', 'Cancelled'), ('disputed', 'Disputed')], default='created', max_length=20)),
+                ('create_tx_hash', models.CharField(blank=True, help_text='Tx hash from createEscrow() by FPO', max_length=66, null=True)),
+                ('deposit_tx_hash', models.CharField(blank=True, help_text='Tx hash from depositEscrow() by Retailer', max_length=66, null=True)),
+                ('delivery_tx_hash', models.CharField(blank=True, help_text='Tx hash from confirmDelivery() by FPO', max_length=66, null=True)),
+                ('release_tx_hash', models.CharField(blank=True, help_text='Tx hash from releasePayment() by Retailer', max_length=66, null=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('funded_at', models.DateTimeField(blank=True, null=True)),
+                ('delivery_confirmed_at', models.DateTimeField(blank=True, null=True)),
+                ('released_at', models.DateTimeField(blank=True, null=True)),
+                ('fpo', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='retailer_escrows', to='fpo.fpo')),
+                ('quote', models.OneToOneField(help_text='One escrow per accepted FPO quote', on_delete=django.db.models.deletion.CASCADE, related_name='escrow', to='fpo.fpoquote')),
+                ('retailer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='retailer_escrows', to='retailer.retailer')),
+            ],
+            options={
+                'verbose_name': 'Retailer Escrow Transaction',
+                'verbose_name_plural': 'Retailer Escrow Transactions',
+                'ordering': ['-created_at'],
+            },
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/escrow/migrations/__init__.py
+================================================
+[Empty file]
+
+
+================================================
 FILE: backend/farmer/__init__.py
 ================================================
 [Empty file]
@@ -3466,6 +3680,653 @@ FILE: backend/farmer/urls.py
 FILE: backend/farmer/views.py
 ================================================
 [Binary file]
+
+
+================================================
+FILE: backend/farmer/migrations/0001_initial.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-18 07:27
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='Farmer',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('name', models.CharField(max_length=100)),
+                ('email', models.EmailField(max_length=254, unique=True)),
+                ('password', models.CharField(max_length=128)),
+                ('aadhaar_number', models.CharField(max_length=12, unique=True)),
+                ('wallet_address', models.CharField(max_length=100, unique=True)),
+                ('city', models.CharField(max_length=50)),
+                ('state', models.CharField(max_length=50)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/farmer/migrations/0002_farmer_approval_status.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-18 09:30
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0001_initial'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='farmer',
+            name='approval_status',
+            field=models.CharField(choices=[('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected')], default='pending', max_length=10),
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/farmer/migrations/0003_fporeviewoffarmer_farmerbid.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-25 11:53
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0002_farmer_approval_status'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='FPOReviewOfFarmer',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('rating', models.PositiveSmallIntegerField(choices=[(1, '1'), (2, '2'), (3, '3'), (4, '4'), (5, '5')])),
+                ('comment', models.TextField(blank=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+            ],
+        ),
+        migrations.CreateModel(
+            name='FarmerBid',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('bid_amount', models.DecimalField(decimal_places=2, help_text='Price per unit', max_digits=10)),
+                ('delivery_time_days', models.PositiveIntegerField()),
+                ('comments', models.TextField(blank=True)),
+                ('status', models.CharField(choices=[('submitted', 'Submitted'), ('accepted', 'Accepted'), ('rejected', 'Rejected')], default='submitted', max_length=10)),
+                ('submitted_at', models.DateTimeField(auto_now_add=True)),
+                ('payment_status', models.CharField(choices=[('pending', 'Pending'), ('paid', 'Paid'), ('failed', 'Failed')], default='pending', max_length=10)),
+                ('transaction_hash', models.CharField(blank=True, max_length=66, null=True)),
+                ('farmer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='farmer.farmer')),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/farmer/migrations/0004_farmerbid_quote_fporeviewoffarmer_bid_and_more.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-25 11:53
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0003_fporeviewoffarmer_farmerbid'),
+        ('fpo', '0003_fpoquoterequest'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='farmerbid',
+            name='quote',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='fpo.fpoquoterequest'),
+        ),
+        migrations.AddField(
+            model_name='fporeviewoffarmer',
+            name='bid',
+            field=models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, to='farmer.farmerbid'),
+        ),
+        migrations.AddField(
+            model_name='fporeviewoffarmer',
+            name='farmer',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='reviews_from_fpos', to='farmer.farmer'),
+        ),
+        migrations.AddField(
+            model_name='fporeviewoffarmer',
+            name='fpo',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='fpo.fpo'),
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/farmer/migrations/0005_remove_farmerbid_farmer_remove_farmerbid_quote_and_more.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-26 16:56
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0004_farmerbid_quote_fporeviewoffarmer_bid_and_more'),
+        ('fpo', '0005_fpobid_quote_retailerreviewoffpo_bid_and_more'),
+    ]
+
+    operations = [
+        migrations.RemoveField(
+            model_name='farmerbid',
+            name='farmer',
+        ),
+        migrations.RemoveField(
+            model_name='farmerbid',
+            name='quote',
+        ),
+        migrations.RemoveField(
+            model_name='fporeviewoffarmer',
+            name='bid',
+        ),
+        migrations.RemoveField(
+            model_name='fporeviewoffarmer',
+            name='farmer',
+        ),
+        migrations.RemoveField(
+            model_name='fporeviewoffarmer',
+            name='fpo',
+        ),
+        migrations.CreateModel(
+            name='FarmerQuote',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('product_name', models.CharField(max_length=200)),
+                ('category', models.CharField(max_length=100)),
+                ('description', models.TextField()),
+                ('quantity', models.DecimalField(decimal_places=2, max_digits=10)),
+                ('unit', models.CharField(help_text='e.g., kg, quintal, ton', max_length=20)),
+                ('price_per_unit', models.DecimalField(blank=True, decimal_places=2, max_digits=10, null=True)),
+                ('status', models.CharField(choices=[('open', 'Open'), ('closed', 'Closed'), ('awarded', 'Awarded')], default='open', max_length=10)),
+                ('deadline', models.DateField()),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('accepted_bid', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='accepted_for_farmer_quote', to='fpo.fpobid')),
+                ('farmer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='quotes', to='farmer.farmer')),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/farmer/migrations/0006_delete_farmerbid_delete_fporeviewoffarmer.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-26 16:56
+
+from django.db import migrations
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0005_remove_farmerbid_farmer_remove_farmerbid_quote_and_more'),
+        ('fpo', '0006_fpoquote_remove_fpoquoterequest_accepted_bid_and_more'),
+    ]
+
+    operations = [
+        migrations.DeleteModel(
+            name='FarmerBid',
+        ),
+        migrations.DeleteModel(
+            name='FPOReviewOfFarmer',
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/farmer/migrations/0007_did_fields.py
+================================================
+# Generated by Django 5.2.17 on 2026-08-08 05:01 (manually edited)
+# Removed contract_address / contract_created_at operations â€” those
+# columns already exist in the DB from a previous manual migration run.
+# Only the DID fields and AlterField for status are applied here.
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0006_delete_farmerbid_delete_fporeviewoffarmer'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='farmer',
+            name='did',
+            field=models.CharField(blank=True, max_length=100, null=True, unique=True),
+        ),
+        migrations.AddField(
+            model_name='farmer',
+            name='did_created_at',
+            field=models.DateTimeField(blank=True, null=True),
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/farmer/migrations/0008_backfill_dids.py
+================================================
+"""
+Data migration: Backfill DID + did_created_at for every existing
+Farmer, FPO, Retailer, and Admin that has no DID yet.
+
+This runs immediately after the schema migration (0007_did_fields)
+that added the two nullable columns.
+
+Strategy:
+  - Use QuerySet.iterator() to avoid loading all records into memory.
+  - Generate a UUID per record using Python's uuid module â€” fully
+    deterministic per run, no external dependency.
+  - bulk_update() per app to minimize round-trips.
+  - Never overwrites an existing DID (if not did guard).
+"""
+import uuid
+from django.db import migrations
+from django.utils import timezone
+
+
+def backfill_farmer_dids(apps, schema_editor):
+    Farmer = apps.get_model('farmer', 'Farmer')
+    to_update = []
+    for farmer in Farmer.objects.filter(did__isnull=True).iterator():
+        farmer.did = f"did:farmerchain:farmer:{uuid.uuid4()}"
+        farmer.did_created_at = timezone.now()
+        to_update.append(farmer)
+    if to_update:
+        Farmer.objects.bulk_update(to_update, ['did', 'did_created_at'])
+
+
+def backfill_fpo_dids(apps, schema_editor):
+    FPO = apps.get_model('fpo', 'FPO')
+    to_update = []
+    for fpo in FPO.objects.filter(did__isnull=True).iterator():
+        fpo.did = f"did:farmerchain:fpo:{uuid.uuid4()}"
+        fpo.did_created_at = timezone.now()
+        to_update.append(fpo)
+    if to_update:
+        FPO.objects.bulk_update(to_update, ['did', 'did_created_at'])
+
+
+def backfill_retailer_dids(apps, schema_editor):
+    Retailer = apps.get_model('retailer', 'Retailer')
+    to_update = []
+    for retailer in Retailer.objects.filter(did__isnull=True).iterator():
+        retailer.did = f"did:farmerchain:retailer:{uuid.uuid4()}"
+        retailer.did_created_at = timezone.now()
+        to_update.append(retailer)
+    if to_update:
+        Retailer.objects.bulk_update(to_update, ['did', 'did_created_at'])
+
+
+def backfill_admin_dids(apps, schema_editor):
+    Admin = apps.get_model('admin_app', 'Admin')
+    to_update = []
+    for admin in Admin.objects.filter(did__isnull=True).iterator():
+        admin.did = f"did:farmerchain:admin:{uuid.uuid4()}"
+        admin.did_created_at = timezone.now()
+        to_update.append(admin)
+    if to_update:
+        Admin.objects.bulk_update(to_update, ['did', 'did_created_at'])
+
+
+def reverse_noop(apps, schema_editor):
+    # Reversing a data migration is a no-op: we simply leave the DIDs
+    # as they are. The schema migration reversal will drop the columns.
+    pass
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0007_did_fields'),
+        ('fpo', '0008_did_fields'),
+        ('retailer', '0005_did_fields'),
+        ('admin_app', '0002_did_fields'),
+    ]
+
+    operations = [
+        migrations.RunPython(backfill_farmer_dids, reverse_noop),
+        migrations.RunPython(backfill_fpo_dids, reverse_noop),
+        migrations.RunPython(backfill_retailer_dids, reverse_noop),
+        migrations.RunPython(backfill_admin_dids, reverse_noop),
+    ]
+
+
+
+================================================
+FILE: backend/farmer/migrations/0009_crop_passport.py
+================================================
+# Generated by Django 5.2.17 on 2026-08-08 05:58 (manually edited)
+# Removed AddField for contract_address / contract_created_at on FarmerQuote
+# because those columns already exist in the DB from a prior manual run.
+# AlterField for status also removed â€” existing value is already correct.
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0008_backfill_dids'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='CropPassport',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('crop_name', models.CharField(max_length=200)),
+                ('crop_category', models.CharField(max_length=100)),
+                ('description', models.TextField(blank=True)),
+                ('quantity', models.DecimalField(decimal_places=2, max_digits=12)),
+                ('unit', models.CharField(choices=[('kg', 'Kilogram'), ('quintal', 'Quintal'), ('ton', 'Ton'), ('litre', 'Litre'), ('piece', 'Piece'), ('dozen', 'Dozen')], default='kg', max_length=20)),
+                ('cultivation_date', models.DateField()),
+                ('harvest_date', models.DateField()),
+                ('location', models.CharField(blank=True, help_text='Auto-filled from farmer city+state if left empty', max_length=200)),
+                ('status', models.CharField(choices=[('registered', 'Registered'), ('minted', 'Minted')], default='registered', max_length=20)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('nft_token_id', models.CharField(blank=True, max_length=78, null=True)),
+                ('nft_contract_address', models.CharField(blank=True, max_length=42, null=True)),
+                ('nft_token_uri', models.CharField(blank=True, max_length=500, null=True)),
+                ('nft_transaction_hash', models.CharField(blank=True, max_length=66, null=True)),
+                ('nft_minted_at', models.DateTimeField(blank=True, null=True)),
+                ('farmer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='crop_passports', to='farmer.farmer')),
+            ],
+            options={
+                'verbose_name': 'Crop Passport',
+                'verbose_name_plural': 'Crop Passports',
+                'ordering': ['-created_at'],
+            },
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/farmer/migrations/0010_reconcile_farmerquote.py
+================================================
+# This migration reconciles the Django migration state with the
+# actual SQLite schema. The columns contract_address, contract_created_at
+# and the status AlterField already exist in the DB from previous
+# manual runs; they were never tracked in a migration file.
+# We use SeparateDatabaseAndState so Django records these as applied
+# without touching the DB (the schema already matches).
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0009_crop_passport'),
+    ]
+
+    operations = [
+        migrations.SeparateDatabaseAndState(
+            # database_operations = nothing (columns already exist)
+            database_operations=[],
+            # state_operations = tell Django's ORM about these fields
+            state_operations=[
+                migrations.AddField(
+                    model_name='farmerquote',
+                    name='contract_address',
+                    field=models.CharField(blank=True, max_length=42, null=True),
+                ),
+                migrations.AddField(
+                    model_name='farmerquote',
+                    name='contract_created_at',
+                    field=models.DateTimeField(blank=True, null=True),
+                ),
+                migrations.AlterField(
+                    model_name='farmerquote',
+                    name='status',
+                    field=models.CharField(
+                        choices=[
+                            ('open', 'Open'),
+                            ('closed', 'Closed'),
+                            ('awarded', 'Awarded'),
+                            ('accepted', 'Accepted'),
+                            ('contract_created', 'Contract Created'),
+                        ],
+                        default='open',
+                        max_length=20,
+                    ),
+                ),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/farmer/migrations/0011_ipfs_documents.py
+================================================
+# Generated by Django 5.2.17 on 2026-08-08 11:01
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0010_reconcile_farmerquote'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='CropPassportDocument',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('file_name', models.CharField(max_length=255)),
+                ('file_type', models.CharField(max_length=100)),
+                ('file_size', models.PositiveIntegerField(help_text='File size in bytes')),
+                ('document_type', models.CharField(choices=[('crop_image', 'Crop Image'), ('soil_report', 'Soil Report'), ('quality_report', 'Quality Report'), ('certification', 'Certification'), ('harvest_document', 'Harvest Document'), ('other', 'Other')], default='other', max_length=50)),
+                ('ipfs_cid', models.CharField(max_length=255)),
+                ('ipfs_uri', models.CharField(max_length=300)),
+                ('uploaded_at', models.DateTimeField(auto_now_add=True)),
+                ('crop_passport', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='documents', to='farmer.croppassport')),
+                ('uploaded_by', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='uploaded_documents', to='farmer.farmer')),
+            ],
+            options={
+                'verbose_name': 'Crop Passport Document',
+                'verbose_name_plural': 'Crop Passport Documents',
+                'ordering': ['-uploaded_at'],
+            },
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/farmer/migrations/0012_ai_quality_verification.py
+================================================
+# Generated by Django 5.2.17 on 2026-08-08 12:28
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0011_ipfs_documents'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='AIQualityVerification',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('image_cid', models.CharField(max_length=255)),
+                ('image_uri', models.CharField(max_length=300)),
+                ('crop_detected', models.CharField(blank=True, max_length=200)),
+                ('quality_grade', models.CharField(blank=True, choices=[('A', 'A â€” Excellent'), ('B', 'B â€” Good'), ('C', 'C â€” Acceptable'), ('D', 'D â€” Poor'), ('F', 'F â€” Unacceptable')], max_length=2)),
+                ('quality_score', models.DecimalField(blank=True, decimal_places=2, max_digits=5, null=True)),
+                ('confidence_score', models.DecimalField(blank=True, decimal_places=2, max_digits=4, null=True)),
+                ('disease_detected', models.BooleanField(default=False)),
+                ('disease_name', models.CharField(blank=True, max_length=200, null=True)),
+                ('visible_defects', models.TextField(blank=True)),
+                ('ai_summary', models.TextField(blank=True)),
+                ('verification_status', models.CharField(choices=[('pending', 'Pending'), ('verified', 'Verified'), ('failed', 'Failed')], default='pending', max_length=10)),
+                ('failure_reason', models.TextField(blank=True)),
+                ('ai_provider', models.CharField(default='gemini-1.5-flash', max_length=50)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('crop_passport', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='ai_verifications', to='farmer.croppassport')),
+                ('verified_by', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='ai_verifications', to='farmer.farmer')),
+            ],
+            options={
+                'verbose_name': 'AI Quality Verification',
+                'verbose_name_plural': 'AI Quality Verifications',
+                'ordering': ['-created_at'],
+            },
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/farmer/migrations/0013_farmerquote_crop_passport.py
+================================================
+# Generated by Django 5.2.17 on 2026-08-11 05:35
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0012_ai_quality_verification'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='farmerquote',
+            name='crop_passport',
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='quotes', to='farmer.croppassport'),
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/farmer/migrations/0014_alter_croppassport_quantity_and_more.py
+================================================
+# Generated by Django 5.2.17 on 2026-08-14 05:51
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0013_farmerquote_crop_passport'),
+    ]
+
+    operations = [
+        migrations.AlterField(
+            model_name='croppassport',
+            name='quantity',
+            field=models.DecimalField(decimal_places=8, max_digits=18),
+        ),
+        migrations.AlterField(
+            model_name='farmerquote',
+            name='description',
+            field=models.TextField(blank=True, default=''),
+        ),
+        migrations.AlterField(
+            model_name='farmerquote',
+            name='price_per_unit',
+            field=models.DecimalField(blank=True, decimal_places=8, max_digits=18, null=True),
+        ),
+        migrations.AlterField(
+            model_name='farmerquote',
+            name='quantity',
+            field=models.DecimalField(decimal_places=8, max_digits=18),
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/farmer/migrations/0015_croppassport_available_quantity_and_more.py
+================================================
+# Generated by Django 5.2.17 on 2026-08-15 07:29
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0014_alter_croppassport_quantity_and_more'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='croppassport',
+            name='available_quantity',
+            field=models.DecimalField(blank=True, decimal_places=8, max_digits=18, null=True),
+        ),
+        migrations.AddField(
+            model_name='croppassport',
+            name='sold_quantity',
+            field=models.DecimalField(decimal_places=8, default=0, max_digits=18),
+        ),
+        migrations.AlterField(
+            model_name='croppassport',
+            name='status',
+            field=models.CharField(choices=[('registered', 'Registered'), ('minted', 'Minted'), ('sold', 'Sold / Completed')], default='registered', max_length=20),
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/farmer/migrations/__init__.py
+================================================
+[Empty file]
 
 
 ================================================
@@ -4458,7 +5319,7 @@ class FPORegistrationView(generics.CreateAPIView):
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(
-            {"message": "Registration successful. Please wait for admin approval.", "data": serializer.data},
+            {"message": "Registration successful.", "data": serializer.data},
             status=status.HTTP_201_CREATED,
             headers=headers
         )
@@ -5019,6 +5880,498 @@ def fpo_stock_cart_clear_view(request):
 
 
 ================================================
+FILE: backend/fpo/migrations/0001_initial.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-18 07:27
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='FPO',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('name', models.CharField(max_length=100)),
+                ('email', models.EmailField(max_length=254, unique=True)),
+                ('password', models.CharField(max_length=128)),
+                ('corporate_identification_number', models.CharField(max_length=21, unique=True)),
+                ('wallet_address', models.CharField(max_length=100, unique=True)),
+                ('city', models.CharField(max_length=50)),
+                ('state', models.CharField(max_length=50)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/fpo/migrations/0002_fpo_approval_status.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-18 09:30
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('fpo', '0001_initial'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='fpo',
+            name='approval_status',
+            field=models.CharField(choices=[('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected')], default='pending', max_length=10),
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/fpo/migrations/0003_fpoquoterequest.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-25 11:53
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0003_fporeviewoffarmer_farmerbid'),
+        ('fpo', '0002_fpo_approval_status'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='FPOQuoteRequest',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('product_name', models.CharField(max_length=200)),
+                ('category', models.CharField(max_length=100)),
+                ('description', models.TextField()),
+                ('quantity', models.DecimalField(decimal_places=2, max_digits=10)),
+                ('unit', models.CharField(help_text='e.g., kg, quintal, ton', max_length=20)),
+                ('deadline', models.DateField()),
+                ('status', models.CharField(choices=[('open', 'Open'), ('closed', 'Closed'), ('awarded', 'Awarded')], default='open', max_length=10)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('accepted_bid', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='accepted_for_quote', to='farmer.farmerbid')),
+                ('fpo', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='quote_requests', to='fpo.fpo')),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/fpo/migrations/0004_retailerreviewoffpo_fpobid.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-25 12:32
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('fpo', '0003_fpoquoterequest'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='RetailerReviewOfFPO',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('rating', models.PositiveSmallIntegerField(choices=[(1, '1'), (2, '2'), (3, '3'), (4, '4'), (5, '5')])),
+                ('comment', models.TextField(blank=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+            ],
+        ),
+        migrations.CreateModel(
+            name='FPOBid',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('bid_amount', models.DecimalField(decimal_places=2, help_text='Price per unit', max_digits=10)),
+                ('delivery_time_days', models.PositiveIntegerField()),
+                ('comments', models.TextField(blank=True)),
+                ('status', models.CharField(choices=[('submitted', 'Submitted'), ('accepted', 'Accepted'), ('rejected', 'Rejected')], default='submitted', max_length=10)),
+                ('submitted_at', models.DateTimeField(auto_now_add=True)),
+                ('payment_status', models.CharField(choices=[('pending', 'Pending'), ('paid', 'Paid'), ('failed', 'Failed')], default='pending', max_length=10)),
+                ('transaction_hash', models.CharField(blank=True, max_length=66, null=True)),
+                ('fpo', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='fpo.fpo')),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/fpo/migrations/0005_fpobid_quote_retailerreviewoffpo_bid_and_more.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-25 12:32
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('fpo', '0004_retailerreviewoffpo_fpobid'),
+        ('retailer', '0003_retailerquoterequest'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='fpobid',
+            name='quote',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='retailer.retailerquoterequest'),
+        ),
+        migrations.AddField(
+            model_name='retailerreviewoffpo',
+            name='bid',
+            field=models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, to='fpo.fpobid'),
+        ),
+        migrations.AddField(
+            model_name='retailerreviewoffpo',
+            name='fpo',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='reviews_from_retailers', to='fpo.fpo'),
+        ),
+        migrations.AddField(
+            model_name='retailerreviewoffpo',
+            name='retailer',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='retailer.retailer'),
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/fpo/migrations/0006_fpoquote_remove_fpoquoterequest_accepted_bid_and_more.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-26 16:56
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0005_remove_farmerbid_farmer_remove_farmerbid_quote_and_more'),
+        ('fpo', '0005_fpobid_quote_retailerreviewoffpo_bid_and_more'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='FPOQuote',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('product_name', models.CharField(max_length=200)),
+                ('category', models.CharField(max_length=100)),
+                ('description', models.TextField()),
+                ('quantity', models.DecimalField(decimal_places=2, max_digits=10)),
+                ('unit', models.CharField(help_text='e.g., kg, quintal, ton', max_length=20)),
+                ('price_per_unit', models.DecimalField(blank=True, decimal_places=2, max_digits=10, null=True)),
+                ('status', models.CharField(choices=[('open', 'Open'), ('closed', 'Closed'), ('awarded', 'Awarded')], default='open', max_length=10)),
+                ('deadline', models.DateField()),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+            ],
+        ),
+        migrations.RemoveField(
+            model_name='fpoquoterequest',
+            name='accepted_bid',
+        ),
+        migrations.RemoveField(
+            model_name='fpoquoterequest',
+            name='fpo',
+        ),
+        migrations.RemoveField(
+            model_name='retailerreviewoffpo',
+            name='bid',
+        ),
+        migrations.RemoveField(
+            model_name='retailerreviewoffpo',
+            name='fpo',
+        ),
+        migrations.RemoveField(
+            model_name='retailerreviewoffpo',
+            name='retailer',
+        ),
+        migrations.AlterField(
+            model_name='fpobid',
+            name='quote',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='farmer.farmerquote'),
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/fpo/migrations/0007_fpoquote_accepted_bid_fpoquote_fpo_and_more.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-26 16:56
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0006_delete_farmerbid_delete_fporeviewoffarmer'),
+        ('fpo', '0006_fpoquote_remove_fpoquoterequest_accepted_bid_and_more'),
+        ('retailer', '0004_retailerbid_delete_retailerquoterequest'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='fpoquote',
+            name='accepted_bid',
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='accepted_for_fpo_quote', to='retailer.retailerbid'),
+        ),
+        migrations.AddField(
+            model_name='fpoquote',
+            name='fpo',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='quotes', to='fpo.fpo'),
+        ),
+        migrations.DeleteModel(
+            name='FPOQuoteRequest',
+        ),
+        migrations.DeleteModel(
+            name='RetailerReviewOfFPO',
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/fpo/migrations/0008_did_fields.py
+================================================
+# Generated by Django 5.2.17 on 2026-08-08 05:01
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('fpo', '0007_fpoquote_accepted_bid_fpoquote_fpo_and_more'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='fpo',
+            name='did',
+            field=models.CharField(blank=True, max_length=100, null=True, unique=True),
+        ),
+        migrations.AddField(
+            model_name='fpo',
+            name='did_created_at',
+            field=models.DateTimeField(blank=True, null=True),
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/fpo/migrations/0009_fpo_inventory_lot.py
+================================================
+# Generated manually for Phase 1 FPO Inventory Foundation
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('fpo', '0008_did_fields'),
+        ('farmer', '0013_farmerquote_crop_passport'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='FPOInventoryLot',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('product_name', models.CharField(max_length=200)),
+                ('crop_category', models.CharField(blank=True, max_length=100)),
+                ('original_quantity', models.DecimalField(decimal_places=8, max_digits=18)),
+                ('available_quantity', models.DecimalField(decimal_places=8, max_digits=18)),
+                ('reserved_quantity', models.DecimalField(decimal_places=8, default=0, max_digits=18)),
+                ('unit', models.CharField(choices=[('kg', 'Kilogram (kg)'), ('quintal', 'Quintal (quintal)'), ('caret', 'Caret (caret)'), ('piece', 'Piece (piece)'), ('acre', 'Acre (acre)'), ('ton', 'Metric Ton (ton)'), ('litre', 'Litre (litre)'), ('dozen', 'Dozen (dozen)')], default='kg', max_length=20)),
+                ('acquisition_price', models.DecimalField(blank=True, decimal_places=8, help_text='Acquisition price per unit in ETH paid to farmer', max_digits=18, null=True)),
+                ('status', models.CharField(choices=[('available', 'Available'), ('reserved', 'Reserved'), ('depleted', 'Depleted')], default='available', max_length=20)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('bid', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='inventory_lots', to='fpo.fpobid')),
+                ('crop_passport', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='fpo_inventory_lots', to='farmer.croppassport')),
+                ('farmer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='fpo_inventory_lots', to='farmer.farmer')),
+                ('fpo', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='inventory_lots', to='fpo.fpo')),
+                ('quote', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='inventory_lots', to='farmer.farmerquote')),
+            ],
+            options={
+                'ordering': ['-created_at'],
+            },
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/fpo/migrations/0010_alter_fpobid_bid_amount_and_more.py
+================================================
+# Generated by Django 5.2.17 on 2026-08-14 05:51
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('fpo', '0009_fpo_inventory_lot'),
+    ]
+
+    operations = [
+        migrations.AlterField(
+            model_name='fpobid',
+            name='bid_amount',
+            field=models.DecimalField(decimal_places=8, help_text='Price per unit', max_digits=18),
+        ),
+        migrations.AlterField(
+            model_name='fpoquote',
+            name='price_per_unit',
+            field=models.DecimalField(blank=True, decimal_places=8, max_digits=18, null=True),
+        ),
+        migrations.AlterField(
+            model_name='fpoquote',
+            name='quantity',
+            field=models.DecimalField(decimal_places=8, max_digits=18),
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/fpo/migrations/0011_fpo_stock_cart_item.py
+================================================
+# Generated manually for Phase 2 FPO Stock Cart
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('fpo', '0010_alter_fpobid_bid_amount_and_more'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='FPOStockCartItem',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('selected_quantity', models.DecimalField(decimal_places=8, max_digits=18)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('fpo', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='cart_items', to='fpo.fpo')),
+                ('inventory_lot', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='cart_items', to='fpo.fpoinventorylot')),
+            ],
+            options={
+                'ordering': ['-created_at'],
+                'unique_together': {('fpo', 'inventory_lot')},
+            },
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/fpo/migrations/0012_fpo_quote_allocation.py
+================================================
+# Generated manually for Phase 3 FPO Retailer Quote Inventory Allocation
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0001_initial'),
+        ('fpo', '0011_fpo_stock_cart_item'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='FPOQuoteAllocation',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('allocated_quantity', models.DecimalField(decimal_places=8, max_digits=18)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('crop_passport', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='fpo_quote_allocations', to='farmer.croppassport')),
+                ('farmer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='fpo_quote_allocations', to='farmer.farmer')),
+                ('inventory_lot', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='quote_allocations', to='fpo.fpoinventorylot')),
+                ('quote', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='allocations', to='fpo.fpoquote')),
+            ],
+            options={
+                'ordering': ['-created_at'],
+            },
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/fpo/migrations/0013_fpo_quote_available_quantity.py
+================================================
+# Generated manually for Phase 4 FPOQuote available_quantity and reserved_quantity tracking
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('fpo', '0012_fpo_quote_allocation'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='fpoquote',
+            name='available_quantity',
+            field=models.DecimalField(blank=True, decimal_places=8, max_digits=18, null=True),
+        ),
+        migrations.AddField(
+            model_name='fpoquote',
+            name='reserved_quantity',
+            field=models.DecimalField(decimal_places=8, default=0, max_digits=18),
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/fpo/migrations/__init__.py
+================================================
+[Empty file]
+
+
+================================================
 FILE: backend/negotiation/__init__.py
 ================================================
 [Empty file]
@@ -5218,6 +6571,120 @@ urlpatterns = [
 FILE: backend/negotiation/views.py
 ================================================
 Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 6754: character maps to <undefined>
+
+
+================================================
+FILE: backend/negotiation/migrations/0001_initial.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-25 12:32
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+        ('contenttypes', '0002_remove_content_type_name'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='Negotiation',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('object_id', models.PositiveIntegerField()),
+                ('status', models.CharField(choices=[('active', 'Active'), ('accepted', 'Accepted'), ('rejected', 'Rejected')], default='active', max_length=10)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('content_type', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='contenttypes.contenttype')),
+            ],
+        ),
+        migrations.CreateModel(
+            name='NegotiationMessage',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('sender_role', models.CharField(max_length=20)),
+                ('sender_id', models.PositiveIntegerField()),
+                ('sender_name', models.CharField(max_length=100)),
+                ('message', models.TextField()),
+                ('counter_amount', models.DecimalField(blank=True, decimal_places=2, max_digits=10, null=True)),
+                ('counter_delivery_time_days', models.PositiveIntegerField(blank=True, null=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('negotiation', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='messages', to='negotiation.negotiation')),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/negotiation/migrations/0002_negotiation_phase5.py
+================================================
+# Generated manually for Phase 5 Negotiation enhancements
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('negotiation', '0001_initial'),
+    ]
+
+    operations = [
+        migrations.AlterModelOptions(
+            name='negotiation',
+            options={'ordering': ['-created_at']},
+        ),
+        migrations.AlterModelOptions(
+            name='negotiationmessage',
+            options={'ordering': ['created_at']},
+        ),
+        migrations.AddField(
+            model_name='negotiation',
+            name='agreed_price_per_unit',
+            field=models.DecimalField(blank=True, decimal_places=8, max_digits=18, null=True),
+        ),
+        migrations.AddField(
+            model_name='negotiation',
+            name='agreed_quantity',
+            field=models.DecimalField(blank=True, decimal_places=8, max_digits=18, null=True),
+        ),
+        migrations.AddField(
+            model_name='negotiation',
+            name='updated_at',
+            field=models.DateTimeField(auto_now=True),
+        ),
+        migrations.AddField(
+            model_name='negotiationmessage',
+            name='counter_quantity',
+            field=models.DecimalField(blank=True, decimal_places=8, max_digits=18, null=True),
+        ),
+        migrations.AlterField(
+            model_name='negotiation',
+            name='status',
+            field=models.CharField(choices=[('active', 'Active'), ('accepted', 'Accepted'), ('rejected', 'Rejected'), ('withdrawn', 'Withdrawn')], default='active', max_length=10),
+        ),
+        migrations.AlterField(
+            model_name='negotiationmessage',
+            name='counter_amount',
+            field=models.DecimalField(blank=True, decimal_places=8, max_digits=18, null=True),
+        ),
+        migrations.AlterField(
+            model_name='negotiationmessage',
+            name='message',
+            field=models.TextField(blank=True),
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/negotiation/migrations/__init__.py
+================================================
+[Empty file]
 
 
 ================================================
@@ -5504,6 +6971,51 @@ urlpatterns = [
 FILE: backend/reputation/views.py
 ================================================
 Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 1497: character maps to <undefined>
+
+
+================================================
+FILE: backend/reputation/migrations/0001_initial.py
+================================================
+# Generated by Django 5.2.17 on 2026-08-09 15:45
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='Reputation',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('user_role', models.CharField(choices=[('farmer', 'Farmer'), ('fpo', 'FPO'), ('retailer', 'Retailer')], max_length=20)),
+                ('user_id', models.PositiveIntegerField()),
+                ('trust_score', models.IntegerField(default=50, help_text='Calculated Trust Score (0-100)')),
+                ('completed_transactions', models.PositiveIntegerField(default=0)),
+                ('verified_activities', models.PositiveIntegerField(default=0)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+            ],
+            options={
+                'verbose_name': 'Reputation',
+                'verbose_name_plural': 'Reputations',
+                'ordering': ['-trust_score', '-updated_at'],
+                'unique_together': {('user_role', 'user_id')},
+            },
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/reputation/migrations/__init__.py
+================================================
+[Empty file]
 
 
 ================================================
@@ -6034,7 +7546,7 @@ class RetailerRegistrationView(generics.CreateAPIView):
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(
-            {"message": "Registration successful. Please wait for admin approval.", "data": serializer.data},
+            {"message": "Registration successful.", "data": serializer.data},
             status=status.HTTP_201_CREATED,
             headers=headers
         )
@@ -6522,6 +8034,320 @@ def retailer_inventory_my_view(request):
 
     serializer = RetailerInventoryLotSerializer(lots, many=True)
     return Response({'inventory': serializer.data})
+
+
+================================================
+FILE: backend/retailer/migrations/0001_initial.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-18 07:27
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='Retailer',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('name', models.CharField(max_length=100)),
+                ('email', models.EmailField(max_length=254, unique=True)),
+                ('password', models.CharField(max_length=128)),
+                ('gstin', models.CharField(max_length=15, unique=True)),
+                ('wallet_address', models.CharField(max_length=100, unique=True)),
+                ('city', models.CharField(max_length=50)),
+                ('state', models.CharField(max_length=50)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/retailer/migrations/0002_retailer_approval_status.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-18 09:30
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('retailer', '0001_initial'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='retailer',
+            name='approval_status',
+            field=models.CharField(choices=[('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected')], default='pending', max_length=10),
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/retailer/migrations/0003_retailerquoterequest.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-25 12:32
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('fpo', '0004_retailerreviewoffpo_fpobid'),
+        ('retailer', '0002_retailer_approval_status'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='RetailerQuoteRequest',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('product_name', models.CharField(max_length=200)),
+                ('category', models.CharField(max_length=100)),
+                ('description', models.TextField()),
+                ('quantity', models.DecimalField(decimal_places=2, max_digits=10)),
+                ('unit', models.CharField(help_text='e.g., kg, quintal, ton', max_length=20)),
+                ('deadline', models.DateField()),
+                ('status', models.CharField(choices=[('open', 'Open'), ('closed', 'Closed'), ('awarded', 'Awarded')], default='open', max_length=10)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('accepted_bid', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='accepted_for_retailer_quote', to='fpo.fpobid')),
+                ('retailer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='quote_requests', to='retailer.retailer')),
+            ],
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/retailer/migrations/0004_retailerbid_delete_retailerquoterequest.py
+================================================
+# Generated by Django 5.2.4 on 2025-09-26 16:56
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('fpo', '0006_fpoquote_remove_fpoquoterequest_accepted_bid_and_more'),
+        ('retailer', '0003_retailerquoterequest'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='RetailerBid',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('bid_amount', models.DecimalField(decimal_places=2, help_text='Price per unit', max_digits=10)),
+                ('delivery_time_days', models.PositiveIntegerField()),
+                ('comments', models.TextField(blank=True)),
+                ('status', models.CharField(choices=[('submitted', 'Submitted'), ('accepted', 'Accepted'), ('rejected', 'Rejected')], default='submitted', max_length=10)),
+                ('submitted_at', models.DateTimeField(auto_now_add=True)),
+                ('payment_status', models.CharField(choices=[('pending', 'Pending'), ('paid', 'Paid'), ('failed', 'Failed')], default='pending', max_length=10)),
+                ('transaction_hash', models.CharField(blank=True, max_length=66, null=True)),
+                ('quote', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='fpo.fpoquote')),
+                ('retailer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='retailer.retailer')),
+            ],
+        ),
+        migrations.DeleteModel(
+            name='RetailerQuoteRequest',
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/retailer/migrations/0005_did_fields.py
+================================================
+# Generated by Django 5.2.17 on 2026-08-08 05:01
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('retailer', '0004_retailerbid_delete_retailerquoterequest'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='retailer',
+            name='did',
+            field=models.CharField(blank=True, max_length=100, null=True, unique=True),
+        ),
+        migrations.AddField(
+            model_name='retailer',
+            name='did_created_at',
+            field=models.DateTimeField(blank=True, null=True),
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/retailer/migrations/0006_alter_retailerbid_bid_amount.py
+================================================
+# Generated by Django 5.2.17 on 2026-08-14 05:51
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('retailer', '0005_did_fields'),
+    ]
+
+    operations = [
+        migrations.AlterField(
+            model_name='retailerbid',
+            name='bid_amount',
+            field=models.DecimalField(decimal_places=8, help_text='Price per unit', max_digits=18),
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/retailer/migrations/0007_retailer_cart_order.py
+================================================
+# Generated manually for Phase 4 RetailerCartItem, RetailerOrder, and RetailerOrderAllocation
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('farmer', '0001_initial'),
+        ('fpo', '0013_fpo_quote_available_quantity'),
+        ('retailer', '0006_alter_retailerbid_bid_amount'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='RetailerOrder',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('order_number', models.CharField(max_length=64, unique=True)),
+                ('product_name', models.CharField(max_length=200)),
+                ('category', models.CharField(blank=True, max_length=100)),
+                ('quantity', models.DecimalField(decimal_places=8, max_digits=18)),
+                ('unit', models.CharField(max_length=20)),
+                ('price_per_unit', models.DecimalField(decimal_places=8, max_digits=18)),
+                ('total_price', models.DecimalField(decimal_places=8, max_digits=18)),
+                ('status', models.CharField(choices=[('created', 'Created'), ('pending', 'Pending Confirmation'), ('confirmed', 'Confirmed'), ('cancelled', 'Cancelled')], default='created', max_length=20)),
+                ('notes', models.TextField(blank=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('fpo', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='retailer_orders', to='fpo.fpo')),
+                ('quote', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='retailer_orders', to='fpo.fpoquote')),
+                ('retailer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='orders', to='retailer.retailer')),
+            ],
+            options={
+                'ordering': ['-created_at'],
+            },
+        ),
+        migrations.CreateModel(
+            name='RetailerOrderAllocation',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('allocated_quantity', models.DecimalField(decimal_places=8, max_digits=18)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('crop_passport', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='retailer_order_allocations', to='farmer.croppassport')),
+                ('farmer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='retailer_order_allocations', to='farmer.farmer')),
+                ('inventory_lot', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='retailer_order_allocations', to='fpo.fpoinventorylot')),
+                ('order', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='allocations', to='retailer.retailerorder')),
+            ],
+            options={
+                'ordering': ['-created_at'],
+            },
+        ),
+        migrations.CreateModel(
+            name='RetailerCartItem',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('selected_quantity', models.DecimalField(decimal_places=8, max_digits=18)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('quote', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='retailer_cart_items', to='fpo.fpoquote')),
+                ('retailer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='cart_items', to='retailer.retailer')),
+            ],
+            options={
+                'ordering': ['-created_at'],
+                'unique_together': {('retailer', 'quote')},
+            },
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/retailer/migrations/0008_retailerinventorylot.py
+================================================
+# Generated by Django 5.2.17 on 2026-08-14 18:39
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('escrow', '0002_retailerescrowtransaction'),
+        ('farmer', '0014_alter_croppassport_quantity_and_more'),
+        ('fpo', '0013_fpo_quote_available_quantity'),
+        ('retailer', '0007_retailer_cart_order'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='RetailerInventoryLot',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('product_name', models.CharField(max_length=200)),
+                ('crop_category', models.CharField(blank=True, max_length=100)),
+                ('quantity', models.DecimalField(decimal_places=8, max_digits=18)),
+                ('unit', models.CharField(max_length=20)),
+                ('purchase_price_per_unit', models.DecimalField(blank=True, decimal_places=8, max_digits=18, null=True)),
+                ('total_price', models.DecimalField(blank=True, decimal_places=8, max_digits=18, null=True)),
+                ('status', models.CharField(default='in_stock', max_length=20)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('crop_passport', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='retailer_inventory_lots', to='farmer.croppassport')),
+                ('escrow', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='retailer_inventory_lots', to='escrow.retailerescrowtransaction')),
+                ('farmer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='retailer_inventory_lots', to='farmer.farmer')),
+                ('fpo', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='retailer_inventory_lots', to='fpo.fpo')),
+                ('inventory_lot', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='retailer_acquired_inventory_lots', to='fpo.fpoinventorylot')),
+                ('retailer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='inventory_lots', to='retailer.retailer')),
+            ],
+            options={
+                'ordering': ['-created_at'],
+            },
+        ),
+    ]
+
+
+
+================================================
+FILE: backend/retailer/migrations/__init__.py
+================================================
+[Empty file]
 
 
 ================================================
@@ -7251,10 +9077,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         if role == "farmer":
             try:
                 user = Farmer.objects.get(email=user_identifier)
-                if user.approval_status == 'pending':
-                    raise serializers.ValidationError("Account pending admin approval.")
-                elif user.approval_status == 'rejected':
-                    raise serializers.ValidationError("Account rejected by admin.")
                 user_data = {
                     'id': user.id,
                     'username': user.email,
@@ -7266,10 +9088,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         elif role == "fpo":
             try:
                 user = FPO.objects.get(email=user_identifier)
-                if user.approval_status == 'pending':
-                    raise serializers.ValidationError("Account pending admin approval.")
-                elif user.approval_status == 'rejected':
-                    raise serializers.ValidationError("Account rejected by admin.")
                 user_data = {
                     'id': user.id,
                     'username': user.email,
@@ -7281,10 +9099,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         elif role == "retailer":
             try:
                 user = Retailer.objects.get(email=user_identifier)
-                if user.approval_status == 'pending':
-                    raise serializers.ValidationError("Account pending admin approval.")
-                elif user.approval_status == 'rejected':
-                    raise serializers.ValidationError("Account rejected by admin.")
                 user_data = {
                     'id': user.id,
                     'username': user.email,
@@ -8021,7 +9835,16 @@ export default defineConfig([
     ],
     languageOptions: {
       ecmaVersion: 2020,
-      globals: globals.browser,
+      globals: {
+        ...globals.browser,
+        process: 'readonly',
+        __ENV_API_BASE_URL__: 'readonly',
+        __ENV_FACTORY_CONTRACT__: 'readonly',
+        __ENV_CHAIN_ID__: 'readonly',
+        __ENV_NETWORK__: 'readonly',
+        __ENV_CROP_PASSPORT_CONTRACT__: 'readonly',
+        __ENV_ESCROW_CONTRACT_ADDRESS__: 'readonly',
+      },
       parserOptions: {
         ecmaVersion: 'latest',
         ecmaFeatures: { jsx: true },
@@ -8189,6 +10012,7 @@ FILE: frontend/src/App.css
 FILE: frontend/src/App.jsx
 ================================================
 import { Routes, Route } from "react-router-dom";
+import { RefreshProvider } from "./context/RefreshContext";
 import AuthForm from "./pages/AuthForm";
 import FarmerDashboard from "./pages/farmer/FarmerDashboard";
 import FPODashboard from "./pages/fpo/FpoDashboard";
@@ -8201,7 +10025,8 @@ import CropPassportPage from "./pages/CropPassportPage";
 
 function App() {
   return (
-    <Routes>
+    <RefreshProvider>
+      <Routes>
       <Route path="/contract/:address" element={<Contract/>} />
       {/* Phase 2.2 â€” Public Crop Passport verification (no auth required) */}
       <Route path="/crop-passport/:id" element={<CropPassportPage />} />
@@ -8247,6 +10072,7 @@ function App() {
       {/* Default redirect */}
       <Route path="*" element={<AuthForm />} />
     </Routes>
+    </RefreshProvider>
   );
 }
 
@@ -8361,6 +10187,23 @@ FILE: frontend/src/index.css
   animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+.table-scroll-container {
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+.break-words-safe {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.modal-scroll-container {
+  overflow-y: auto;
+  max-height: 90vh;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* Accessibility: respect user preference for reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -8439,6 +10282,8 @@ function shorten(str, start = 6, end = 4) {
 
 export default function AddressCopy({
   value,
+  address,
+  truncateLength,
   label,
   etherscanType = null, // 'address' | 'tx'
   truncate = true,
@@ -8446,44 +10291,53 @@ export default function AddressCopy({
 }) {
   const [copied, setCopied] = useState(false);
 
-  if (!value) return <span className="text-slate-400 font-mono text-xs">â€”</span>;
+  const actualValue = value || address;
+
+  if (!actualValue) return <span className="text-slate-400 font-mono text-xs">â€”</span>;
 
   const handleCopy = (e) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(value).then(() => {
+    navigator.clipboard.writeText(actualValue).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     });
   };
 
-  const displayText = truncate ? shorten(value) : value;
+  let displayText = actualValue;
+  if (truncateLength && actualValue.length > truncateLength) {
+    const half = Math.max(3, Math.floor((truncateLength - 3) / 2));
+    displayText = shorten(actualValue, half, half);
+  } else if (truncate) {
+    displayText = shorten(actualValue);
+  }
+
   const etherscanUrl = etherscanType
-    ? `https://sepolia.etherscan.io/${etherscanType}/${value}`
+    ? `https://sepolia.etherscan.io/${etherscanType}/${actualValue}`
     : null;
 
   return (
-    <span className={`inline-flex items-center gap-1.5 font-mono text-xs ${className}`}>
-      {label && <span className="font-sans font-medium text-slate-500">{label}:</span>}
+    <span className={`inline-flex items-center gap-1.5 font-mono text-xs max-w-full min-w-0 ${className}`}>
+      {label && <span className="font-sans font-medium text-slate-500 shrink-0">{label}:</span>}
       {etherscanUrl ? (
         <a
           href={etherscanUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-600 hover:text-blue-700 hover:underline transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500 rounded"
-          title={`View on Sepolia Etherscan: ${value}`}
-          aria-label={`View on Sepolia Etherscan for ${value}`}
+          className="text-blue-600 hover:text-blue-700 hover:underline transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500 rounded truncate min-w-0"
+          title={`View on Sepolia Etherscan: ${actualValue}`}
+          aria-label={`View on Sepolia Etherscan for ${actualValue}`}
         >
           {displayText}
         </a>
       ) : (
-        <span className="text-slate-800" title={value}>
+        <span className={`text-slate-800 ${truncate ? "truncate" : "break-all"} min-w-0`} title={actualValue}>
           {displayText}
         </span>
       )}
       <button
         type="button"
         onClick={handleCopy}
-        className="p-1 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-100 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-400"
+        className="p-1 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-100 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-400 shrink-0"
         title="Copy full value to clipboard"
         aria-label="Copy to clipboard"
       >
@@ -8539,30 +10393,30 @@ export default function DashboardNavbar({
 
   return (
     <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 shadow-2xs">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+      <div className="max-w-6xl mx-auto px-3.5 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3">
         {/* Brand */}
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center text-lg sm:text-xl shadow-sm text-white font-bold shrink-0">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center text-base sm:text-xl shadow-xs text-white font-bold shrink-0">
             🌾
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold text-slate-900 text-base sm:text-lg tracking-tight">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <span className="font-extrabold text-slate-900 text-sm sm:text-lg tracking-tight truncate">
                 FarmerChain
               </span>
-              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60 shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 Sepolia
               </span>
             </div>
-            <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
+            <p className="text-[10px] sm:text-xs text-slate-500 font-medium truncate">
               {theme.icon} {theme.title}
             </p>
           </div>
         </div>
 
         {/* User Context & Actions */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           {userName && (
             <div className="hidden md:flex flex-col items-end text-right">
               <span className="text-xs font-bold text-slate-800">
@@ -8575,7 +10429,7 @@ export default function DashboardNavbar({
           )}
 
           <span
-            className={`text-[10px] sm:text-xs uppercase font-bold px-2.5 py-1 rounded-lg border ${theme.badge} tracking-wider`}
+            className={`text-[9px] sm:text-xs uppercase font-bold px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border ${theme.badge} tracking-wider shrink-0`}
           >
             {role}
           </span>
@@ -8583,7 +10437,7 @@ export default function DashboardNavbar({
           <button
             type="button"
             onClick={onLogout}
-            className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-rose-600 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-rose-200 hover:bg-rose-50/50 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none"
+            className="flex items-center gap-1 sm:gap-1.5 text-xs font-semibold text-slate-600 hover:text-rose-600 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-slate-200 hover:border-rose-200 hover:bg-rose-50/50 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none shrink-0"
             title="Log out of session"
             aria-label="Log out of session"
           >
@@ -8603,19 +10457,19 @@ export default function DashboardNavbar({
 ================================================
 FILE: frontend/src/components/common/DidIdentityCard.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 1373: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 1389: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/components/common/MarketplaceFilterBar.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8d in position 3540: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8d in position 3606: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/components/common/NegotiationModal.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 7506: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 7857: character maps to <undefined>
 
 
 ================================================
@@ -8623,7 +10477,7 @@ FILE: frontend/src/components/common/ProvenanceCard.jsx
 ================================================
 import React from "react";
 
-export default function ProvenanceCard({ allocations = [], provenanceSummary, fpoName, compact = false }) {
+export default function ProvenanceCard({ allocations = [], provenanceSummary, fpoName }) {
   if (!allocations || allocations.length === 0) {
     return (
       <div className="p-3 bg-slate-50 border border-slate-200/60 rounded-2xl text-xs text-slate-500 font-medium">
@@ -8636,13 +10490,13 @@ export default function ProvenanceCard({ allocations = [], provenanceSummary, fp
   const passportsCount = provenanceSummary?.total_passports_count || allocations.filter((a) => a.crop_passport_id || a.crop_passport || a.crop_passport_details).length;
 
   return (
-    <div className="p-3.5 bg-purple-50/70 border border-purple-200/90 rounded-2xl space-y-2 text-xs">
-      <div className="flex items-center justify-between text-purple-950 font-extrabold text-[11px] flex-wrap gap-1">
+    <div className="p-3 sm:p-3.5 bg-purple-50/70 border border-purple-200/90 rounded-2xl space-y-2 text-xs min-w-0">
+      <div className="flex items-center justify-between text-purple-950 font-extrabold text-[11px] flex-wrap gap-1.5">
         <div className="flex items-center gap-1.5">
           <span>🔗</span>
           <span>Verified Supply Chain Provenance:</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <span className="bg-purple-100 text-purple-900 px-2 py-0.5 rounded-full text-[10px] font-bold">
             {farmersCount} Farmer{farmersCount !== 1 ? "s" : ""}
           </span>
@@ -8668,13 +10522,16 @@ export default function ProvenanceCard({ allocations = [], provenanceSummary, fp
           return (
             <div
               key={alloc.id || idx}
-              className="bg-white p-2.5 rounded-xl border border-purple-100 shadow-2xs space-y-1.5 hover:border-purple-300 transition-all"
+              className="bg-white p-2.5 rounded-xl border border-purple-100 shadow-2xs space-y-1.5 hover:border-purple-300 transition-all min-w-0"
             >
               <div className="flex justify-between items-start gap-2">
                 <div className="min-w-0 flex-1">
                   <p className="font-extrabold text-slate-900 text-xs truncate">👨‍🌾 {farmerName}</p>
                   {farmerLocation && (
                     <p className="text-[10px] text-slate-500 font-medium truncate">📍 {farmerLocation}</p>
+                  )}
+                  {farmerDid && (
+                    <p className="text-[9px] font-mono text-slate-400 truncate">DID: {farmerDid.slice(0, 18)}…</p>
                   )}
                 </div>
                 <span className="font-mono font-extrabold text-purple-900 bg-purple-50 px-2 py-0.5 rounded-lg text-xs shrink-0">
@@ -8776,7 +10633,7 @@ export default function StatusBadge({ status, customLabel }) {
 ================================================
 FILE: frontend/src/components/common/TrustReputationCard.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 2137: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 2143: character maps to <undefined>
 
 
 ================================================
@@ -8788,7 +10645,7 @@ Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in posi
 ================================================
 FILE: frontend/src/components/farmer/CropPassportCard.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 4111: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 4221: character maps to <undefined>
 
 
 ================================================
@@ -8796,6 +10653,7 @@ FILE: frontend/src/components/farmer/CropPassportForm.jsx
 ================================================
 import React, { useState } from "react";
 import axios from "axios";
+import { useRefresh } from "../../context/useRefresh";
 
 const UNIT_OPTIONS = ["kg", "quintal", "caret", "piece", "acre", "ton", "litre", "dozen"];
 const CATEGORY_OPTIONS = [
@@ -8847,6 +10705,7 @@ function ProgressStepper({ currentStep, failed }) {
 }
 
 export default function CropPassportForm({ onSuccess, onCancel }) {
+  const { refresh } = useRefresh();
   const [form, setForm] = useState({
     crop_name: "",
     crop_category: "",
@@ -8984,6 +10843,7 @@ export default function CropPassportForm({ onSuccess, onCancel }) {
     setStep("done");
     setResult({ crop: cropData, verification: verificationData });
     setSubmitting(false);
+    refresh(["farmer", "quotes", "inventory"]);
   };
 
   // If registration + verification is done, show result card
@@ -9492,7 +11352,7 @@ export default function DocumentList({ cropId, refreshTrigger }) {
         { withCredentials: true }
       );
       setDocs((prev) => prev.filter((d) => d.id !== docId));
-    } catch (err) {
+    } catch {
       alert("Failed to delete document. Please try again.");
     } finally {
       setDeleting(null);
@@ -9732,6 +11592,7 @@ FILE: frontend/src/components/farmer/EscrowPanel.jsx
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { ethers } from "ethers";
+import { useRefresh, useRefreshSubscription } from "../../context/useRefresh";
 import EscrowABI from "../../utils/EscrowABI.json";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
@@ -9807,7 +11668,8 @@ function EscrowProgressStepper({ status }) {
   );
 }
 
-export default function EscrowPanel() {
+export default function EscrowPanel({ onEscrowUpdated }) {
+  const { refresh } = useRefresh();
   const [escrows, setEscrows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [txStatus, setTxStatus] = useState({});
@@ -9842,6 +11704,11 @@ export default function EscrowPanel() {
       setLoading(false)
     );
   }, [fetchEscrows, fetchAcceptedQuotes]);
+
+  useRefreshSubscription(["escrow", "deals", "quotes", "farmer", "fpo"], () => {
+    fetchEscrows();
+    fetchAcceptedQuotes();
+  });
 
   // ── Helpers ─────────────────────────────────────────────────────
 
@@ -9990,6 +11857,8 @@ export default function EscrowPanel() {
 
       setTx(key, { loading: false, success: `On-Chain Escrow #${onChainId} created on Sepolia! ✅` });
       await Promise.all([fetchEscrows(), fetchAcceptedQuotes()]);
+      if (onEscrowUpdated) onEscrowUpdated();
+      refresh(["escrow", "deals", "quotes", "farmer", "fpo"]);
     } catch (err) {
       console.error("Create escrow error:", err);
       let msg =
@@ -10049,6 +11918,8 @@ export default function EscrowPanel() {
 
       setTx(key, { loading: false, success: `On-Chain Escrow #${onChainId} created on Sepolia! ✅` });
       await Promise.all([fetchEscrows(), fetchAcceptedQuotes()]);
+      if (onEscrowUpdated) onEscrowUpdated();
+      refresh(["escrow", "deals", "quotes", "farmer", "fpo"]);
     } catch (err) {
       console.error("Complete onchain escrow error:", err);
       let msg =
@@ -10089,6 +11960,8 @@ export default function EscrowPanel() {
 
         setTx(key, { loading: false, success: "Delivery handover confirmed on Sepolia! ✅" });
         await fetchEscrows();
+        if (onEscrowUpdated) onEscrowUpdated();
+        refresh(["escrow", "deals", "quotes", "farmer", "fpo", "transactions"]);
       } catch (apiErr) {
         console.error("Backend delivery-confirm sync error:", apiErr);
         if (apiErr.response?.status === 401) {
@@ -10248,7 +12121,7 @@ export default function EscrowPanel() {
             return (
               <div
                 key={escrow.id}
-                className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs hover:border-slate-300 transition-all space-y-4"
+                className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs hover:border-slate-300 transition-all space-y-3.5 sm:space-y-4"
               >
                 {/* Top Title & Status */}
                 <div className="flex justify-between items-start gap-2">
@@ -10396,19 +12269,19 @@ export default function EscrowPanel() {
 ================================================
 FILE: frontend/src/components/farmer/MintButton.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 4078: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 4169: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/components/farmer/QuoteBids.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 1096: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 1323: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/components/farmer/QuoteForm.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 2160: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 2312: character maps to <undefined>
 
 
 ================================================
@@ -10426,7 +12299,7 @@ Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in posi
 ================================================
 FILE: frontend/src/components/fpo/FarmerQuotes.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 1590: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 1816: character maps to <undefined>
 
 
 ================================================
@@ -10435,6 +12308,7 @@ FILE: frontend/src/components/fpo/FpoEscrowPanel.jsx
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { ethers } from "ethers";
+import { useRefresh, useRefreshSubscription } from "../../context/useRefresh";
 import EscrowABI from "../../utils/EscrowABI.json";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
@@ -10510,7 +12384,8 @@ function FpoEscrowProgressStepper({ status }) {
   );
 }
 
-export default function FpoEscrowPanel() {
+export default function FpoEscrowPanel({ onEscrowUpdated }) {
+  const { refresh } = useRefresh();
   const [escrows, setEscrows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [txStatus, setTxStatus] = useState({});
@@ -10529,6 +12404,8 @@ export default function FpoEscrowPanel() {
   useEffect(() => {
     fetchEscrows();
   }, [fetchEscrows]);
+
+  useRefreshSubscription(["escrow", "deals", "quotes", "fpo", "farmer"], fetchEscrows);
 
   // ── Helpers ─────────────────────────────────────────────────────
 
@@ -10608,6 +12485,8 @@ export default function FpoEscrowPanel() {
 
       setTx(key, { loading: false, success: `Escrow #${escrow.escrow_id} funded with ${escrow.amount_eth} ETH on Sepolia! ✅` });
       await fetchEscrows();
+      if (onEscrowUpdated) onEscrowUpdated();
+      refresh(["escrow", "deals", "quotes", "fpo", "farmer"]);
     } catch (err) {
       console.error("Fund escrow error:", err);
       let msg = err.response?.data?.error || err.reason || err.message || "Failed to fund escrow.";
@@ -10652,6 +12531,8 @@ export default function FpoEscrowPanel() {
 
       setTx(key, { loading: false, success: "Payment released to Farmer on Sepolia! ✅" });
       await fetchEscrows();
+      if (onEscrowUpdated) onEscrowUpdated();
+      refresh(["escrow", "deals", "quotes", "fpo", "farmer", "inventory", "transactions"]);
     } catch (err) {
       console.error("Release payment error:", err);
       let msg = err.response?.data?.error || err.reason || err.message || "Failed to release payment.";
@@ -10705,15 +12586,15 @@ export default function FpoEscrowPanel() {
         return (
           <div
             key={escrow.id}
-            className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs hover:border-slate-300 transition-all space-y-4"
+            className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs hover:border-slate-300 transition-all space-y-4"
           >
             {/* Header */}
             <div className="flex justify-between items-start gap-2">
-              <div>
+              <div className="min-w-0">
                 <span className="text-[11px] font-bold text-blue-900 uppercase tracking-wider block">
                   {isOnChain ? `On-Chain Escrow #${escrow.escrow_id}` : `Draft Escrow Record #${escrow.id}`}
                 </span>
-                <h4 className="text-base font-extrabold text-slate-900">
+                <h4 className="text-base font-extrabold text-slate-900 truncate">
                   {escrow.product_name}
                 </h4>
               </div>
@@ -10724,22 +12605,22 @@ export default function FpoEscrowPanel() {
             <FpoEscrowProgressStepper status={escrow.status} />
 
             {/* Details Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-slate-50/70 p-3 rounded-xl border border-slate-100">
-              <div>
-                <span className="text-[10px] text-slate-400 font-bold uppercase block">Farmer Partner</span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-slate-50/70 p-2.5 sm:p-3 rounded-xl border border-slate-100">
+              <div className="min-w-0">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Farmer Partner</span>
                 <span className="font-semibold text-slate-800 truncate block">{escrow.farmer_name}</span>
               </div>
-              <div>
-                <span className="text-[10px] text-slate-400 font-bold uppercase block">Amount Due</span>
-                <span className="font-bold text-blue-700 font-mono">{escrow.amount_eth} ETH</span>
+              <div className="min-w-0">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Amount Due</span>
+                <span className="font-bold text-blue-700 font-mono truncate block">{escrow.amount_eth} ETH</span>
               </div>
-              <div>
-                <span className="text-[10px] text-slate-400 font-bold uppercase block">Quantity</span>
-                <span className="font-medium text-slate-700">{escrow.quantity} {escrow.unit}</span>
+              <div className="min-w-0">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Quantity</span>
+                <span className="font-medium text-slate-700 truncate block">{escrow.quantity} {escrow.unit}</span>
               </div>
-              <div>
-                <span className="text-[10px] text-slate-400 font-bold uppercase block">Created</span>
-                <span className="font-medium text-slate-700">{new Date(escrow.created_at).toLocaleDateString()}</span>
+              <div className="min-w-0">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Created</span>
+                <span className="font-medium text-slate-700 truncate block">{new Date(escrow.created_at).toLocaleDateString()}</span>
               </div>
             </div>
 
@@ -10785,7 +12666,7 @@ export default function FpoEscrowPanel() {
                       type="button"
                       onClick={() => fundEscrow(escrow)}
                       disabled={fundTx.loading}
-                      className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${fundTx.loading
+                      className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${fundTx.loading
                           ? "bg-slate-400 cursor-not-allowed"
                           : "bg-blue-600 hover:bg-blue-500 shadow-blue-600/20"
                         }`}
@@ -10828,7 +12709,7 @@ export default function FpoEscrowPanel() {
                   type="button"
                   onClick={() => releasePayment(escrow)}
                   disabled={releaseTx.loading}
-                  className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${releaseTx.loading
+                  className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${releaseTx.loading
                       ? "bg-slate-400 cursor-not-allowed"
                       : "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20"
                     }`}
@@ -10861,7 +12742,7 @@ export default function FpoEscrowPanel() {
 ================================================
 FILE: frontend/src/components/fpo/FpoInventoryPanel.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 1966: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 2197: character maps to <undefined>
 
 
 ================================================
@@ -10870,6 +12751,7 @@ FILE: frontend/src/components/fpo/FpoRetailerEscrowPanel.jsx
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { ethers } from "ethers";
+import { useRefresh, useRefreshSubscription } from "../../context/useRefresh";
 import EscrowABI from "../../utils/EscrowABI.json";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
@@ -10945,7 +12827,8 @@ function RetailerEscrowProgressStepper({ status }) {
   );
 }
 
-export default function FpoRetailerEscrowPanel() {
+export default function FpoRetailerEscrowPanel({ onEscrowUpdated }) {
+  const { refresh } = useRefresh();
   const [escrows, setEscrows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [txStatus, setTxStatus] = useState({});
@@ -10979,6 +12862,11 @@ export default function FpoRetailerEscrowPanel() {
     fetchEscrows();
     fetchAwardedQuotes();
   }, [fetchEscrows, fetchAwardedQuotes]);
+
+  useRefreshSubscription(["escrow", "deals", "quotes", "fpo", "retailer"], () => {
+    fetchEscrows();
+    fetchAwardedQuotes();
+  });
 
   const ensureSepolia = async () => {
     if (!window.ethereum) throw new Error("MetaMask is required.");
@@ -11032,7 +12920,9 @@ export default function FpoRetailerEscrowPanel() {
                 return id.toNumber ? id.toNumber() : parseInt(id.toString(), 10);
               }
             }
-          } catch { }
+          } catch {
+            // ignore non-matching event logs
+          }
         }
       }
     }
@@ -11096,8 +12986,9 @@ export default function FpoRetailerEscrowPanel() {
         success: `✅ Escrow #${onChainEscrowId} created on Sepolia! Retailer can now lock funds.`,
       });
 
-      fetchEscrows();
-      fetchAwardedQuotes();
+      await Promise.all([fetchEscrows(), fetchAwardedQuotes()]);
+      if (onEscrowUpdated) onEscrowUpdated();
+      refresh(["escrow", "deals", "quotes", "fpo", "retailer"]);
     } catch (err) {
       console.error("Create escrow error:", err);
       const msg = err.response?.data?.error || err.message || "Failed to create escrow.";
@@ -11126,7 +13017,9 @@ export default function FpoRetailerEscrowPanel() {
       );
 
       setTx(key, { loading: false, error: null, success: "✅ Delivery confirmed on Sepolia! Retailer can now release payment." });
-      fetchEscrows();
+      await fetchEscrows();
+      if (onEscrowUpdated) onEscrowUpdated();
+      refresh(["escrow", "deals", "quotes", "fpo", "retailer", "transactions"]);
     } catch (err) {
       console.error("Confirm delivery error:", err);
       const msg = err.response?.data?.error || err.message || "Failed to confirm delivery.";
@@ -11193,7 +13086,7 @@ export default function FpoRetailerEscrowPanel() {
                     type="button"
                     onClick={() => handleCreateEscrow(quote)}
                     disabled={state.loading}
-                    className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+                    className="w-full sm:w-auto px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
                   >
                     <span>📝</span>
                     <span>{state.loading ? "Initializing…" : "Create On-Chain Escrow"}</span>
@@ -11211,7 +13104,7 @@ export default function FpoRetailerEscrowPanel() {
           Loading smart-contract escrow transactions…
         </div>
       ) : escrows.length === 0 ? (
-        <div className="py-12 text-center bg-slate-50/50 rounded-3xl border border-slate-100 space-y-1.5">
+        <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-100 space-y-1.5">
           <span className="text-4xl block mb-2">🔐</span>
           <p className="text-sm font-bold text-slate-800">No Retailer Escrows Active</p>
           <p className="text-xs text-slate-400 max-w-sm mx-auto">
@@ -11227,18 +13120,18 @@ export default function FpoRetailerEscrowPanel() {
             return (
               <div
                 key={escrow.id}
-                className="bg-white border border-slate-200/90 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xs hover:border-purple-300 transition-all"
+                className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 space-y-4 shadow-2xs hover:border-purple-300 transition-all"
               >
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-base font-extrabold text-slate-900">
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
+                    <span className="text-base font-extrabold text-slate-900 truncate">
                       🏢 {escrow.product_name}
                     </span>
-                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-800 border border-purple-200">
+                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-800 border border-purple-200 shrink-0">
                       {escrow.escrow_id ? `On-Chain Escrow #${escrow.escrow_id}` : "Pending Sepolia ID"}
                     </span>
-                    <span className="text-xs font-mono text-slate-400">
+                    <span className="text-xs font-mono text-slate-400 shrink-0">
                       Lot #{escrow.quote_id}
                     </span>
                   </div>
@@ -11249,42 +13142,42 @@ export default function FpoRetailerEscrowPanel() {
                 <RetailerEscrowProgressStepper status={escrow.status} />
 
                 {/* Details Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 text-xs bg-slate-50/80 p-3.5 rounded-2xl border border-slate-100">
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Escrow Amount</span>
-                    <span className="font-extrabold text-purple-900 font-mono text-sm mt-0.5 block">{escrow.amount_eth} ETH</span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-slate-50/80 p-2.5 sm:p-3 rounded-xl border border-slate-100">
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block truncate">Escrow Amount</span>
+                    <span className="font-extrabold text-purple-900 font-mono text-sm mt-0.5 block truncate">{escrow.amount_eth} ETH</span>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Lot Quantity</span>
-                    <span className="font-semibold text-slate-800 mt-0.5 block">{escrow.quantity} {escrow.unit}</span>
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block truncate">Lot Quantity</span>
+                    <span className="font-semibold text-slate-800 mt-0.5 block truncate">{escrow.quantity} {escrow.unit}</span>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Buyer (Retailer)</span>
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block truncate">Buyer (Retailer)</span>
                     <span className="font-semibold text-slate-800 mt-0.5 block truncate">{escrow.retailer_name}</span>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Buyer Wallet</span>
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block truncate">Buyer Wallet</span>
                     <AddressCopy value={escrow.retailer_wallet} etherscanType="address" />
                   </div>
                 </div>
 
                 {/* Multi-Farmer Provenance Breakdown */}
                 {escrow.allocations && escrow.allocations.length > 0 && (
-                  <div className="p-3 bg-purple-50/60 border border-purple-200/80 rounded-2xl space-y-1.5 text-xs">
-                    <div className="flex items-center justify-between text-purple-950 font-extrabold text-[11px]">
+                  <div className="p-3 bg-purple-50/60 border border-purple-200/80 rounded-xl space-y-1.5 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-1 text-purple-950 font-extrabold text-[11px]">
                       <span>🔗 Verified Multi-Farmer Provenance ({escrow.allocations.length} Source Lots):</span>
                       <span>{new Set(escrow.allocations.map(a => a.farmer_name)).size} Farmers</span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px] text-slate-700">
                       {escrow.allocations.map((alloc) => (
                         <div key={alloc.id} className="bg-white p-2 rounded-xl border border-purple-100 flex items-center justify-between shadow-2xs">
-                          <div>
-                            <span className="font-bold text-slate-900">{alloc.farmer_name}</span>{" "}
+                          <div className="min-w-0">
+                            <span className="font-bold text-slate-900 truncate block">{alloc.farmer_name}</span>{" "}
                             {alloc.crop_passport_id ? (
                               <span className="text-emerald-700 font-semibold">(Passport #{alloc.crop_passport_id})</span>
                             ) : null}
                           </div>
-                          <span className="font-mono font-bold text-purple-800">{alloc.allocated_quantity} {alloc.unit}</span>
+                          <span className="font-mono font-bold text-purple-800 shrink-0 ml-2">{alloc.allocated_quantity} {alloc.unit}</span>
                         </div>
                       ))}
                     </div>
@@ -11331,7 +13224,7 @@ export default function FpoRetailerEscrowPanel() {
                       type="button"
                       onClick={() => handleConfirmDelivery(escrow)}
                       disabled={deliverState.loading}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+                      className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
                     >
                       <span>📦</span>
                       <span>{deliverState.loading ? "Confirming…" : "Confirm Delivery (FPO)"}</span>
@@ -11359,19 +13252,19 @@ export default function FpoRetailerEscrowPanel() {
 ================================================
 FILE: frontend/src/components/fpo/FpoStockCartPanel.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 2088: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 2281: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/components/fpo/RetailerQuotes.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 1525: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 1498: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/components/retailer/RetailerCartPanel.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 1714: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 1904: character maps to <undefined>
 
 
 ================================================
@@ -11380,6 +13273,7 @@ FILE: frontend/src/components/retailer/RetailerEscrowPanel.jsx
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { ethers } from "ethers";
+import { useRefresh, useRefreshSubscription } from "../../context/useRefresh";
 import EscrowABI from "../../utils/EscrowABI.json";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
@@ -11455,7 +13349,8 @@ function RetailerEscrowProgressStepper({ status }) {
   );
 }
 
-export default function RetailerEscrowPanel({ onPaymentReleased }) {
+export default function RetailerEscrowPanel({ onPaymentReleased, onEscrowUpdated }) {
+  const { refresh } = useRefresh();
   const [escrows, setEscrows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [txStatus, setTxStatus] = useState({});
@@ -11474,6 +13369,8 @@ export default function RetailerEscrowPanel({ onPaymentReleased }) {
   useEffect(() => {
     fetchEscrows();
   }, [fetchEscrows]);
+
+  useRefreshSubscription(["escrow", "deals", "quotes", "retailer", "fpo"], fetchEscrows);
 
   const ensureSepolia = async () => {
     if (!window.ethereum) throw new Error("MetaMask is required.");
@@ -11531,7 +13428,9 @@ export default function RetailerEscrowPanel({ onPaymentReleased }) {
       );
 
       setTx(key, { loading: false, error: null, success: `✅ ${escrow.amount_eth} ETH locked in Sepolia escrow! FPO will now dispatch the lot.` });
-      fetchEscrows();
+      await fetchEscrows();
+      if (onEscrowUpdated) onEscrowUpdated();
+      refresh(["escrow", "deals", "quotes", "retailer", "fpo"]);
     } catch (err) {
       console.error("Fund escrow error:", err);
       const msg = err.response?.data?.error || err.message || "Failed to fund escrow.";
@@ -11560,8 +13459,10 @@ export default function RetailerEscrowPanel({ onPaymentReleased }) {
       );
 
       setTx(key, { loading: false, error: null, success: "✅ Payment released to FPO! Your purchased crop has been added to your Inventory." });
-      fetchEscrows();
+      await fetchEscrows();
+      if (onEscrowUpdated) onEscrowUpdated();
       if (onPaymentReleased) onPaymentReleased();
+      refresh(["escrow", "deals", "quotes", "retailer", "fpo", "inventory", "transactions"]);
     } catch (err) {
       console.error("Release payment error:", err);
       const msg = err.response?.data?.error || err.message || "Failed to release payment.";
@@ -11594,18 +13495,18 @@ export default function RetailerEscrowPanel({ onPaymentReleased }) {
             return (
               <div
                 key={escrow.id}
-                className="bg-white border border-slate-200/90 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xs hover:border-purple-300 transition-all"
+                className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 space-y-4 shadow-2xs hover:border-purple-300 transition-all"
               >
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-base font-extrabold text-slate-900">
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
+                    <span className="text-base font-extrabold text-slate-900 truncate">
                       🌾 {escrow.product_name}
                     </span>
-                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-800 border border-purple-200">
+                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-800 border border-purple-200 shrink-0">
                       {escrow.escrow_id ? `On-Chain Escrow #${escrow.escrow_id}` : "Pending Initial Setup"}
                     </span>
-                    <span className="text-xs font-mono text-slate-400">
+                    <span className="text-xs font-mono text-slate-400 shrink-0">
                       Lot #{escrow.quote_id}
                     </span>
                   </div>
@@ -11616,42 +13517,42 @@ export default function RetailerEscrowPanel({ onPaymentReleased }) {
                 <RetailerEscrowProgressStepper status={escrow.status} />
 
                 {/* Details Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 text-xs bg-slate-50/80 p-3.5 rounded-2xl border border-slate-100">
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Amount Due</span>
-                    <span className="font-extrabold text-purple-900 font-mono text-sm mt-0.5 block">{escrow.amount_eth} ETH</span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-slate-50/80 p-2.5 sm:p-3 rounded-xl border border-slate-100">
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block truncate">Amount Due</span>
+                    <span className="font-extrabold text-purple-900 font-mono text-sm mt-0.5 block truncate">{escrow.amount_eth} ETH</span>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Lot Quantity</span>
-                    <span className="font-semibold text-slate-800 mt-0.5 block">{escrow.quantity} {escrow.unit}</span>
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block truncate">Lot Quantity</span>
+                    <span className="font-semibold text-slate-800 mt-0.5 block truncate">{escrow.quantity} {escrow.unit}</span>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Seller (FPO)</span>
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block truncate">Seller (FPO)</span>
                     <span className="font-semibold text-slate-800 mt-0.5 block truncate">{escrow.fpo_name}</span>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">FPO Wallet</span>
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block truncate">FPO Wallet</span>
                     <AddressCopy value={escrow.fpo_wallet} etherscanType="address" />
                   </div>
                 </div>
 
                 {/* Multi-Farmer Provenance Breakdown */}
                 {escrow.allocations && escrow.allocations.length > 0 && (
-                  <div className="p-3 bg-purple-50/60 border border-purple-200/80 rounded-2xl space-y-1.5 text-xs">
-                    <div className="flex items-center justify-between text-purple-950 font-extrabold text-[11px]">
+                  <div className="p-3 bg-purple-50/60 border border-purple-200/80 rounded-xl space-y-1.5 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-1 text-purple-950 font-extrabold text-[11px]">
                       <span>🔗 Verified Multi-Farmer Provenance ({escrow.allocations.length} Source Lots):</span>
                       <span>{new Set(escrow.allocations.map(a => a.farmer_name)).size} Farmers</span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px] text-slate-700">
                       {escrow.allocations.map((alloc) => (
                         <div key={alloc.id} className="bg-white p-2 rounded-xl border border-purple-100 flex items-center justify-between shadow-2xs">
-                          <div>
-                            <span className="font-bold text-slate-900">{alloc.farmer_name}</span>{" "}
+                          <div className="min-w-0">
+                            <span className="font-bold text-slate-900 truncate block">{alloc.farmer_name}</span>{" "}
                             {alloc.crop_passport_id ? (
                               <span className="text-emerald-700 font-semibold">(Passport #{alloc.crop_passport_id})</span>
                             ) : null}
                           </div>
-                          <span className="font-mono font-bold text-purple-800">{alloc.allocated_quantity} {alloc.unit}</span>
+                          <span className="font-mono font-bold text-purple-800 shrink-0 ml-2">{alloc.allocated_quantity} {alloc.unit}</span>
                         </div>
                       ))}
                     </div>
@@ -11698,7 +13599,7 @@ export default function RetailerEscrowPanel({ onPaymentReleased }) {
                       type="button"
                       onClick={() => handleFundEscrow(escrow)}
                       disabled={fundState.loading || !escrow.escrow_id}
-                      className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+                      className="w-full sm:w-auto px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
                     >
                       <span>💰</span>
                       <span>{fundState.loading ? "Depositing…" : `Fund Escrow (${escrow.amount_eth} ETH)`}</span>
@@ -11716,7 +13617,7 @@ export default function RetailerEscrowPanel({ onPaymentReleased }) {
                       type="button"
                       onClick={() => handleReleasePayment(escrow)}
                       disabled={releaseState.loading}
-                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+                      className="w-full sm:w-auto px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
                     >
                       <span>💸</span>
                       <span>{releaseState.loading ? "Releasing…" : "Release Payment to FPO"}</span>
@@ -11750,13 +13651,168 @@ export default function RetailerEscrowPanel({ onPaymentReleased }) {
 ================================================
 FILE: frontend/src/components/retailer/RetailerInventoryPanel.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 2060: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 2253: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/components/retailer/RetailerOrdersPanel.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 1912: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 2011: character maps to <undefined>
+
+
+================================================
+FILE: frontend/src/context/RefreshContext.jsx
+================================================
+import React, { useState, useCallback } from "react";
+import { RefreshContext } from "./refreshContextDef";
+
+// Supported domains:
+// "farmer", "fpo", "retailer", "quotes", "bids", "deals", "inventory", "escrow", "transactions"
+
+export function RefreshProvider({ children }) {
+  const [versions, setVersions] = useState({
+    farmer: 0,
+    fpo: 0,
+    retailer: 0,
+    quotes: 0,
+    bids: 0,
+    deals: 0,
+    inventory: 0,
+    escrow: 0,
+    transactions: 0,
+  });
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Core targeted refresh trigger
+  const refresh = useCallback((domains) => {
+    const domainList = Array.isArray(domains) ? domains : [domains];
+    if (typeof process !== "undefined" && process.env?.NODE_ENV !== "production") {
+      console.log("[RefreshContext] Triggered refresh for:", domainList);
+    }
+
+    setVersions((prev) => {
+      const next = { ...prev };
+      domainList.forEach((d) => {
+        next[d] = (next[d] || 0) + 1;
+      });
+      return next;
+    });
+  }, []);
+
+  // Dedicated domain helper triggers
+  const refreshFarmer = useCallback(() => refresh(["farmer", "quotes", "bids", "deals", "escrow"]), [refresh]);
+  const refreshFpo = useCallback(() => refresh(["fpo", "quotes", "bids", "deals", "inventory", "escrow"]), [refresh]);
+  const refreshRetailer = useCallback(() => refresh(["retailer", "quotes", "bids", "deals", "inventory", "escrow", "transactions"]), [refresh]);
+  const refreshQuotes = useCallback(() => refresh(["quotes", "deals", "farmer", "fpo", "retailer"]), [refresh]);
+  const refreshBids = useCallback(() => refresh(["bids", "deals", "farmer", "fpo", "retailer"]), [refresh]);
+  const refreshDeals = useCallback(() => refresh(["deals", "quotes", "bids", "escrow"]), [refresh]);
+  const refreshInventory = useCallback(() => refresh(["inventory", "fpo", "retailer"]), [refresh]);
+  const refreshEscrow = useCallback(() => refresh(["escrow", "deals", "transactions", "inventory", "farmer", "fpo", "retailer"]), [refresh]);
+  const refreshTransactions = useCallback(() => refresh(["transactions", "escrow", "farmer", "retailer"]), [refresh]);
+
+  return (
+    <RefreshContext.Provider
+      value={{
+        versions,
+        refresh,
+        refreshFarmer,
+        refreshFpo,
+        refreshRetailer,
+        refreshQuotes,
+        refreshBids,
+        refreshDeals,
+        refreshInventory,
+        refreshEscrow,
+        refreshTransactions,
+        isRefreshing,
+        setIsRefreshing,
+      }}
+    >
+      {children}
+    </RefreshContext.Provider>
+  );
+}
+
+
+
+================================================
+FILE: frontend/src/context/refreshContextDef.js
+================================================
+import { createContext } from "react";
+
+export const RefreshContext = createContext(null);
+
+
+
+================================================
+FILE: frontend/src/context/useRefresh.js
+================================================
+import { useContext, useEffect, useRef } from "react";
+import { RefreshContext } from "./refreshContextDef";
+
+/**
+ * Hook to access the refresh context.
+ * Returns:
+ * - refresh(domains): function to trigger refresh on specific domain(s)
+ * - refreshAll(): function to trigger refresh on all domains
+ * - versions: object containing version numbers for all domains
+ * - isRefreshing: boolean indicating active refresh
+ * - setIsRefreshing: function to update active refresh status
+ */
+export function useRefresh() {
+  const ctx = useContext(RefreshContext);
+  if (!ctx) {
+    throw new Error("useRefresh must be used within a RefreshProvider");
+  }
+  return ctx;
+}
+
+/**
+ * Hook to subscribe a component to one or more data domains.
+ * The callback will automatically execute whenever any of the specified domains are refreshed.
+ *
+ * @param {string|string[]} domains Domain or list of domains to listen to
+ * @param {Function} callback Function to execute on refresh
+ */
+export function useRefreshSubscription(domains, callback) {
+  const { versions } = useRefresh();
+  const domainKey = Array.isArray(domains) ? domains.join(",") : (domains || "");
+  const lastVersionsRef = useRef({});
+  const isMountedRef = useRef(false);
+  const callbackRef = useRef(callback);
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+
+  useEffect(() => {
+    const domainList = domainKey ? domainKey.split(",") : [];
+    if (!isMountedRef.current) {
+      isMountedRef.current = true;
+      domainList.forEach((d) => {
+        lastVersionsRef.current[d] = versions[d] || 0;
+      });
+      return;
+    }
+
+    const hasChanged = domainList.some((d) => {
+      const current = versions[d] || 0;
+      const last = lastVersionsRef.current[d] || 0;
+      return current !== last;
+    });
+
+    if (hasChanged) {
+      domainList.forEach((d) => {
+        lastVersionsRef.current[d] = versions[d] || 0;
+      });
+      if (typeof callbackRef.current === "function") {
+        callbackRef.current();
+      }
+    }
+  }, [versions, domainKey]);
+}
+
 
 
 ================================================
@@ -11817,7 +13873,6 @@ export default function Contract() {
   const { address } = useParams();
   const CONTRACT_ADDRESS = address;
   const [web3, setWeb3] = useState(null);
-  const [contract, setContract] = useState(null);
   const [farmer, setFarmer] = useState(null);
   const [fpo, setFpo] = useState(null);
   const [retailer, setRetailer] = useState(null);
@@ -11831,7 +13886,6 @@ export default function Contract() {
           setWeb3(web3Instance);
 
           const c = new web3Instance.eth.Contract(farmerContractABI, CONTRACT_ADDRESS);
-          setContract(c);
 
           const farmerData = await c.methods.farmerDetails().call();
           const fpoData = await c.methods.fpoDetails().call();
@@ -11851,7 +13905,7 @@ export default function Contract() {
       }
     };
     init();
-  }, []);
+  }, [CONTRACT_ADDRESS]);
 
   if (loading) {
     return (
@@ -12636,7 +14690,7 @@ export default function CropPassportPage() {
 ================================================
 FILE: frontend/src/pages/admin/AdminDashboard.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 8953: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 8942: character maps to <undefined>
 
 
 ================================================
@@ -12671,7 +14725,7 @@ export default function AdminLogin() {
         withCredentials: true
       });
       navigate("/admin-dashboard");
-    } catch (err) {
+    } catch {
       setStatus("❌ Invalid credentials or server error");
     } finally {
       setLoading(false);
@@ -12797,19 +14851,19 @@ export default function AdminLogin() {
 ================================================
 FILE: frontend/src/pages/farmer/FarmerDashboard.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 8885: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 9392: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/pages/fpo/FpoDashboard.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 7922: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 8660: character maps to <undefined>
 
 
 ================================================
 FILE: frontend/src/pages/retailer/RetailerDashboard.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 3292: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 3407: character maps to <undefined>
 
 
 ================================================

@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import { useRefresh, useRefreshSubscription } from "../../context/useRefresh";
 import ProvenanceCard from "../common/ProvenanceCard";
 
 export default function RetailerCartPanel({ onCartUpdated, onOrderCreated }) {
+  const { refresh } = useRefresh();
   const [cartData, setCartData] = useState({ items: [], summary: {} });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -39,6 +41,8 @@ export default function RetailerCartPanel({ onCartUpdated, onOrderCreated }) {
     fetchCart();
   }, [fetchCart]);
 
+  useRefreshSubscription(["retailer", "inventory", "quotes"], fetchCart);
+
   const handleQuantityChange = (itemId, val) => {
     setQuantityInputs((prev) => ({ ...prev, [itemId]: val }));
   };
@@ -58,7 +62,9 @@ export default function RetailerCartPanel({ onCartUpdated, onOrderCreated }) {
         { selected_quantity: newQty },
         { withCredentials: true }
       );
-      fetchCart();
+      await fetchCart();
+      if (onCartUpdated) onCartUpdated();
+      refresh(["retailer", "inventory", "quotes"]);
     } catch (err) {
       console.error("Error updating cart item:", err.response?.data || err.message);
       const msg = err.response?.data?.error || "Failed to update quantity.";
@@ -77,7 +83,9 @@ export default function RetailerCartPanel({ onCartUpdated, onOrderCreated }) {
       await axios.delete(`/api/retailer/cart/items/${itemId}/delete/`, {
         withCredentials: true,
       });
-      fetchCart();
+      await fetchCart();
+      if (onCartUpdated) onCartUpdated();
+      refresh(["retailer", "inventory", "quotes"]);
     } catch (err) {
       console.error("Error deleting cart item:", err);
       alert("Failed to remove item from cart.");
@@ -93,7 +101,9 @@ export default function RetailerCartPanel({ onCartUpdated, onOrderCreated }) {
     setLoading(true);
     try {
       await axios.delete("/api/retailer/cart/clear/", { withCredentials: true });
-      fetchCart();
+      await fetchCart();
+      if (onCartUpdated) onCartUpdated();
+      refresh(["retailer", "inventory", "quotes"]);
     } catch (err) {
       console.error("Error clearing retailer cart:", err);
       alert("Failed to clear cart.");
@@ -117,8 +127,10 @@ export default function RetailerCartPanel({ onCartUpdated, onOrderCreated }) {
       alert(`🎉 Commercial order placed successfully! ${res.data?.orders?.length || 1} order record(s) created with full multi-farmer provenance.`);
       setShowOrderModal(false);
       setOrderNotes("");
-      fetchCart();
+      await fetchCart();
+      if (onCartUpdated) onCartUpdated();
       if (onOrderCreated) onOrderCreated(res.data?.orders);
+      refresh(["retailer", "inventory", "deals", "fpo", "escrow"]);
     } catch (err) {
       console.error("Error creating order from cart:", err.response?.data || err);
       const msg = err.response?.data?.error || err.response?.data?.detail || "Failed to create order.";
@@ -146,22 +158,22 @@ export default function RetailerCartPanel({ onCartUpdated, onOrderCreated }) {
         </div>
 
         {items.length > 0 && (
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => {
                 setOrderError("");
                 setShowOrderModal(true);
               }}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+              className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <span>📦</span>
-              <span>Proceed to Commercial Order</span>
+              <span><span className="hidden xs:inline">Proceed to </span>Order</span>
             </button>
             <button
               type="button"
               onClick={handleClearCart}
-              className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl transition-all cursor-pointer border border-rose-200 flex items-center gap-1"
+              className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl transition-all cursor-pointer border border-rose-200 flex items-center justify-center gap-1"
             >
               <span>🗑️</span>
               <span>Clear</span>
@@ -172,29 +184,29 @@ export default function RetailerCartPanel({ onCartUpdated, onOrderCreated }) {
 
       {/* ── Summary Stats ───────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-gradient-to-br from-purple-50/70 to-indigo-50/50 p-4 rounded-2xl border border-purple-200/80">
-          <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider block">Total Cart Value</span>
+        <div className="bg-gradient-to-br from-purple-50/70 to-indigo-50/50 p-4 rounded-2xl border border-purple-200/80 min-w-0">
+          <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider block truncate">Total Value</span>
           <span className="text-2xl font-extrabold text-purple-900 font-mono mt-1 block truncate">
             {summary.total_cart_value_eth || "0"} ETH
           </span>
         </div>
 
-        <div className="bg-gradient-to-br from-blue-50/70 to-cyan-50/50 p-4 rounded-2xl border border-blue-200/80">
-          <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider block">Quote Items</span>
+        <div className="bg-gradient-to-br from-blue-50/70 to-cyan-50/50 p-4 rounded-2xl border border-blue-200/80 min-w-0">
+          <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider block truncate">Quote Items</span>
           <span className="text-2xl font-extrabold text-blue-900 font-mono mt-1 block">
             {summary.total_items_count || 0}
           </span>
         </div>
 
-        <div className="bg-gradient-to-br from-emerald-50/70 to-green-50/50 p-4 rounded-2xl border border-emerald-200/80">
-          <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">FPO Partners</span>
+        <div className="bg-gradient-to-br from-emerald-50/70 to-green-50/50 p-4 rounded-2xl border border-emerald-200/80 min-w-0">
+          <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block truncate">FPO Partners</span>
           <span className="text-2xl font-extrabold text-emerald-900 font-mono mt-1 block">
             {summary.unique_fpos_count || 0}
           </span>
         </div>
 
-        <div className="bg-gradient-to-br from-amber-50/70 to-orange-50/50 p-4 rounded-2xl border border-amber-200/80">
-          <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">Farmer Sources</span>
+        <div className="bg-gradient-to-br from-amber-50/70 to-orange-50/50 p-4 rounded-2xl border border-amber-200/80 min-w-0">
+          <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block truncate">Farmer Sources</span>
           <span className="text-2xl font-extrabold text-amber-900 font-mono mt-1 block">
             {summary.unique_farmers_count || 0}
           </span>
@@ -235,13 +247,13 @@ export default function RetailerCartPanel({ onCartUpdated, onOrderCreated }) {
             return (
               <div
                 key={item.id}
-                className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs hover:border-purple-300 transition-all space-y-4"
+                className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs hover:border-purple-300 transition-all space-y-4"
               >
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                   {/* Left: Product & FPO Details */}
-                  <div className="space-y-2 flex-1">
+                  <div className="space-y-2 flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-base font-extrabold text-slate-900">
+                      <span className="text-base font-extrabold text-slate-900 truncate">
                         {quote.product_name || "Commercial Lot"}
                       </span>
                       {quote.category && (
@@ -254,8 +266,8 @@ export default function RetailerCartPanel({ onCartUpdated, onOrderCreated }) {
                       </span>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600">
-                      <div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
+                      <div className="truncate">
                         <strong className="text-slate-400 font-semibold">FPO Supplier:</strong>{" "}
                         <span className="font-extrabold text-slate-800">{fpoName}</span>{" "}
                         {quote.fpo_location && <span className="text-slate-400">({quote.fpo_location})</span>}
@@ -276,22 +288,22 @@ export default function RetailerCartPanel({ onCartUpdated, onOrderCreated }) {
                     />
 
                     {/* Metrics Row */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs">
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase block">Selected Quantity</span>
-                        <span className="font-extrabold text-purple-700 font-mono mt-0.5 block">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-slate-50 p-2.5 sm:p-3 rounded-xl border border-slate-100 text-xs">
+                      <div className="min-w-0">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Selected Qty</span>
+                        <span className="font-extrabold text-purple-700 font-mono mt-0.5 block truncate">
                           {item.selected_quantity} {quote.unit}
                         </span>
                       </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase block">Remaining Quote Stock</span>
-                        <span className="font-semibold text-emerald-700 font-mono mt-0.5 block">
+                      <div className="min-w-0">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Remaining Stock</span>
+                        <span className="font-semibold text-emerald-700 font-mono mt-0.5 block truncate">
                           {item.available_remaining_quantity} {quote.unit}
                         </span>
                       </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Price</span>
-                        <span className="font-extrabold text-slate-900 font-mono mt-0.5 block">
+                      <div className="col-span-2 sm:col-span-1 min-w-0">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Total Price</span>
+                        <span className="font-extrabold text-slate-900 font-mono mt-0.5 block truncate">
                           {totalItemEth} ETH
                         </span>
                       </div>
@@ -299,8 +311,8 @@ export default function RetailerCartPanel({ onCartUpdated, onOrderCreated }) {
                   </div>
 
                   {/* Right: Quantity Selector & Controls */}
-                  <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 shrink-0 self-end md:self-start pt-2 md:pt-0">
-                    <div className="w-36">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0 w-full sm:w-auto pt-2 md:pt-0">
+                    <div className="w-full sm:w-36">
                       <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                         Selected Qty ({quote.unit})
                       </label>
@@ -331,7 +343,7 @@ export default function RetailerCartPanel({ onCartUpdated, onOrderCreated }) {
                       type="button"
                       onClick={() => handleRemoveItem(item.id)}
                       disabled={updatingId === item.id}
-                      className="px-3 py-2 bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1 border border-slate-200 hover:border-rose-300"
+                      className="w-full sm:w-auto px-3 py-2 bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 border border-slate-200 hover:border-rose-300 self-end sm:self-auto mt-auto"
                     >
                       <span>✕</span>
                       <span>Remove</span>
@@ -346,10 +358,10 @@ export default function RetailerCartPanel({ onCartUpdated, onOrderCreated }) {
 
       {/* ── Commercial Order Modal ────────────────────────────────────── */}
       {showOrderModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
           <form
             onSubmit={handleCreateOrderSubmit}
-            className="bg-white rounded-3xl max-w-xl w-full p-6 space-y-5 shadow-2xl border border-slate-200 animate-fade-in max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-3xl max-w-xl w-full p-4 sm:p-6 space-y-4 sm:space-y-5 shadow-2xl border border-slate-200 animate-fade-in max-h-[92vh] overflow-y-auto"
           >
             <div className="flex justify-between items-start border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">

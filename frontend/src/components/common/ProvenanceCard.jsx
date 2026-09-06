@@ -1,6 +1,6 @@
 import React from "react";
 
-export default function ProvenanceCard({ allocations = [], provenanceSummary, fpoName, compact = false }) {
+export default function ProvenanceCard({ allocations = [], provenanceSummary, fpoName }) {
   if (!allocations || allocations.length === 0) {
     return (
       <div className="p-3 bg-slate-50 border border-slate-200/60 rounded-2xl text-xs text-slate-500 font-medium">
@@ -13,13 +13,13 @@ export default function ProvenanceCard({ allocations = [], provenanceSummary, fp
   const passportsCount = provenanceSummary?.total_passports_count || allocations.filter((a) => a.crop_passport_id || a.crop_passport || a.crop_passport_details).length;
 
   return (
-    <div className="p-3.5 bg-purple-50/70 border border-purple-200/90 rounded-2xl space-y-2 text-xs">
-      <div className="flex items-center justify-between text-purple-950 font-extrabold text-[11px] flex-wrap gap-1">
+    <div className="p-3 sm:p-3.5 bg-purple-50/70 border border-purple-200/90 rounded-2xl space-y-2 text-xs min-w-0">
+      <div className="flex items-center justify-between text-purple-950 font-extrabold text-[11px] flex-wrap gap-1.5">
         <div className="flex items-center gap-1.5">
           <span>🔗</span>
           <span>Verified Supply Chain Provenance:</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <span className="bg-purple-100 text-purple-900 px-2 py-0.5 rounded-full text-[10px] font-bold">
             {farmersCount} Farmer{farmersCount !== 1 ? "s" : ""}
           </span>
@@ -45,13 +45,16 @@ export default function ProvenanceCard({ allocations = [], provenanceSummary, fp
           return (
             <div
               key={alloc.id || idx}
-              className="bg-white p-2.5 rounded-xl border border-purple-100 shadow-2xs space-y-1.5 hover:border-purple-300 transition-all"
+              className="bg-white p-2.5 rounded-xl border border-purple-100 shadow-2xs space-y-1.5 hover:border-purple-300 transition-all min-w-0"
             >
               <div className="flex justify-between items-start gap-2">
                 <div className="min-w-0 flex-1">
                   <p className="font-extrabold text-slate-900 text-xs truncate">👨‍🌾 {farmerName}</p>
                   {farmerLocation && (
                     <p className="text-[10px] text-slate-500 font-medium truncate">📍 {farmerLocation}</p>
+                  )}
+                  {farmerDid && (
+                    <p className="text-[9px] font-mono text-slate-400 truncate">DID: {farmerDid.slice(0, 18)}…</p>
                   )}
                 </div>
                 <span className="font-mono font-extrabold text-purple-900 bg-purple-50 px-2 py-0.5 rounded-lg text-xs shrink-0">

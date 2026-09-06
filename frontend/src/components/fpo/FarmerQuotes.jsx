@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
+import { useRefresh, useRefreshSubscription } from "../../context/useRefresh";
 import { calculateTotalEth } from "../../utils/pricing";
 import MarketplaceFilterBar from "../common/MarketplaceFilterBar";
 
-export default function FarmerQuotes() {
+export default function FarmerQuotes({ onBidPlaced }) {
+  const { refresh } = useRefresh();
   const [quotes, setQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [bidAmount, setBidAmount] = useState({});
@@ -44,6 +46,8 @@ export default function FarmerQuotes() {
     fetchQuotes({});
   }, [fetchQuotes]);
 
+  useRefreshSubscription(["quotes", "farmer", "deals"], () => fetchQuotes(filterRef.current));
+
   const handleBidSubmit = async (quoteId) => {
     const amount = bidAmount[quoteId];
     if (!amount || Number(amount) <= 0) {
@@ -75,6 +79,8 @@ export default function FarmerQuotes() {
       }));
       setBidAmount((prev) => ({ ...prev, [quoteId]: "" }));
       fetchQuotes(filterRef.current);
+      if (onBidPlaced) onBidPlaced();
+      refresh(["quotes", "bids", "farmer", "fpo"]);
     } catch (err) {
       console.error("Error placing bid:", err.response?.data || err.message);
       const msg = err.response?.data?.error || err.response?.data?.detail || "Failed to place bid. Please try again.";
@@ -116,7 +122,7 @@ export default function FarmerQuotes() {
             return (
               <div
                 key={quote.id}
-                className="border border-slate-200/80 rounded-2xl p-5 hover:border-blue-300 hover:shadow-xs transition-all bg-white space-y-3"
+                className="border border-slate-200/80 rounded-2xl p-4 sm:p-5 hover:border-blue-300 hover:shadow-xs transition-all bg-white space-y-3 min-w-0"
               >
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                   {quote.crop_passport_details?.primary_image_url && (
@@ -126,7 +132,7 @@ export default function FarmerQuotes() {
                       className="w-20 h-20 object-cover rounded-xl border border-slate-200 shrink-0"
                     />
                   )}
-                  <div className="space-y-1 flex-1">
+                  <div className="space-y-1 flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-base font-extrabold text-slate-900">
                         {quote.product_name}
@@ -171,8 +177,8 @@ export default function FarmerQuotes() {
                   </div>
 
                   {/* Bidding Controls */}
-                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 pt-2 lg:pt-0 shrink-0">
-                    <div className="relative w-36">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 lg:flex lg:items-center gap-2 pt-2 lg:pt-0 shrink-0 w-full lg:w-auto">
+                    <div className="relative w-full lg:w-36">
                       <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                         Offer (ETH / {quote.unit})
                       </label>
@@ -189,7 +195,7 @@ export default function FarmerQuotes() {
                       />
                     </div>
 
-                    <div className="relative w-28">
+                    <div className="relative w-full lg:w-28">
                       <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                         Delivery (Days)
                       </label>
@@ -205,12 +211,12 @@ export default function FarmerQuotes() {
                       />
                     </div>
 
-                    <div className="self-end">
+                    <div className="self-end w-full lg:w-auto">
                       <button
                         type="button"
                         onClick={() => handleBidSubmit(quote.id)}
                         disabled={loadingMap[quote.id]}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 h-[38px]"
+                        className="w-full lg:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 h-[38px]"
                       >
                         <span>🤝</span>
                         <span>{loadingMap[quote.id] ? "Submitting…" : "Place Bid"}</span>

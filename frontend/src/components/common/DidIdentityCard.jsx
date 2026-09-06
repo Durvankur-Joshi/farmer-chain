@@ -31,37 +31,38 @@ export default function DidIdentityCard({ didInfo, accentColor = "emerald" }) {
 
   return (
     <div
-      className={`border ${style.border} rounded-2xl p-5 mb-6 shadow-xs backdrop-blur-xs transition-all`}
+      className={`border ${style.border} rounded-2xl p-4 sm:p-5 shadow-2xs backdrop-blur-xs transition-all`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2">
-          <span className="text-lg">🔐</span>
+          <span className="text-base sm:text-lg">🔐</span>
           <h3 className={`text-xs font-bold uppercase tracking-wider ${style.title}`}>
             Decentralized Identity (DID)
           </h3>
         </div>
-        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${style.badge}`}>
+        <span className={`text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full border ${style.badge}`}>
           W3C Verified · {didInfo.role || "Participant"}
         </span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-        <div className="bg-white/80 border border-slate-100 rounded-xl p-3 shadow-2xs">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+        <div className="bg-white/80 border border-slate-100 rounded-xl p-3 shadow-2xs min-w-0">
           <p className="text-[11px] font-semibold text-slate-500 mb-1">
             Decentralized Identifier (DID)
           </p>
-          <AddressCopy value={didInfo.did} truncate={false} className="text-slate-800 break-all text-[11px]" />
+          <AddressCopy value={didInfo.did} truncate={true} truncateLength={22} className="text-slate-800 text-[11px]" />
         </div>
 
-        <div className="bg-white/80 border border-slate-100 rounded-xl p-3 shadow-2xs">
+        <div className="bg-white/80 border border-slate-100 rounded-xl p-3 shadow-2xs min-w-0">
           <p className="text-[11px] font-semibold text-slate-500 mb-1">
             Linked Sepolia Wallet
           </p>
           <AddressCopy
             value={didInfo.wallet_address}
             etherscanType="address"
-            truncate={false}
-            className="text-slate-800 break-all text-[11px]"
+            truncate={true}
+            truncateLength={20}
+            className="text-slate-800 text-[11px]"
           />
         </div>
       </div>

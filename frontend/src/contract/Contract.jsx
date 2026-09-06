@@ -53,7 +53,6 @@ export default function Contract() {
   const { address } = useParams();
   const CONTRACT_ADDRESS = address;
   const [web3, setWeb3] = useState(null);
-  const [contract, setContract] = useState(null);
   const [farmer, setFarmer] = useState(null);
   const [fpo, setFpo] = useState(null);
   const [retailer, setRetailer] = useState(null);
@@ -67,7 +66,6 @@ export default function Contract() {
           setWeb3(web3Instance);
 
           const c = new web3Instance.eth.Contract(farmerContractABI, CONTRACT_ADDRESS);
-          setContract(c);
 
           const farmerData = await c.methods.farmerDetails().call();
           const fpoData = await c.methods.fpoDetails().call();
@@ -87,7 +85,7 @@ export default function Contract() {
       }
     };
     init();
-  }, []);
+  }, [CONTRACT_ADDRESS]);
 
   if (loading) {
     return (

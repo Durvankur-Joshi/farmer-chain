@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
+import { useRefresh } from "../../context/useRefresh";
 
 const UNIT_OPTIONS = ["kg", "quintal", "caret", "piece", "acre", "ton", "litre", "dozen"];
 const CATEGORY_OPTIONS = [
@@ -51,6 +52,7 @@ function ProgressStepper({ currentStep, failed }) {
 }
 
 export default function CropPassportForm({ onSuccess, onCancel }) {
+  const { refresh } = useRefresh();
   const [form, setForm] = useState({
     crop_name: "",
     crop_category: "",
@@ -188,6 +190,7 @@ export default function CropPassportForm({ onSuccess, onCancel }) {
     setStep("done");
     setResult({ crop: cropData, verification: verificationData });
     setSubmitting(false);
+    refresh(["farmer", "quotes", "inventory"]);
   };
 
   // If registration + verification is done, show result card

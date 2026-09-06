@@ -1,4 +1,5 @@
 from rest_framework import generics, status
+from common.events import emit_event
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
@@ -189,6 +190,8 @@ class FarmerQuoteListCreateView(generics.ListCreateAPIView):
                 passport.status = 'sold'
             passport.save()
 
+        emit_event("quote_updated", {"quote_id": quote.id, "farmer_id": farmer.pk})
+
 class FarmerQuoteDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = FarmerQuoteSerializer
     permission_classes = [IsAuthenticated, IsFarmer]
@@ -229,6 +232,9 @@ def accept_fpo_bid(request, bid_pk):
         create_fpo_inventory_lot_from_deal(quote, bid)
     except Exception as exc:
         logger.warning("Could not auto-create FPO inventory lot on bid accept: %s", exc)
+
+    emit_event("bid_updated", {"bid_id": bid.pk, "quote_id": quote.id})
+    emit_event("deal_updated", {"quote_id": quote.id})
 
     return Response({
         "message": "Bid accepted successfully. You can now create the smart contract.",
@@ -389,6 +395,8 @@ class CropPassportDetailView(generics.RetrieveUpdateDestroyAPIView):
         msg = "Crop Passport successfully deleted from FarmerChain."
         if was_minted:
             msg += " Note: Historical on-chain NFT token records remain recorded on the blockchain ledger."
+
+        emit_event("crop_updated", {"crop_id": instance.pk})
 
         return Response(
             {"message": msg, "is_minted": was_minted},
@@ -556,6 +564,9 @@ def confirm_mint_view(request, crop_id):
     crop.save()
 
     serializer = CropPassportSerializer(crop)
+
+    emit_event("crop_updated", {"crop_id": crop.pk})
+
     return Response({
         "message": "Crop Passport NFT successfully recorded.",
         "crop": serializer.data,
@@ -676,6 +687,9 @@ def upload_document(request, crop_id):
     )
 
     serializer = CropPassportDocumentSerializer(doc)
+
+    emit_event("crop_updated", {"crop_id": crop.pk})
+
     return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -934,6 +948,9 @@ def verify_crop_view(request, crop_id):
     )
 
     serializer = AIQualityVerificationSerializer(verification)
+
+    emit_event("crop_updated", {"crop_id": crop.pk})
+
     return Response(
         {
             'message': 'AI quality verification complete.',

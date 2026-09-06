@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { ethers } from "ethers";
+import { useRefresh, useRefreshSubscription } from "../../context/useRefresh";
 import EscrowABI from "../../utils/EscrowABI.json";
 import StatusBadge from "../common/StatusBadge";
 import AddressCopy from "../common/AddressCopy";
@@ -76,7 +77,8 @@ function EscrowProgressStepper({ status }) {
   );
 }
 
-export default function EscrowPanel() {
+export default function EscrowPanel({ onEscrowUpdated }) {
+  const { refresh } = useRefresh();
   const [escrows, setEscrows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [txStatus, setTxStatus] = useState({});
@@ -111,6 +113,11 @@ export default function EscrowPanel() {
       setLoading(false)
     );
   }, [fetchEscrows, fetchAcceptedQuotes]);
+
+  useRefreshSubscription(["escrow", "deals", "quotes", "farmer", "fpo"], () => {
+    fetchEscrows();
+    fetchAcceptedQuotes();
+  });
 
   // ── Helpers ─────────────────────────────────────────────────────
 
@@ -259,6 +266,8 @@ export default function EscrowPanel() {
 
       setTx(key, { loading: false, success: `On-Chain Escrow #${onChainId} created on Sepolia! ✅` });
       await Promise.all([fetchEscrows(), fetchAcceptedQuotes()]);
+      if (onEscrowUpdated) onEscrowUpdated();
+      refresh(["escrow", "deals", "quotes", "farmer", "fpo"]);
     } catch (err) {
       console.error("Create escrow error:", err);
       let msg =
@@ -318,6 +327,8 @@ export default function EscrowPanel() {
 
       setTx(key, { loading: false, success: `On-Chain Escrow #${onChainId} created on Sepolia! ✅` });
       await Promise.all([fetchEscrows(), fetchAcceptedQuotes()]);
+      if (onEscrowUpdated) onEscrowUpdated();
+      refresh(["escrow", "deals", "quotes", "farmer", "fpo"]);
     } catch (err) {
       console.error("Complete onchain escrow error:", err);
       let msg =
@@ -358,6 +369,8 @@ export default function EscrowPanel() {
 
         setTx(key, { loading: false, success: "Delivery handover confirmed on Sepolia! ✅" });
         await fetchEscrows();
+        if (onEscrowUpdated) onEscrowUpdated();
+        refresh(["escrow", "deals", "quotes", "farmer", "fpo", "transactions"]);
       } catch (apiErr) {
         console.error("Backend delivery-confirm sync error:", apiErr);
         if (apiErr.response?.status === 401) {
@@ -517,7 +530,7 @@ export default function EscrowPanel() {
             return (
               <div
                 key={escrow.id}
-                className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs hover:border-slate-300 transition-all space-y-4"
+                className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs hover:border-slate-300 transition-all space-y-3.5 sm:space-y-4"
               >
                 {/* Top Title & Status */}
                 <div className="flex justify-between items-start gap-2">
@@ -590,34 +603,45 @@ export default function EscrowPanel() {
                   </div>
                 )}
 
-                {/* Blockchain Proofs */}
+                {/* Collapsible Blockchain Proofs */}
                 {isOnChain && (
-                  <div className="space-y-1 text-xs pt-1 border-t border-slate-100">
-                    {escrow.contract_address && (
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                        <span className="text-slate-400 text-[11px]">Contract:</span>
-                        <AddressCopy value={escrow.contract_address} etherscanType="address" />
-                      </div>
-                    )}
-                    {escrow.create_tx_hash && (
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                        <span className="text-slate-400 text-[11px]">Create Tx:</span>
-                        <AddressCopy value={escrow.create_tx_hash} etherscanType="tx" />
-                      </div>
-                    )}
-                    {escrow.deposit_tx_hash && (
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                        <span className="text-slate-400 text-[11px]">Deposit Tx:</span>
-                        <AddressCopy value={escrow.deposit_tx_hash} etherscanType="tx" />
-                      </div>
-                    )}
-                    {escrow.release_tx_hash && (
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                        <span className="text-slate-400 text-[11px]">Release Tx:</span>
-                        <AddressCopy value={escrow.release_tx_hash} etherscanType="tx" />
-                      </div>
-                    )}
-                  </div>
+                  <details className="group border border-slate-200/80 rounded-xl p-3 bg-slate-50/60 text-xs">
+                    <summary className="font-bold text-slate-700 cursor-pointer flex items-center justify-between select-none">
+                      <span className="flex items-center gap-1.5 text-xs text-slate-700">
+                        <span>⛓️</span>
+                        <span>On-Chain Contract & Transaction Hashes</span>
+                      </span>
+                      <span className="text-[10px] text-slate-400 group-open:rotate-180 transition-transform font-bold">
+                        ▼
+                      </span>
+                    </summary>
+                    <div className="space-y-2 pt-2.5 mt-2 border-t border-slate-200/60">
+                      {escrow.contract_address && (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                          <span className="text-slate-500 text-[11px] font-medium">Contract:</span>
+                          <AddressCopy value={escrow.contract_address} etherscanType="address" />
+                        </div>
+                      )}
+                      {escrow.create_tx_hash && (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                          <span className="text-slate-500 text-[11px] font-medium">Create Tx:</span>
+                          <AddressCopy value={escrow.create_tx_hash} etherscanType="tx" />
+                        </div>
+                      )}
+                      {escrow.deposit_tx_hash && (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                          <span className="text-slate-500 text-[11px] font-medium">Deposit Tx:</span>
+                          <AddressCopy value={escrow.deposit_tx_hash} etherscanType="tx" />
+                        </div>
+                      )}
+                      {escrow.release_tx_hash && (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                          <span className="text-slate-500 text-[11px] font-medium">Release Tx:</span>
+                          <AddressCopy value={escrow.release_tx_hash} etherscanType="tx" />
+                        </div>
+                      )}
+                    </div>
+                  </details>
                 )}
 
                 {/* Confirm Delivery button */}

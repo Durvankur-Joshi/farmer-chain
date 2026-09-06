@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import { useRefreshSubscription } from "../../context/useRefresh";
 import ProvenanceCard from "../common/ProvenanceCard";
 
 export default function RetailerOrdersPanel() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [expandedOrderId, setExpandedOrderId] = useState(null);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -25,6 +25,8 @@ export default function RetailerOrdersPanel() {
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  useRefreshSubscription(["retailer", "deals", "quotes", "escrow", "inventory"], fetchOrders);
 
   return (
     <div className="space-y-6">
@@ -73,19 +75,18 @@ export default function RetailerOrdersPanel() {
           {orders.map((ord) => {
             const allocations = ord.allocations || [];
             const provSummary = ord.provenance_summary || {};
-            const isExpanded = expandedOrderId === ord.id;
 
             return (
               <div
                 key={ord.id}
-                className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs hover:border-emerald-300 transition-all space-y-4"
+                className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs hover:border-emerald-300 transition-all space-y-4"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    <span className="text-xs font-mono font-extrabold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  <div className="flex items-center gap-2.5 flex-wrap min-w-0">
+                    <span className="text-xs font-mono font-extrabold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
                       {ord.order_number}
                     </span>
-                    <span className="text-base font-extrabold text-slate-900">
+                    <span className="text-base font-extrabold text-slate-900 truncate">
                       {ord.product_name}
                     </span>
                     <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
@@ -96,34 +97,34 @@ export default function RetailerOrdersPanel() {
                     </span>
                   </div>
 
-                  <span className="text-xs font-mono text-slate-400">
+                  <span className="text-xs font-mono text-slate-400 shrink-0">
                     {new Date(ord.created_at).toLocaleString()}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-100">
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">FPO Partner</span>
-                    <span className="font-extrabold text-slate-800 block mt-0.5">{ord.fpo_name}</span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-slate-50 p-2.5 sm:p-3 rounded-xl border border-slate-100">
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">FPO Partner</span>
+                    <span className="font-extrabold text-slate-800 block mt-0.5 truncate">{ord.fpo_name}</span>
                   </div>
 
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Order Quantity</span>
-                    <span className="font-mono font-extrabold text-purple-700 block mt-0.5">
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Order Quantity</span>
+                    <span className="font-mono font-extrabold text-purple-700 block mt-0.5 truncate">
                       {ord.quantity} {ord.unit}
                     </span>
                   </div>
 
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Price per Unit</span>
-                    <span className="font-mono font-bold text-blue-700 block mt-0.5">
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Price per Unit</span>
+                    <span className="font-mono font-bold text-blue-700 block mt-0.5 truncate">
                       {ord.price_per_unit} ETH / {ord.unit}
                     </span>
                   </div>
 
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Order Price</span>
-                    <span className="font-mono font-extrabold text-emerald-700 block mt-0.5 text-sm">
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Total Price</span>
+                    <span className="font-mono font-extrabold text-emerald-700 block mt-0.5 text-sm truncate">
                       {ord.total_price} ETH
                     </span>
                   </div>

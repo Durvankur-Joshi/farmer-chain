@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
+import { useRefresh } from "../../context/useRefresh";
 import ProvenanceCard from "./ProvenanceCard";
 
 export default function NegotiationModal({
@@ -9,6 +10,7 @@ export default function NegotiationModal({
   onClose,
   onNegotiationUpdated,
 }) {
+  const { refresh } = useRefresh();
   const [negotiation, setNegotiation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -84,6 +86,7 @@ export default function NegotiationModal({
       setCounterQuantity("");
       setCounterDays("");
       if (onNegotiationUpdated) onNegotiationUpdated(res.data);
+      refresh(["quotes", "bids", "deals", "farmer", "fpo", "retailer"]);
     } catch (err) {
       console.error("Error posting negotiation message:", err.response?.data || err);
       const msg = err.response?.data?.error || err.response?.data?.detail || "Failed to send message.";
@@ -110,6 +113,7 @@ export default function NegotiationModal({
       setNegotiation(res.data.negotiation);
       alert("🎉 Agreement accepted! Final terms locked.");
       if (onNegotiationUpdated) onNegotiationUpdated(res.data.negotiation);
+      refresh(["quotes", "bids", "deals", "farmer", "fpo", "retailer", "escrow"]);
     } catch (err) {
       console.error("Error accepting negotiation:", err.response?.data || err);
       setActionError(err.response?.data?.error || "Failed to accept agreement.");
@@ -132,6 +136,7 @@ export default function NegotiationModal({
       );
       setNegotiation(res.data.negotiation);
       if (onNegotiationUpdated) onNegotiationUpdated(res.data.negotiation);
+      refresh(["quotes", "bids", "deals", "farmer", "fpo", "retailer"]);
     } catch (err) {
       console.error("Error rejecting negotiation:", err);
       setActionError(err.response?.data?.error || "Failed to reject.");
@@ -168,7 +173,7 @@ export default function NegotiationModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl max-w-2xl w-full p-4 sm:p-6 space-y-4 shadow-2xl border border-slate-200 animate-fade-in max-h-[92vh] flex flex-col my-auto">
+      <div className="bg-white rounded-3xl max-w-2xl w-full p-3.5 sm:p-6 space-y-3 sm:space-y-4 shadow-2xl border border-slate-200 animate-fade-in max-h-[94vh] flex flex-col my-auto overflow-hidden">
         {/* Modal Header */}
         <div className="flex justify-between items-start border-b border-slate-100 pb-3 shrink-0">
           <div className="flex items-center gap-2.5">

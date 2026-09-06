@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404
 from .models import Negotiation, NegotiationMessage
 from .serializers import NegotiationSerializer, CounterOfferSerializer
 from rest_framework import serializers  # Add this import
+from common.events import emit_event
 
 def get_bid_model_instance(content_type_str, object_id):
     """Helper to get a bid object instance from its content type string and ID."""
@@ -111,6 +112,7 @@ class NegotiationDetailView(APIView):
             )
             negotiation.save()
 
+        emit_event("bid_updated", {"negotiation_id": negotiation.pk})
         return Response(NegotiationSerializer(negotiation).data, status=status.HTTP_201_CREATED)
 
 
@@ -154,6 +156,8 @@ class AcceptNegotiationView(APIView):
                 message=f"🤝 Agreement Accepted! Final price locked at {final_price} ETH per unit."
             )
 
+        emit_event("deal_updated", {"negotiation_id": negotiation.pk, "status": "accepted"})
+        emit_event("bid_updated", {"negotiation_id": negotiation.pk, "status": "accepted"})
         return Response({
             "message": "Negotiation accepted successfully. Price and quantity locked.",
             "negotiation": NegotiationSerializer(negotiation).data
@@ -186,6 +190,7 @@ class RejectNegotiationView(APIView):
                 message="❌ Negotiation rejected."
             )
 
+        emit_event("bid_updated", {"negotiation_id": negotiation.pk, "status": "rejected"})
         return Response({
             "message": "Negotiation rejected.",
             "negotiation": NegotiationSerializer(negotiation).data
@@ -218,6 +223,7 @@ class WithdrawNegotiationView(APIView):
                 message="⚠️ Negotiation withdrawn."
             )
 
+        emit_event("bid_updated", {"negotiation_id": negotiation.pk, "status": "withdrawn"})
         return Response({
             "message": "Negotiation withdrawn.",
             "negotiation": NegotiationSerializer(negotiation).data

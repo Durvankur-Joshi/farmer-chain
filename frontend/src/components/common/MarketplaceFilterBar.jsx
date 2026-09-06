@@ -103,11 +103,11 @@ export default function MarketplaceFilterBar({
     !!status;
 
   return (
-    <div className="bg-slate-50/80 border border-slate-200/90 rounded-2xl p-4 space-y-3 shadow-2xs">
+    <div className="bg-slate-50/80 border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 space-y-3 shadow-2xs">
       {/* ── Top Search & Quick Category Row ─────────────────────────── */}
-      <div className="flex flex-col sm:flex-row items-center gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:items-center gap-2.5 sm:gap-3">
         {/* Keyword Search Input */}
-        <div className="relative flex-1 w-full">
+        <div className="relative flex-1 sm:col-span-2 lg:col-span-1 min-w-0">
           <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
             🔍
           </span>
@@ -116,13 +116,13 @@ export default function MarketplaceFilterBar({
             placeholder={placeholder}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all"
+            className="w-full pl-9 pr-7 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all"
           />
           {search && (
             <button
               type="button"
               onClick={() => setSearch("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs p-1"
             >
               ✕
             </button>
@@ -130,7 +130,7 @@ export default function MarketplaceFilterBar({
         </div>
 
         {/* Category Dropdown */}
-        <div className="w-full sm:w-44 shrink-0">
+        <div className="w-full lg:w-44 shrink-0">
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
@@ -147,7 +147,7 @@ export default function MarketplaceFilterBar({
         </div>
 
         {/* Unit Dropdown */}
-        <div className="w-full sm:w-36 shrink-0">
+        <div className="w-full lg:w-36 shrink-0">
           <select
             value={unit}
             onChange={(e) => setUnit(e.target.value)}
@@ -162,31 +162,34 @@ export default function MarketplaceFilterBar({
           </select>
         </div>
 
-        {/* Toggle Detailed Filters Button */}
-        <button
-          type="button"
-          onClick={() => setIsExpanded((v) => !v)}
-          className={`px-3 py-2 text-xs font-bold rounded-xl border transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
-            isExpanded || minQty || maxQty || harvestFrom || harvestTo
-              ? "bg-purple-100 text-purple-800 border-purple-300"
-              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-          }`}
-        >
-          <span>⚙️</span>
-          <span>{isExpanded ? "Fewer Filters" : "More Filters"}</span>
-        </button>
-
-        {/* Clear Filters Button */}
-        {hasActiveFilters && (
+        {/* Action Buttons Group */}
+        <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-1 shrink-0">
+          {/* Toggle Detailed Filters Button */}
           <button
             type="button"
-            onClick={handleClear}
-            className="px-3 py-2 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition-all flex items-center gap-1 shrink-0 cursor-pointer"
+            onClick={() => setIsExpanded((v) => !v)}
+            className={`flex-1 sm:flex-none px-3 py-2 text-xs font-bold rounded-xl border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              isExpanded || minQty || maxQty || harvestFrom || harvestTo
+                ? "bg-purple-100 text-purple-800 border-purple-300"
+                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+            }`}
           >
-            <span>✕</span>
-            <span>Clear</span>
+            <span>⚙️</span>
+            <span>{isExpanded ? "Fewer Filters" : "More Filters"}</span>
           </button>
-        )}
+
+          {/* Clear Filters Button */}
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleClear}
+              className="px-3 py-2 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <span>✕</span>
+              <span>Clear</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Expanded Filters (Quantity Range & Harvest Date) ─────────── */}

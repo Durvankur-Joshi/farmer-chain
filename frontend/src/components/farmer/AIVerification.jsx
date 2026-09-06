@@ -227,7 +227,7 @@ function VerificationResult({ data, disclaimer }) {
   );
 }
 
-export default function AIVerification({ cropId, cropName }) {
+export default function AIVerification({ cropId, cropName, onVerificationSuccess }) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [step, setStep] = useState("idle"); // "idle" | "uploading" | "analyzing" | "done" | "error"
@@ -235,7 +235,7 @@ export default function AIVerification({ cropId, cropName }) {
   const [clientError, setClientErr] = useState("");
   const [history, setHistory] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
-  const fileInputRef = useRef();
+  const fileInputRef = useRef(null);
 
   const reset = () => {
     setFile(null);
@@ -292,6 +292,9 @@ export default function AIVerification({ cropId, cropName }) {
         error: null,
       });
       setStep("done");
+      if (onVerificationSuccess) {
+        onVerificationSuccess(res.data);
+      }
     } catch (err) {
       const serverErr =
         err.response?.data?.error ||
@@ -334,7 +337,7 @@ export default function AIVerification({ cropId, cropName }) {
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            AI-powered visual assessment of your crop
+            AI-powered visual assessment of your {cropName || "crop harvest sample"}
           </p>
         </div>
 

@@ -27,7 +27,7 @@ export default function AdminLogin() {
         withCredentials: true
       });
       navigate("/admin-dashboard");
-    } catch (err) {
+    } catch {
       setStatus("❌ Invalid credentials or server error");
     } finally {
       setLoading(false);

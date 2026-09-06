@@ -20,6 +20,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from common.permissions import IsFarmer, IsFPO, IsRetailer
+from common.events import emit_event
 from farmer.models import FarmerQuote
 from fpo.models import FPOBid, FPOQuote
 from .models import EscrowTransaction, RetailerEscrowTransaction
@@ -133,6 +134,7 @@ def create_escrow(request):
     )
 
     serializer = EscrowTransactionSerializer(escrow)
+    emit_event("escrow_updated", {"escrow_id": escrow.pk, "type": "farmer_fpo"})
     return Response(
         {
             'message': 'Escrow created. Proceed to create on-chain escrow via MetaMask.',
@@ -203,6 +205,7 @@ def escrow_created_onchain(request, escrow_pk):
     )
 
     serializer = EscrowTransactionSerializer(escrow)
+    emit_event("escrow_updated", {"escrow_id": escrow.pk, "type": "farmer_fpo"})
     return Response({'message': 'On-chain escrow recorded.', 'escrow': serializer.data})
 
 
@@ -255,6 +258,8 @@ def escrow_funded(request, escrow_pk):
     logger.info('Escrow funded: id=%d, tx=%s', escrow.pk, tx_hash)
 
     serializer = EscrowTransactionSerializer(escrow)
+    emit_event("escrow_updated", {"escrow_id": escrow.pk, "type": "farmer_fpo"})
+    emit_event("transaction_updated", {"escrow_id": escrow.pk, "type": "farmer_fpo"})
     return Response({'message': 'Escrow funded successfully.', 'escrow': serializer.data})
 
 
@@ -300,6 +305,8 @@ def escrow_delivery_confirm(request, escrow_pk):
     logger.info('Delivery confirmed: escrow=%d, tx=%s', escrow.pk, tx_hash)
 
     serializer = EscrowTransactionSerializer(escrow)
+    emit_event("delivery_updated", {"escrow_id": escrow.pk, "type": "farmer_fpo"})
+    emit_event("escrow_updated", {"escrow_id": escrow.pk, "type": "farmer_fpo"})
     return Response({'message': 'Delivery confirmed.', 'escrow': serializer.data})
 
 
@@ -346,6 +353,10 @@ def escrow_released(request, escrow_pk):
     logger.info('Payment released: escrow=%d, tx=%s', escrow.pk, tx_hash)
 
     serializer = EscrowTransactionSerializer(escrow)
+    emit_event("escrow_updated", {"escrow_id": escrow.pk, "type": "farmer_fpo"})
+    emit_event("transaction_updated", {"escrow_id": escrow.pk, "type": "farmer_fpo"})
+    emit_event("inventory_updated", {"escrow_id": escrow.pk, "type": "farmer_fpo"})
+    emit_event("purchase_completed", {"escrow_id": escrow.pk, "type": "farmer_fpo"})
     return Response({'message': 'Payment released successfully.', 'escrow': serializer.data})
 
 
@@ -511,6 +522,7 @@ def create_retailer_escrow(request):
     )
 
     serializer = RetailerEscrowTransactionSerializer(escrow)
+    emit_event("escrow_updated", {"escrow_id": escrow.pk, "type": "fpo_retailer"})
     return Response(
         {
             'message': 'Retailer escrow created. Proceed to create/fund on-chain escrow via MetaMask.',
@@ -581,6 +593,7 @@ def retailer_escrow_created_onchain(request, escrow_pk):
     )
 
     serializer = RetailerEscrowTransactionSerializer(escrow)
+    emit_event("escrow_updated", {"escrow_id": escrow.pk, "type": "fpo_retailer"})
     return Response({'message': 'On-chain escrow recorded.', 'escrow': serializer.data})
 
 
@@ -633,6 +646,8 @@ def retailer_escrow_funded(request, escrow_pk):
     logger.info('Retailer escrow funded: id=%d, tx=%s', escrow.pk, tx_hash)
 
     serializer = RetailerEscrowTransactionSerializer(escrow)
+    emit_event("escrow_updated", {"escrow_id": escrow.pk, "type": "fpo_retailer"})
+    emit_event("transaction_updated", {"escrow_id": escrow.pk, "type": "fpo_retailer"})
     return Response({'message': 'Escrow funded successfully.', 'escrow': serializer.data})
 
 
@@ -678,6 +693,8 @@ def retailer_escrow_delivery_confirm(request, escrow_pk):
     logger.info('Retailer escrow delivery confirmed: escrow=%d, tx=%s', escrow.pk, tx_hash)
 
     serializer = RetailerEscrowTransactionSerializer(escrow)
+    emit_event("delivery_updated", {"escrow_id": escrow.pk, "type": "fpo_retailer"})
+    emit_event("escrow_updated", {"escrow_id": escrow.pk, "type": "fpo_retailer"})
     return Response({'message': 'Delivery confirmed.', 'escrow': serializer.data})
 
 
@@ -788,6 +805,10 @@ def retailer_escrow_released(request, escrow_pk):
     logger.info('Retailer escrow payment released: escrow=%d, tx=%s', escrow.pk, tx_hash)
 
     serializer = RetailerEscrowTransactionSerializer(escrow)
+    emit_event("escrow_updated", {"escrow_id": escrow.pk, "type": "fpo_retailer"})
+    emit_event("transaction_updated", {"escrow_id": escrow.pk, "type": "fpo_retailer"})
+    emit_event("inventory_updated", {"escrow_id": escrow.pk, "type": "fpo_retailer"})
+    emit_event("purchase_completed", {"escrow_id": escrow.pk, "type": "fpo_retailer"})
     return Response({'message': 'Payment released successfully.', 'escrow': serializer.data})
 
 

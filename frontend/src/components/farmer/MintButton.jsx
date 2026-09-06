@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import axios from "axios";
 import Cookies from "js-cookie";
 import { ethers } from "ethers";
+import { useRefresh } from "../../context/useRefresh";
 import CropPassportABI from "../../utils/CropPassportABI.json";
 import StatusBadge from "../common/StatusBadge";
 
@@ -9,6 +10,7 @@ const CONTRACT_ADDRESS = __ENV_CROP_PASSPORT_CONTRACT__;
 const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111 in hex
 
 export default function MintButton({ crop, onMintSuccess }) {
+  const { refresh } = useRefresh();
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [minting, setMinting] = useState(false);
@@ -147,7 +149,8 @@ export default function MintButton({ crop, onMintSuccess }) {
       );
 
       setStatus("🎉 NFT Crop Passport successfully minted on Ethereum Sepolia!");
-      onMintSuccess && onMintSuccess();
+      if (onMintSuccess) onMintSuccess();
+      refresh(["farmer", "fpo", "inventory", "deals", "quotes"]);
     } catch (err) {
       console.error("Mint error:", err);
       setError(err.message || "Minting failed. Please try again.");
