@@ -3,85 +3,18 @@ import axios from "axios";
 import { ethers } from "ethers";
 import { useRefresh, useRefreshSubscription } from "../../context/useRefresh";
 import EscrowABI from "../../utils/EscrowABI.json";
-import StatusBadge from "../common/StatusBadge";
-import AddressCopy from "../common/AddressCopy";
+import EscrowDealCard from "../common/EscrowDealCard";
+import EscrowDealModal from "../common/EscrowDealModal";
 
 const ESCROW_CONTRACT = __ENV_ESCROW_CONTRACT_ADDRESS__;
 const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111
-
-const ESCROW_STEPS = [
-  { key: "created", label: "Created", icon: "📝", desc: "FPO Initialized Escrow" },
-  { key: "funded", label: "Funded", icon: "💰", desc: "Retailer Locked ETH" },
-  { key: "delivery_confirmed", label: "Delivered", icon: "📦", desc: "FPO Dispatched Lot" },
-  { key: "released", label: "Released", icon: "💸", desc: "Payment Dispatched" },
-];
-
-function getStepIndex(status) {
-  switch (status) {
-    case "created": return 0;
-    case "funded": return 1;
-    case "delivery_confirmed": return 2;
-    case "released": return 3;
-    default: return -1;
-  }
-}
-
-function RetailerEscrowProgressStepper({ status }) {
-  const currentIdx = getStepIndex(status);
-
-  if (status === "cancelled" || status === "disputed") {
-    return (
-      <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
-        <span>⚠️</span>
-        <span>Escrow {status === "cancelled" ? "Cancelled" : "Disputed on-chain"}</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="py-2">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
-        {ESCROW_STEPS.map((step, idx) => {
-          const isDone = currentIdx > idx || currentIdx === 3;
-          const isCurrent = currentIdx === idx && currentIdx !== 3;
-
-          let stepStyle = "bg-slate-50 border-slate-200 text-slate-400";
-          let dotStyle = "bg-slate-200 text-slate-500";
-
-          if (isDone) {
-            stepStyle = "bg-emerald-50/60 border-emerald-300 text-emerald-800";
-            dotStyle = "bg-emerald-600 text-white";
-          } else if (isCurrent) {
-            stepStyle = "bg-purple-50 border-purple-400 text-purple-900 ring-1 ring-purple-400 shadow-2xs";
-            dotStyle = "bg-purple-600 text-white animate-pulse";
-          }
-
-          return (
-            <div
-              key={step.key}
-              className={`border rounded-xl p-2 text-center transition-all ${stepStyle}`}
-            >
-              <div className="flex items-center justify-center gap-1 mb-0.5">
-                <span className={`w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center ${dotStyle}`}>
-                  {isDone ? "✓" : idx + 1}
-                </span>
-                <span className="text-xs">{step.icon}</span>
-              </div>
-              <p className="text-[11px] font-bold truncate">{step.label}</p>
-              <p className="text-[9px] text-slate-400 hidden sm:block truncate mt-0.5">{step.desc}</p>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 export default function RetailerEscrowPanel({ onPaymentReleased, onEscrowUpdated }) {
   const { refresh } = useRefresh();
   const [escrows, setEscrows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [txStatus, setTxStatus] = useState({});
+  const [activeModalEscrow, setActiveModalEscrow] = useState(null);
 
   const fetchEscrows = useCallback(async () => {
     try {
@@ -140,29 +73,29 @@ export default function RetailerEscrowPanel({ onPaymentReleased, onEscrowUpdated
       const contract = await getContract();
       const amountWei = ethers.utils.parseEther(String(escrow.amount_eth));
 
-      setTx(key, { loading: true, error: null, success: `Confirm ${escrow.amount_eth} ETH deposit in MetaMask…` });
+      setTx(key, { loading: true, success: `Sending deposit of ${escrow.amount_eth} ETH via MetaMask…` });
       const tx = await contract.depositEscrow(escrow.escrow_id, { value: amountWei });
-      setTx(key, { loading: true, error: null, success: `Deposit submitted (${tx.hash.slice(0, 10)}…). Waiting for confirmation…` });
 
-      const receipt = await tx.wait(1);
+      setTx(key, { loading: true, success: "Waiting for Sepolia blockchain confirmation…" });
+      const receipt = await tx.wait();
 
       await axios.post(
         `/api/escrow/retailer/${escrow.id}/funded/`,
-        {
-          tx_hash: receipt.transactionHash,
-          escrow_id: escrow.escrow_id,
-        },
+        { tx_hash: receipt.transactionHash, escrow_id: escrow.escrow_id },
         { withCredentials: true }
       );
 
-      setTx(key, { loading: false, error: null, success: `✅ ${escrow.amount_eth} ETH locked in Sepolia escrow! FPO will now dispatch the lot.` });
+      setTx(key, { loading: false, success: `Escrow funded with ${escrow.amount_eth} ETH on Sepolia! ✅` });
       await fetchEscrows();
       if (onEscrowUpdated) onEscrowUpdated();
       refresh(["escrow", "deals", "quotes", "retailer", "fpo"]);
     } catch (err) {
-      console.error("Fund escrow error:", err);
-      const msg = err.response?.data?.error || err.message || "Failed to fund escrow.";
-      setTx(key, { loading: false, error: msg, success: null });
+      console.error("Fund retailer escrow error:", err);
+      let msg = err.response?.data?.error || err.reason || err.message || "Failed to fund escrow.";
+      if (err.code === 4001 || err.code === "ACTION_REJECTED") {
+        msg = "Deposit transaction was rejected in MetaMask.";
+      }
+      setTx(key, { loading: false, error: msg });
     }
   };
 
@@ -172,13 +105,14 @@ export default function RetailerEscrowPanel({ onPaymentReleased, onEscrowUpdated
     try {
       setTx(key, { loading: true, error: null, success: null });
 
+      if (!escrow.escrow_id) throw new Error("On-chain escrow ID missing.");
+
       const contract = await getContract();
-      setTx(key, { loading: true, error: null, success: "Confirm payment release in MetaMask…" });
+      setTx(key, { loading: true, success: "Releasing funds to FPO via MetaMask…" });
 
       const tx = await contract.releasePayment(escrow.escrow_id);
-      setTx(key, { loading: true, error: null, success: `Transaction submitted (${tx.hash.slice(0, 10)}…). Waiting for confirmation…` });
-
-      const receipt = await tx.wait(1);
+      setTx(key, { loading: true, success: "Waiting for Sepolia blockchain confirmation…" });
+      const receipt = await tx.wait();
 
       await axios.post(
         `/api/escrow/retailer/${escrow.id}/released/`,
@@ -186,200 +120,126 @@ export default function RetailerEscrowPanel({ onPaymentReleased, onEscrowUpdated
         { withCredentials: true }
       );
 
-      setTx(key, { loading: false, error: null, success: "✅ Payment released to FPO! Your purchased crop has been added to your Inventory." });
+      setTx(key, { loading: false, success: "Payment released to FPO! Stock added to your Inventory ✅" });
       await fetchEscrows();
       if (onEscrowUpdated) onEscrowUpdated();
       if (onPaymentReleased) onPaymentReleased();
-      refresh(["escrow", "deals", "quotes", "retailer", "fpo", "inventory", "transactions"]);
+      refresh(["escrow", "deals", "quotes", "retailer", "fpo", "inventory"]);
     } catch (err) {
-      console.error("Release payment error:", err);
-      const msg = err.response?.data?.error || err.message || "Failed to release payment.";
-      setTx(key, { loading: false, error: msg, success: null });
+      console.error("Release retailer payment error:", err);
+      let msg = err.response?.data?.error || err.reason || err.message || "Failed to release payment.";
+      if (err.code === 4001 || err.code === "ACTION_REJECTED") {
+        msg = "Release transaction was rejected in MetaMask.";
+      }
+      setTx(key, { loading: false, error: msg });
     }
   };
 
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2].map((i) => (
+          <div key={i} className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 animate-pulse space-y-2">
+            <div className="h-4 bg-slate-200 rounded w-1/4"></div>
+            <div className="h-10 bg-slate-200 rounded"></div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (escrows.length === 0) {
+    return (
+      <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-100 space-y-2">
+        <span className="text-4xl block mb-2">🔐</span>
+        <p className="text-sm font-bold text-slate-800">No Commercial Escrows Active</p>
+        <p className="text-xs text-slate-400 max-w-sm mx-auto">
+          When an FPO accepts your wholesale procurement bid, the on-chain escrow transaction will appear here for payment lock and release.
+        </p>
+      </div>
+    );
+  }
+
+  const renderModalAction = (escrow) => {
+    if (!escrow) return null;
+    const fundKey = `fund-${escrow.id}`;
+    const releaseKey = `release-${escrow.id}`;
+    const fundTx = txStatus[fundKey] || {};
+    const releaseTx = txStatus[releaseKey] || {};
+
+    if (escrow.status === "created") {
+      return (
+        <button
+          type="button"
+          onClick={() => handleFundEscrow(escrow)}
+          disabled={fundTx.loading || !escrow.escrow_id}
+          className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 text-xs"
+        >
+          <span>💰</span>
+          <span>{fundTx.loading ? "Locking Funds…" : `Lock ${escrow.amount_eth} ETH in Escrow (MetaMask)`}</span>
+        </button>
+      );
+    }
+
+    if (escrow.status === "delivery_confirmed") {
+      return (
+        <button
+          type="button"
+          onClick={() => handleReleasePayment(escrow)}
+          disabled={releaseTx.loading}
+          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 text-xs"
+        >
+          <span>💸</span>
+          <span>{releaseTx.loading ? "Releasing…" : "Confirm Delivery & Release Payment (MetaMask)"}</span>
+        </button>
+      );
+    }
+
+    return null;
+  };
+
+  const getModalActionStatus = (escrow) => {
+    if (!escrow) return null;
+    return txStatus[`fund-${escrow.id}`] || txStatus[`release-${escrow.id}`] || null;
+  };
+
   return (
-    <div className="space-y-6">
-      {loading ? (
-        <div className="py-12 text-center text-xs text-slate-400 animate-pulse">
-          Loading smart-contract escrow agreements…
-        </div>
-      ) : escrows.length === 0 ? (
-        <div className="py-12 text-center bg-slate-50/50 rounded-3xl border border-slate-100 space-y-1.5">
-          <span className="text-4xl block mb-2">🔐</span>
-          <p className="text-sm font-bold text-slate-800">No Escrows Active Yet</p>
-          <p className="text-xs text-slate-400 max-w-sm mx-auto">
-            When an FPO accepts your procurement bid and initializes the on-chain agreement, it will appear here for funding.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {escrows.map((escrow) => {
-            const fundKey = `fund-${escrow.id}`;
-            const releaseKey = `release-${escrow.id}`;
-            const fundState = txStatus[fundKey] || {};
-            const releaseState = txStatus[releaseKey] || {};
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+        {escrows.map((escrow) => {
+          let requiredAction = null;
+          if (escrow.status === "created") {
+            requiredAction = escrow.escrow_id ? "Lock ETH Funds" : "Awaiting FPO Setup";
+          } else if (escrow.status === "funded") {
+            requiredAction = "Awaiting Delivery Handover";
+          } else if (escrow.status === "delivery_confirmed") {
+            requiredAction = "Release Payment to FPO";
+          }
 
-            return (
-              <div
-                key={escrow.id}
-                className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 space-y-4 shadow-2xs hover:border-purple-300 transition-all"
-              >
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2 flex-wrap min-w-0">
-                    <span className="text-base font-extrabold text-slate-900 truncate">
-                      🌾 {escrow.product_name}
-                    </span>
-                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-800 border border-purple-200 shrink-0">
-                      {escrow.escrow_id ? `On-Chain Escrow #${escrow.escrow_id}` : "Pending Initial Setup"}
-                    </span>
-                    <span className="text-xs font-mono text-slate-400 shrink-0">
-                      Lot #{escrow.quote_id}
-                    </span>
-                  </div>
-                  <StatusBadge status={escrow.status} />
-                </div>
+          return (
+            <EscrowDealCard
+              key={escrow.id}
+              escrow={escrow}
+              partnerLabel="FPO Supplier"
+              partnerName={escrow.fpo_name}
+              requiredActionLabel={requiredAction}
+              onViewDeal={(esc) => setActiveModalEscrow(esc)}
+              isRetailer={true}
+            />
+          );
+        })}
+      </div>
 
-                {/* Progress Stepper */}
-                <RetailerEscrowProgressStepper status={escrow.status} />
-
-                {/* Details Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-slate-50/80 p-2.5 sm:p-3 rounded-xl border border-slate-100">
-                  <div className="min-w-0">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block truncate">Amount Due</span>
-                    <span className="font-extrabold text-purple-900 font-mono text-sm mt-0.5 block truncate">{escrow.amount_eth} ETH</span>
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block truncate">Lot Quantity</span>
-                    <span className="font-semibold text-slate-800 mt-0.5 block truncate">{escrow.quantity} {escrow.unit}</span>
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block truncate">Seller (FPO)</span>
-                    <span className="font-semibold text-slate-800 mt-0.5 block truncate">{escrow.fpo_name}</span>
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block truncate">FPO Wallet</span>
-                    <AddressCopy value={escrow.fpo_wallet} etherscanType="address" />
-                  </div>
-                </div>
-
-                {/* Multi-Farmer Provenance Breakdown */}
-                {escrow.allocations && escrow.allocations.length > 0 && (
-                  <div className="p-3 bg-purple-50/60 border border-purple-200/80 rounded-xl space-y-1.5 text-xs">
-                    <div className="flex flex-wrap items-center justify-between gap-1 text-purple-950 font-extrabold text-[11px]">
-                      <span>🔗 Verified Multi-Farmer Provenance ({escrow.allocations.length} Source Lots):</span>
-                      <span>{new Set(escrow.allocations.map(a => a.farmer_name)).size} Farmers</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px] text-slate-700">
-                      {escrow.allocations.map((alloc) => (
-                        <div key={alloc.id} className="bg-white p-2 rounded-xl border border-purple-100 flex items-center justify-between shadow-2xs">
-                          <div className="min-w-0">
-                            <span className="font-bold text-slate-900 truncate block">{alloc.farmer_name}</span>{" "}
-                            {alloc.crop_passport_id ? (
-                              <span className="text-emerald-700 font-semibold">(Passport #{alloc.crop_passport_id})</span>
-                            ) : null}
-                          </div>
-                          <span className="font-mono font-bold text-purple-800 shrink-0 ml-2">{alloc.allocated_quantity} {alloc.unit}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Collapsible Blockchain Transaction Hashes */}
-                {(escrow.create_tx_hash || escrow.deposit_tx_hash || escrow.delivery_tx_hash || escrow.release_tx_hash) && (
-                  <details className="group border border-slate-200/80 rounded-xl p-3 bg-slate-50/60 text-xs">
-                    <summary className="font-bold text-slate-700 cursor-pointer flex items-center justify-between select-none">
-                      <span className="flex items-center gap-1.5 text-xs text-slate-700">
-                        <span>⛓️</span>
-                        <span>On-Chain Contract & Transaction Proofs</span>
-                      </span>
-                      <span className="text-[10px] text-slate-400 group-open:rotate-180 transition-transform font-bold">
-                        ▼
-                      </span>
-                    </summary>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2.5 mt-2 border-t border-slate-200/60 text-slate-500">
-                      {escrow.create_tx_hash && (
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                          <span className="font-semibold text-slate-600 text-[11px]">Created Tx:</span>
-                          <AddressCopy value={escrow.create_tx_hash} etherscanType="tx" />
-                        </div>
-                      )}
-                      {escrow.deposit_tx_hash && (
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                          <span className="font-semibold text-slate-600 text-[11px]">Funded Tx:</span>
-                          <AddressCopy value={escrow.deposit_tx_hash} etherscanType="tx" />
-                        </div>
-                      )}
-                      {escrow.delivery_tx_hash && (
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                          <span className="font-semibold text-slate-600 text-[11px]">Delivered Tx:</span>
-                          <AddressCopy value={escrow.delivery_tx_hash} etherscanType="tx" />
-                        </div>
-                      )}
-                      {escrow.release_tx_hash && (
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                          <span className="font-semibold text-slate-600 text-[11px]">Released Tx:</span>
-                          <AddressCopy value={escrow.release_tx_hash} etherscanType="tx" />
-                        </div>
-                      )}
-                    </div>
-                  </details>
-                )}
-
-                {/* Funding Action Row */}
-                {escrow.status === "created" && (
-                  <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <p className="text-xs text-slate-600">
-                      Lock <strong>{escrow.amount_eth} ETH</strong> into the trustless Sepolia escrow contract to guarantee payment upon delivery.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => handleFundEscrow(escrow)}
-                      disabled={fundState.loading || !escrow.escrow_id}
-                      className="w-full sm:w-auto px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
-                    >
-                      <span>💰</span>
-                      <span>{fundState.loading ? "Depositing…" : `Fund Escrow (${escrow.amount_eth} ETH)`}</span>
-                    </button>
-                  </div>
-                )}
-
-                {/* Release Payment Action Row */}
-                {escrow.status === "delivery_confirmed" && (
-                  <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <p className="text-xs text-slate-600">
-                      FPO has confirmed delivery. Inspect the lot and release <strong>{escrow.amount_eth} ETH</strong> to the FPO's wallet.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => handleReleasePayment(escrow)}
-                      disabled={releaseState.loading}
-                      className="w-full sm:w-auto px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
-                    >
-                      <span>💸</span>
-                      <span>{releaseState.loading ? "Releasing…" : "Release Payment to FPO"}</span>
-                    </button>
-                  </div>
-                )}
-
-                {fundState.error && (
-                  <p className="text-xs text-rose-600 font-semibold">❌ {fundState.error}</p>
-                )}
-                {fundState.success && (
-                  <p className="text-xs text-emerald-700 font-semibold">{fundState.success}</p>
-                )}
-                {releaseState.error && (
-                  <p className="text-xs text-rose-600 font-semibold">❌ {releaseState.error}</p>
-                )}
-                {releaseState.success && (
-                  <p className="text-xs text-emerald-700 font-semibold">{releaseState.success}</p>
-                )}
-              </div>
-            );
-          })}
-        </div>
+      {activeModalEscrow && (
+        <EscrowDealModal
+          isOpen={Boolean(activeModalEscrow)}
+          onClose={() => setActiveModalEscrow(null)}
+          escrow={activeModalEscrow}
+          partnerLabel="FPO Supplier"
+          partnerName={activeModalEscrow.fpo_name}
+          actionButton={renderModalAction(activeModalEscrow)}
+          actionStatus={getModalActionStatus(activeModalEscrow)}
+        />
       )}
     </div>
   );
