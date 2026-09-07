@@ -212,16 +212,16 @@ export default function FarmerQuotes({ onBidPlaced }) {
                     <button
                       type="button"
                       onClick={() => setDetailsModalQuote(quote)}
-                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                      className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-1 shrink-0"
                     >
-                      <span>🔍</span>
-                      <span>Details</span>
+                      <span>👁️</span>
+                      <span>View Crop</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => openBidModal(quote)}
-                      className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer shrink-0"
+                      className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer shrink-0"
                     >
                       <span>🤝</span>
                       <span>Make Offer</span>
@@ -235,16 +235,16 @@ export default function FarmerQuotes({ onBidPlaced }) {
       ) : hasActiveFilters ? (
         <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-200/80 space-y-2">
           <span className="text-4xl block">🔍</span>
-          <p className="text-sm font-bold text-slate-800">No Supply Quotes Found</p>
-          <p className="text-xs text-slate-400 max-w-sm mx-auto">
+          <p className="text-sm font-semibold text-slate-800">No Supply Quotes Found</p>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
             No crop supply quotes matched your current filter criteria.
           </p>
         </div>
       ) : (
         <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-100 space-y-2">
           <span className="text-4xl block mb-2">🌾</span>
-          <p className="text-sm font-bold text-slate-800">No Open Farmer Quotes Available</p>
-          <p className="text-xs text-slate-400 max-w-sm mx-auto">
+          <p className="text-sm font-semibold text-slate-800">No Open Farmer Quotes Available</p>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
             Farmers have not published any new open harvest lots for procurement at this time.
           </p>
         </div>
@@ -265,7 +265,7 @@ export default function FarmerQuotes({ onBidPlaced }) {
               <button
                 type="button"
                 onClick={() => setDetailsModalQuote(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-all cursor-pointer"
               >
                 Close
               </button>
@@ -276,10 +276,10 @@ export default function FarmerQuotes({ onBidPlaced }) {
                   setDetailsModalQuote(null);
                   openBidModal(q);
                 }}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer"
               >
                 <span>🤝</span>
-                <span>Make Procurement Offer</span>
+                <span>Make Offer</span>
               </button>
             </div>
           }
@@ -297,19 +297,19 @@ export default function FarmerQuotes({ onBidPlaced }) {
             {/* Specifications Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 min-w-0">
-                <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Lot Quantity</span>
-                <span className="font-extrabold font-mono text-slate-900 block mt-0.5 truncate">
+                <span className="text-[10px] text-slate-500 font-semibold uppercase block truncate">Lot Quantity</span>
+                <span className="font-bold font-mono text-slate-900 block mt-0.5 truncate">
                   {detailsModalQuote.quantity} {detailsModalQuote.unit}
                 </span>
               </div>
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 min-w-0">
-                <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Asking Price</span>
-                <span className="font-extrabold font-mono text-blue-700 block mt-0.5 truncate">
+                <span className="text-[10px] text-slate-500 font-semibold uppercase block truncate">Asking Price</span>
+                <span className="font-bold font-mono text-blue-700 block mt-0.5 truncate">
                   {detailsModalQuote.price_per_unit ? `${detailsModalQuote.price_per_unit} ETH / ${detailsModalQuote.unit}` : "Open for bids"}
                 </span>
               </div>
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 min-w-0">
-                <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Deadline</span>
+                <span className="text-[10px] text-slate-500 font-semibold uppercase block truncate">Deadline</span>
                 <span className="font-medium text-slate-700 block mt-0.5 truncate">
                   {detailsModalQuote.deadline || "N/A"}
                 </span>
@@ -317,24 +317,24 @@ export default function FarmerQuotes({ onBidPlaced }) {
             </div>
 
             {/* Farmer & Location Info */}
-            <div className="bg-blue-50/50 p-3.5 rounded-xl border border-blue-100 space-y-1.5">
+            <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-100 space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-slate-500 font-medium">Source Farmer:</span>
-                <span className="font-extrabold text-slate-900">
+                <span className="text-slate-600 font-medium">Source Farmer:</span>
+                <span className="font-bold text-slate-900">
                   {detailsModalQuote.farmer_name || "Verified Agricultural Producer"}
                 </span>
               </div>
               {detailsModalQuote.crop_passport_details?.location && (
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-medium">Farm Location:</span>
-                  <span className="font-semibold text-slate-800">
+                  <span className="text-slate-600 font-medium">Farm Location:</span>
+                  <span className="font-medium text-slate-800">
                     📍 {detailsModalQuote.crop_passport_details.location}
                   </span>
                 </div>
               )}
               {detailsModalQuote.crop_passport_details?.harvest_date && (
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-medium">Harvest Date:</span>
+                  <span className="text-slate-600 font-medium">Harvest Date:</span>
                   <span className="font-medium text-slate-700">
                     {detailsModalQuote.crop_passport_details.harvest_date}
                   </span>
@@ -345,14 +345,14 @@ export default function FarmerQuotes({ onBidPlaced }) {
             {/* AI Verification Assessment */}
             {detailsModalQuote.crop_passport_details?.latest_ai_verification && (
               <div className="p-3.5 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-1.5">
-                <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
-                  🤖 Gemini AI Crop Assessment
+                <span className="text-[10px] font-semibold text-emerald-800 uppercase tracking-wider block">
+                  🤖 Gemini AI Verification
                 </span>
                 <div className="flex items-center gap-3">
-                  <span className="font-extrabold text-emerald-900 text-sm">
+                  <span className="font-bold text-emerald-900 text-sm">
                     Grade {detailsModalQuote.crop_passport_details.latest_ai_verification.quality_grade}
                   </span>
-                  <span className="font-mono text-emerald-700">
+                  <span className="font-mono text-emerald-700 font-semibold">
                     Score: {detailsModalQuote.crop_passport_details.latest_ai_verification.quality_score}/100
                   </span>
                 </div>
@@ -364,6 +364,37 @@ export default function FarmerQuotes({ onBidPlaced }) {
                 "{detailsModalQuote.description}"
               </p>
             )}
+
+            {/* Collapsible Blockchain & Provenance Details */}
+            <details className="group border border-slate-200 rounded-xl p-3 bg-slate-50/50">
+              <summary className="font-semibold text-slate-700 cursor-pointer flex items-center justify-between select-none list-none text-xs">
+                <span className="flex items-center gap-1.5">
+                  <span>🔐</span>
+                  <span>Blockchain Details</span>
+                </span>
+                <span className="text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <div className="space-y-2 pt-2.5 mt-2 border-t border-slate-200/60 font-mono text-[11px]">
+                {detailsModalQuote.crop_passport && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 font-sans">Passport ID:</span>
+                    <span className="text-slate-800 font-bold">#{detailsModalQuote.crop_passport}</span>
+                  </div>
+                )}
+                {detailsModalQuote.crop_passport_details?.nft_contract_address && (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <span className="text-slate-500 font-sans">Contract Address:</span>
+                    <AddressCopy value={detailsModalQuote.crop_passport_details.nft_contract_address} etherscanType="address" />
+                  </div>
+                )}
+                {detailsModalQuote.crop_passport_details?.nft_token_id && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 font-sans">Token ID:</span>
+                    <span className="text-purple-700 font-bold">Token #{detailsModalQuote.crop_passport_details.nft_token_id}</span>
+                  </div>
+                )}
+              </div>
+            </details>
           </div>
         </BaseModal>
       )}

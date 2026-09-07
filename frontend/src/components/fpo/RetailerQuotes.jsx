@@ -147,16 +147,16 @@ export default function RetailerQuotes({ onNavigateToCart, onBidAccepted, onQuot
   ).toFixed(6);
 
   return (
-    <div className="space-y-5">
-      {/* ── Wholesale Market Banner & Create Offer Action ──────────── */}
-      <div className="bg-gradient-to-r from-blue-900 to-indigo-950 text-white rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">🏪</span>
-            <h3 className="text-sm font-extrabold">B2B Wholesale Commercial Sales</h3>
-          </div>
-          <p className="text-xs text-blue-100/80 max-w-xl">
-            Aggregate procured farmer lots into commercial wholesale offers with 100% end-to-end supply chain provenance.
+    <div className="space-y-4">
+      {/* ── Wholesale Market Header & Create Offer Action ──────────── */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="space-y-0.5">
+          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+            <span>🛒</span>
+            <span>Wholesale Market Offers (Sell to Retailers)</span>
+          </h3>
+          <p className="text-xs text-slate-500">
+            Create wholesale offers from your available inventory for commercial retailers.
           </p>
         </div>
 
@@ -167,7 +167,7 @@ export default function RetailerQuotes({ onNavigateToCart, onBidAccepted, onQuot
               fetchCartSummary();
               setShowOfferModal(true);
             }}
-            className="flex-1 sm:flex-none px-4 py-2 bg-blue-500 hover:bg-blue-400 text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+            className="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <span>➕</span>
             <span>Create Wholesale Offer</span>
@@ -431,11 +431,19 @@ export default function RetailerQuotes({ onNavigateToCart, onBidAccepted, onQuot
 
             {/* Calculated Total: total = quantity * unit price */}
             {parseFloat(offerForm.price_per_unit) > 0 && (
-              <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 flex items-center justify-between">
-                <span className="text-blue-900 font-semibold">Calculated Total Lot Value:</span>
-                <span className="font-extrabold text-blue-950 font-mono text-sm">
-                  {calculatedTotal} ETH
-                </span>
+              <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200 space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-600 font-medium">Calculation:</span>
+                  <span className="font-mono text-slate-700 font-semibold">
+                    {offerForm.quantity_to_sell || 0} × {offerForm.price_per_unit || 0} ETH
+                  </span>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-blue-200/60">
+                  <span className="text-blue-900 font-bold">Total Lot Value:</span>
+                  <span className="font-bold text-blue-950 font-mono text-sm">
+                    {calculatedTotal} ETH
+                  </span>
+                </div>
               </div>
             )}
 
@@ -475,17 +483,17 @@ export default function RetailerQuotes({ onNavigateToCart, onBidAccepted, onQuot
               <button
                 type="button"
                 onClick={() => setShowOfferModal(false)}
-                className="px-3.5 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-all cursor-pointer"
+                className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-all cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={publishing || cartItemsCount === 0}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
               >
                 <span>🚀</span>
-                <span>{publishing ? "Publishing…" : "Send Retailer Offer"}</span>
+                <span>{publishing ? "Sending…" : "Send Offer"}</span>
               </button>
             </div>
           </form>

@@ -16,8 +16,11 @@ import DashboardNavbar from "../../components/common/DashboardNavbar";
 
 export default function FpoDashboard() {
   const [activeNav, setActiveNav] = useState("dashboard");
-  const [escrowSubTab, setEscrowSubTab] = useState("farmer");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [dealsDirection, setDealsDirection] = useState("buying"); // "buying" | "selling"
+  const [escrowSubTab, setEscrowSubTab] = useState("farmer"); // "farmer" | "retailer"
   const navigate = useNavigate();
+
   const [didInfo, setDidInfo] = useState(null);
   const [farmerQuotesCount, setFarmerQuotesCount] = useState(0);
   const [marketQuotesCount, setMarketQuotesCount] = useState(0);
@@ -100,6 +103,40 @@ export default function FpoDashboard() {
     }
   );
 
+  const navItems = [
+    { key: "dashboard", label: "Dashboard", icon: "🏠" },
+    {
+      key: "farmer_market",
+      label: "Farmer Market",
+      icon: "🌾",
+      badge: farmerQuotesCount > 0 ? farmerQuotesCount : null,
+    },
+    {
+      key: "inventory",
+      label: "Inventory",
+      icon: "📦",
+      badge: cartItemsCount > 0 ? `${cartItemsCount} in cart` : null,
+    },
+    {
+      key: "retailer_market",
+      label: "Retailer Market",
+      icon: "🛒",
+      badge: marketQuotesCount > 0 ? marketQuotesCount : null,
+    },
+    {
+      key: "deals",
+      label: "Deals",
+      icon: "🤝",
+    },
+    {
+      key: "transactions",
+      label: "Transactions",
+      icon: "💰",
+      badge: escrowsCount > 0 ? escrowsCount : null,
+    },
+    { key: "identity", label: "Identity", icon: "🪪" },
+  ];
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col text-slate-900 font-sans">
       {/* ── Top Header Navbar ───────────────────────────────────────── */}
@@ -108,494 +145,587 @@ export default function FpoDashboard() {
         userName={didInfo?.name || "FPO Organization"}
         didInfo={didInfo}
         onLogout={logout}
+        onToggleMobileMenu={() => setIsMobileMenuOpen((prev) => !prev)}
       />
 
-      <div className="max-w-6xl mx-auto w-full px-3.5 sm:px-6 py-5 sm:py-7 flex-1 space-y-5 min-w-0">
+      {/* ── Application Layout Shell (Sidebar + Main Content) ─────────── */}
+      <div className="flex flex-1 w-full max-w-7xl mx-auto min-w-0">
+        {/* ── Desktop Left Sidebar (~240px) ─────────────────────────── */}
+        <aside className="hidden lg:flex flex-col w-60 xl:w-64 shrink-0 bg-white border-r border-slate-200/80 p-4 space-y-4 sticky top-14 h-[calc(100vh-3.5rem)]">
+          {/* Operations Center Badge */}
+          <div className="px-3 py-2 bg-blue-50/70 border border-blue-200/60 rounded-xl flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+            <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider truncate">
+              Procurement Center
+            </span>
+          </div>
 
-        {/* ── Role Navigation Bar ────────────────────────────────────── */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-1.5 shadow-2xs flex items-center justify-between gap-1 overflow-x-auto">
-          <div className="flex items-center gap-1 min-w-max">
-            <button
-              type="button"
-              onClick={() => setActiveNav("dashboard")}
-              className={`py-2 px-3 sm:px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeNav === "dashboard"
-                  ? "bg-blue-600 text-white shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              <span>🏢</span>
-              <span>Dashboard</span>
-            </button>
+          {/* Navigation Links */}
+          <nav className="space-y-1 flex-1">
+            {navItems.map((item) => {
+              const isActive = activeNav === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setActiveNav(item.key)}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                    isActive
+                      ? "bg-blue-600 text-white font-bold shadow-xs"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 truncate">
+                    <span className="text-base">{item.icon}</span>
+                    <span className="truncate">{item.label}</span>
+                  </div>
+                  {item.badge !== null && (
+                    <span
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                        isActive
+                          ? "bg-blue-700/80 text-white"
+                          : "bg-slate-100 text-slate-600"
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
 
+          {/* Sidebar Action Button */}
+          <div className="pt-3 border-t border-slate-100 space-y-2">
             <button
               type="button"
               onClick={() => setActiveNav("farmer_market")}
-              className={`py-2 px-3 sm:px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeNav === "farmer_market"
-                  ? "bg-blue-600 text-white shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <span>🌾</span>
-              <span>Farmer Market</span>
-              {farmerQuotesCount > 0 && (
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                  activeNav === "farmer_market" ? "bg-blue-700/80 text-white" : "bg-slate-100 text-slate-600"
-                }`}>
-                  {farmerQuotesCount}
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveNav("inventory")}
-              className={`py-2 px-3 sm:px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeNav === "inventory"
-                  ? "bg-blue-600 text-white shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              <span>📦</span>
-              <span>Inventory</span>
-              {cartItemsCount > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-100 text-purple-800 font-bold">
-                  {cartItemsCount} in cart
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveNav("retailer_market")}
-              className={`py-2 px-3 sm:px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeNav === "retailer_market"
-                  ? "bg-blue-600 text-white shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              <span>🛒</span>
-              <span>Retailer Market</span>
-              {marketQuotesCount > 0 && (
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                  activeNav === "retailer_market" ? "bg-blue-700/80 text-white" : "bg-slate-100 text-slate-600"
-                }`}>
-                  {marketQuotesCount}
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveNav("deals")}
-              className={`py-2 px-3 sm:px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeNav === "deals"
-                  ? "bg-blue-600 text-white shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              <span>🤝</span>
-              <span>Deals</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveNav("transactions")}
-              className={`py-2 px-3 sm:px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeNav === "transactions"
-                  ? "bg-blue-600 text-white shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              <span>🔐</span>
-              <span>Transactions</span>
-              {escrowsCount > 0 && (
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                  activeNav === "transactions" ? "bg-blue-700/80 text-white" : "bg-slate-100 text-slate-600"
-                }`}>
-                  {escrowsCount}
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveNav("identity")}
-              className={`py-2 px-3 sm:px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeNav === "identity"
-                  ? "bg-blue-600 text-white shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              <span>🪪</span>
-              <span>Identity</span>
+              <span>Procure Crops</span>
             </button>
           </div>
-        </div>
+        </aside>
 
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {/* VIEW 1: DASHBOARD (Operations / Procurement Center)           */}
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {activeNav === "dashboard" && (
-          <div className="space-y-5 animate-fade-in">
-            {/* Operational Header */}
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
-                  <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">
-                    FPO Operations & Procurement Center
-                  </span>
+        {/* ── Mobile Slide-Over Drawer ──────────────────────────────── */}
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden flex">
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+
+            {/* Drawer Container */}
+            <div className="relative w-72 max-w-[80vw] bg-white h-full shadow-2xl p-5 flex flex-col justify-between z-10 animate-fade-in">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🏢</span>
+                    <span className="font-bold text-sm text-slate-900">Procurement Center</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                  >
+                    ✕
+                  </button>
                 </div>
-                <h1 className="text-lg sm:text-2xl font-extrabold text-slate-900 tracking-tight truncate">
-                  {didInfo?.name || "FPO Organization Portal"}
-                </h1>
-                <p className="text-xs text-slate-500 max-w-xl">
-                  Aggregate agricultural supply from verified farmers, verify quality, and manage wholesale B2B distribution.
-                </p>
+
+                <nav className="space-y-1">
+                  {navItems.map((item) => {
+                    const isActive = activeNav === item.key;
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => {
+                          setActiveNav(item.key);
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                          isActive
+                            ? "bg-blue-600 text-white font-bold shadow-xs"
+                            : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 truncate">
+                          <span className="text-base">{item.icon}</span>
+                          <span>{item.label}</span>
+                        </div>
+                        {item.badge !== null && (
+                          <span
+                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                              isActive
+                                ? "bg-blue-700/80 text-white"
+                                : "bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            {item.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </nav>
               </div>
 
-              {/* Quick Actions */}
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="pt-4 border-t border-slate-100 space-y-2">
                 <button
                   type="button"
-                  onClick={() => setActiveNav("farmer_market")}
-                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                  onClick={() => {
+                    setActiveNav("farmer_market");
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="w-full bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl text-xs font-semibold transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span>🌾</span>
-                  <span>Procure Crops</span>
+                  <span>Browse Farmer Supply</span>
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Main Content Area ─────────────────────────────────────── */}
+        <main className="flex-1 min-w-0 p-3.5 sm:p-6 lg:p-7 space-y-5">
+          {/* Mobile Quick Tab Navigation */}
+          <div className="lg:hidden bg-white border border-slate-200/80 rounded-2xl p-1.5 shadow-2xs flex items-center justify-between gap-1 overflow-x-auto">
+            {navItems.map((item) => {
+              const isActive = activeNav === item.key;
+              return (
                 <button
+                  key={item.key}
                   type="button"
-                  onClick={() => setActiveNav("retailer_market")}
-                  className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                  onClick={() => setActiveNav(item.key)}
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                    isActive
+                      ? "bg-blue-600 text-white font-bold shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  }`}
                 >
-                  <span>🛒</span>
-                  <span>Publish Offer</span>
+                  <span>{item.icon}</span>
+                  <span>{item.label}</span>
                 </button>
-              </div>
-            </div>
+              );
+            })}
+          </div>
 
-            {/* Visual Procurement Flow: Farmer → FPO → Retailer */}
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 sm:p-4 shadow-2xs">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-2">
-                Supply Chain Operations Pipeline
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                <div className="bg-emerald-50/50 border border-emerald-200/80 rounded-xl p-3 flex items-center gap-3">
-                  <span className="text-2xl shrink-0">🌾</span>
-                  <div className="min-w-0">
-                    <span className="text-[10px] font-bold text-emerald-800 uppercase block">1. Farmer Supply</span>
-                    <span className="font-extrabold text-slate-900 truncate block">
-                      {farmerQuotesCount} Lots Available
-                    </span>
-                  </div>
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {/* VIEW 1: DASHBOARD (FPO Operations Homepage)                   */}
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {activeNav === "dashboard" && (
+            <div className="space-y-5 animate-fade-in">
+              {/* Clean FPO Operations Header */}
+              <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1 min-w-0">
+                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight truncate">
+                    FPO Operations
+                  </h1>
+                  <p className="text-xs sm:text-sm text-slate-500">
+                    Manage farmer supply, inventory and retailer sales.
+                  </p>
                 </div>
 
-                <div className="bg-blue-50/50 border border-blue-200/80 rounded-xl p-3 flex items-center gap-3">
-                  <span className="text-2xl shrink-0">🏢</span>
-                  <div className="min-w-0">
-                    <span className="text-[10px] font-bold text-blue-800 uppercase block">2. FPO Aggregation</span>
-                    <span className="font-extrabold text-slate-900 truncate block">
-                      Traceable Inventory Stock
-                    </span>
-                  </div>
-                </div>
-
-                <div className="bg-purple-50/50 border border-purple-200/80 rounded-xl p-3 flex items-center gap-3">
-                  <span className="text-2xl shrink-0">🏪</span>
-                  <div className="min-w-0">
-                    <span className="text-[10px] font-bold text-purple-800 uppercase block">3. Retailer Distribution</span>
-                    <span className="font-extrabold text-slate-900 truncate block">
-                      {marketQuotesCount} Wholesale Lots
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 4 Operations Metrics */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-blue-200 transition-all min-w-0">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
-                  🌾 Farmer Supply
-                </span>
-                <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight truncate">
-                  {farmerQuotesCount}
-                </p>
-                <p className="text-[11px] text-blue-600 font-semibold mt-0.5 truncate">
-                  Available for Bidding
-                </p>
-              </div>
-
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-emerald-200 transition-all min-w-0">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
-                  📦 In-Stock Lots
-                </span>
-                <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight truncate">
-                  {cartItemsCount}
-                </p>
-                <p className="text-[11px] text-emerald-600 font-semibold mt-0.5 truncate">
-                  Allocated in Cart
-                </p>
-              </div>
-
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-purple-200 transition-all min-w-0">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
-                  🛒 Retailer Offers
-                </span>
-                <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight truncate">
-                  {marketQuotesCount}
-                </p>
-                <p className="text-[11px] text-purple-600 font-semibold mt-0.5 truncate">
-                  Active Wholesale Lots
-                </p>
-              </div>
-
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-amber-200 transition-all min-w-0">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
-                  🤝 Active Deals
-                </span>
-                <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight truncate">
-                  {escrowsCount}
-                </p>
-                <p className="text-[11px] text-amber-600 font-semibold mt-0.5 truncate">
-                  Sepolia Escrows
-                </p>
-              </div>
-            </div>
-
-            {/* Quick Procurement Launchpad */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-2xs space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">🌾</span>
-                    <h3 className="text-sm font-extrabold text-slate-900">Procure from Verified Farmers</h3>
-                  </div>
+                {/* 3 Prominent Quick Actions */}
+                <div className="flex items-center gap-2 shrink-0 flex-wrap">
                   <button
                     type="button"
                     onClick={() => setActiveNav("farmer_market")}
-                    className="text-xs font-bold text-blue-600 hover:text-blue-700"
+                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
                   >
-                    Open Market →
+                    <span>🌾</span>
+                    <span>Browse Farmer Supply</span>
                   </button>
-                </div>
-                <p className="text-xs text-slate-500">
-                  Browse harvest lots published by local verified farmers. Review Gemini AI crop grades and submit procurement bids.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setActiveNav("farmer_market")}
-                  className="w-full py-2 bg-blue-50 hover:bg-blue-100 text-blue-800 text-xs font-bold rounded-xl border border-blue-200 transition-all cursor-pointer"
-                >
-                  Browse Open Farmer Quotes ({farmerQuotesCount})
-                </button>
-              </div>
-
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-2xs space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">🛒</span>
-                    <h3 className="text-sm font-extrabold text-slate-900">Supply Wholesale to Retailers</h3>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveNav("inventory")}
+                    className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>📦</span>
+                    <span>View Inventory</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => setActiveNav("retailer_market")}
-                    className="text-xs font-bold text-purple-600 hover:text-purple-700"
+                    className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
                   >
-                    Manage Offers →
+                    <span>🛒</span>
+                    <span>Sell to Retailers</span>
                   </button>
                 </div>
-                <p className="text-xs text-slate-500">
-                  Aggregate farmer lots into commercial wholesale offers. Review incoming bids from verified commercial retailers.
+              </div>
+
+              {/* 4 Compact Summary Metrics */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-blue-200 transition-all min-w-0">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block truncate">
+                    🌾 Farmer Supply
+                  </span>
+                  <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight truncate">
+                    {farmerQuotesCount}
+                  </p>
+                  <p className="text-[11px] text-blue-700 font-medium mt-0.5 truncate">
+                    Available for Bidding
+                  </p>
+                </div>
+
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-emerald-200 transition-all min-w-0">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block truncate">
+                    📦 Inventory
+                  </span>
+                  <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight truncate">
+                    {cartItemsCount}
+                  </p>
+                  <p className="text-[11px] text-emerald-700 font-medium mt-0.5 truncate">
+                    Lots Allocated in Cart
+                  </p>
+                </div>
+
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-amber-200 transition-all min-w-0">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block truncate">
+                    🤝 Active Deals
+                  </span>
+                  <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight truncate">
+                    {escrowsCount}
+                  </p>
+                  <p className="text-[11px] text-amber-700 font-medium mt-0.5 truncate">
+                    Sepolia Escrows
+                  </p>
+                </div>
+
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-purple-200 transition-all min-w-0">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block truncate">
+                    🛒 Retailer Offers
+                  </span>
+                  <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight truncate">
+                    {marketQuotesCount}
+                  </p>
+                  <p className="text-[11px] text-purple-700 font-medium mt-0.5 truncate">
+                    Published Wholesale Lots
+                  </p>
+                </div>
+              </div>
+
+              {/* Supply Chain Operations Pipeline Tracker */}
+              <div className="bg-white border border-slate-200/80 rounded-3xl p-4 sm:p-5 shadow-2xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-2.5">
+                  Supply Chain Operations Pipeline
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                  <div className="bg-emerald-50/50 border border-emerald-200/80 rounded-xl p-3 flex items-center gap-3">
+                    <span className="text-2xl shrink-0">🌾</span>
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-bold text-emerald-800 uppercase block">1. Farmer Supply</span>
+                      <span className="font-bold text-slate-900 truncate block">
+                        {farmerQuotesCount} Lots Available
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50/50 border border-blue-200/80 rounded-xl p-3 flex items-center gap-3">
+                    <span className="text-2xl shrink-0">🏢</span>
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-bold text-blue-800 uppercase block">2. FPO Aggregation</span>
+                      <span className="font-bold text-slate-900 truncate block">
+                        Traceable Inventory Stock
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="bg-purple-50/50 border border-purple-200/80 rounded-xl p-3 flex items-center gap-3">
+                    <span className="text-2xl shrink-0">🏪</span>
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-bold text-purple-800 uppercase block">3. Retailer Distribution</span>
+                      <span className="font-bold text-slate-900 truncate block">
+                        {marketQuotesCount} Wholesale Lots
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Compact Overview Sections */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 1. Recent Farmer Supply */}
+                <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🌾</span>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                        Farmer Supply
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveNav("farmer_market")}
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
+                    >
+                      View All ({farmerQuotesCount}) →
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Review open harvest lots from verified local farmers and submit direct procurement bids.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveNav("farmer_market")}
+                    className="w-full py-2 bg-blue-50 hover:bg-blue-100 text-blue-800 text-xs font-semibold rounded-xl border border-blue-200 transition-all cursor-pointer"
+                  >
+                    Open Farmer Procurement Market
+                  </button>
+                </div>
+
+                {/* 2. Retailer Opportunities */}
+                <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🛒</span>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                        Retailer Opportunities
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveNav("retailer_market")}
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
+                    >
+                      View All ({marketQuotesCount}) →
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Aggregate acquired harvest lots into wholesale lots and receive bids from commercial retailers.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveNav("retailer_market")}
+                    className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-xl border border-slate-200 transition-all cursor-pointer"
+                  >
+                    Manage Wholesale Offers
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {/* VIEW 2: FARMER MARKET (Procurement)                           */}
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {activeNav === "farmer_market" && (
+            <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-5 animate-fade-in">
+              <div className="pb-3 border-b border-slate-100">
+                <h2 className="text-base sm:text-lg font-bold text-slate-900">
+                  🌾 Farmer Market
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Find verified crops available for procurement.
                 </p>
+              </div>
+
+              <FarmerQuotes onBidPlaced={fetchOverviewMetrics} />
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {/* VIEW 3: INVENTORY                                             */}
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {activeNav === "inventory" && (
+            <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-5 animate-fade-in">
+              <div className="pb-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold text-slate-900">
+                    📦 FPO Inventory Stock
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Stock you currently control — retains 100% individual farmer lot allocations and provenance.
+                  </p>
+                </div>
+
                 <button
                   type="button"
                   onClick={() => setActiveNav("retailer_market")}
-                  className="w-full py-2 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold rounded-xl border border-purple-200 transition-all cursor-pointer"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1.5 self-start sm:self-auto"
                 >
-                  Manage Wholesale Offers ({marketQuotesCount})
+                  <span>🛒</span>
+                  <span>Sell to Retailers</span>
                 </button>
               </div>
-            </div>
-          </div>
-        )}
 
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {/* VIEW 2: FARMER MARKET (Procurement)                           */}
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {activeNav === "farmer_market" && (
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-4 animate-fade-in">
-            <div className="pb-3 border-b border-slate-100">
-              <h2 className="text-base font-extrabold text-slate-900">
-                🌾 Farmer Supply Procurement Marketplace
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Browse open harvest lots published by verified farmers and submit direct procurement bids
-              </p>
-            </div>
-
-            <FarmerQuotes onBidPlaced={fetchOverviewMetrics} />
-          </div>
-        )}
-
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {/* VIEW 3: INVENTORY & STOCK                                     */}
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {activeNav === "inventory" && (
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-4 animate-fade-in">
-            <div className="pb-3 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-extrabold text-slate-900">
-                  📦 FPO Aggregated Stock Inventory
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Traceable inventory acquired from farmers — retains permanent provenance per lot
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setActiveNav("retailer_market")}
-                className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1"
-              >
-                <span>🛒</span>
-                <span>Wholesale Offers</span>
-              </button>
-            </div>
-
-            <FpoInventoryPanel
-              onCartUpdated={() => {
-                fetchCartCount();
-                fetchOverviewMetrics();
-              }}
-              refreshTrigger={inventoryRefreshTrigger}
-            />
-          </div>
-        )}
-
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {/* VIEW 4: RETAILER MARKET (Wholesale Sales)                     */}
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {activeNav === "retailer_market" && (
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-4 animate-fade-in">
-            <div className="pb-3 border-b border-slate-100">
-              <h2 className="text-base font-extrabold text-slate-900">
-                🛒 Wholesale Market Quotes (Sell to Retailers)
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Publish aggregated crop lots to registered retailers and manage incoming procurement bids
-              </p>
-            </div>
-
-            <RetailerQuotes
-              onNavigateToCart={() => setActiveNav("inventory")}
-              onBidAccepted={fetchOverviewMetrics}
-              onQuoteCreated={fetchOverviewMetrics}
-            />
-          </div>
-        )}
-
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {/* VIEW 5: DEALS                                                 */}
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {activeNav === "deals" && (
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-4 animate-fade-in">
-            <div className="pb-3 border-b border-slate-100">
-              <h2 className="text-base font-extrabold text-slate-900">
-                🤝 Commercial Deals & Active Negotiations
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Manage ongoing bilateral negotiations across farmer procurement and retail sales
-              </p>
-            </div>
-
-            <RetailerQuotes
-              onNavigateToCart={() => setActiveNav("inventory")}
-              onBidAccepted={fetchOverviewMetrics}
-              onQuoteCreated={fetchOverviewMetrics}
-            />
-          </div>
-        )}
-
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {/* VIEW 6: TRANSACTIONS & ESCROW                                 */}
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {activeNav === "transactions" && (
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-5 animate-fade-in">
-            <div className="pb-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-extrabold text-slate-900">
-                  🔐 Smart Contract Escrow Transactions
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Ethereum Sepolia smart-contract escrow payments for Farmer procurement and Retail commercial sales
-                </p>
-              </div>
-
-              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
-                <button
-                  type="button"
-                  onClick={() => setEscrowSubTab("farmer")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    escrowSubTab === "farmer"
-                      ? "bg-white text-slate-900 shadow-2xs"
-                      : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  🌾 Farmer Procurement
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEscrowSubTab("retailer")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    escrowSubTab === "retailer"
-                      ? "bg-white text-purple-900 shadow-2xs"
-                      : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  🏢 Retail Wholesale Deals
-                </button>
-              </div>
-            </div>
-
-            {escrowSubTab === "farmer" ? (
-              <FpoEscrowPanel
-                onEscrowUpdated={() => {
+              <FpoInventoryPanel
+                onCartUpdated={() => {
+                  fetchCartCount();
                   fetchOverviewMetrics();
-                  triggerInventoryRefresh();
                 }}
+                refreshTrigger={inventoryRefreshTrigger}
               />
-            ) : (
-              <FpoRetailerEscrowPanel
-                onEscrowUpdated={fetchOverviewMetrics}
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {/* VIEW 4: RETAILER MARKET (Selling to Retailers)                */}
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {activeNav === "retailer_market" && (
+            <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-5 animate-fade-in">
+              <div className="pb-3 border-b border-slate-100">
+                <h2 className="text-base sm:text-lg font-bold text-slate-900">
+                  🛒 Retailer Market
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Create offers from your available inventory.
+                </p>
+              </div>
+
+              <RetailerQuotes
+                onNavigateToCart={() => setActiveNav("inventory")}
+                onBidAccepted={fetchOverviewMetrics}
+                onQuoteCreated={fetchOverviewMetrics}
               />
-            )}
-          </div>
-        )}
-
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {/* VIEW 7: IDENTITY & VERIFICATION                               */}
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {activeNav === "identity" && (
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-5 animate-fade-in">
-            <div className="pb-3 border-b border-slate-100">
-              <h2 className="text-base font-extrabold text-slate-900">
-                🪪 Organization Identity & Trust Profile
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Verified W3C Decentralized Identifier (DID) and on-chain operational trust tier
-              </p>
             </div>
+          )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <DidIdentityCard didInfo={didInfo} accentColor="blue" />
-              <TrustReputationCard accentColor="blue" />
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {/* VIEW 5: DEALS (Dual-Direction Deals Workspace)                */}
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {activeNav === "deals" && (
+            <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-5 animate-fade-in">
+              <div className="pb-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold text-slate-900">
+                    🤝 Commercial Deals Workspace
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Manage bilateral negotiations across farmer procurement and retailer wholesale sales.
+                  </p>
+                </div>
+
+                {/* Clear Dual-Direction Tabs */}
+                <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl shrink-0 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setDealsDirection("buying")}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      dealsDirection === "buying"
+                        ? "bg-white text-slate-900 shadow-2xs font-bold"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    🌾 Buying from Farmers
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDealsDirection("selling")}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      dealsDirection === "selling"
+                        ? "bg-white text-blue-900 shadow-2xs font-bold"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    🛒 Selling to Retailers
+                  </button>
+                </div>
+              </div>
+
+              {dealsDirection === "buying" ? (
+                <div className="space-y-4">
+                  <div className="p-3 bg-blue-50/50 border border-blue-200/60 rounded-xl text-xs text-slate-700">
+                    Viewing procurement quotes and active offers placed with local farmers.
+                  </div>
+                  <FarmerQuotes onBidPlaced={fetchOverviewMetrics} />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-3 bg-purple-50/50 border border-purple-200/60 rounded-xl text-xs text-slate-700">
+                    Viewing published wholesale lots and incoming purchase bids from commercial retailers.
+                  </div>
+                  <RetailerQuotes
+                    onNavigateToCart={() => setActiveNav("inventory")}
+                    onBidAccepted={fetchOverviewMetrics}
+                    onQuoteCreated={fetchOverviewMetrics}
+                  />
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {/* VIEW 6: TRANSACTIONS & ESCROW                                 */}
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {activeNav === "transactions" && (
+            <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-5 animate-fade-in">
+              <div className="pb-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold text-slate-900">
+                    💰 Transactions & Escrow Settlement
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Ethereum Sepolia smart-contract escrow payments for Farmer procurement and Retail commercial sales.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl shrink-0 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setEscrowSubTab("farmer")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      escrowSubTab === "farmer"
+                        ? "bg-white text-slate-900 shadow-2xs font-bold"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    🌾 Farmer Procurement
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEscrowSubTab("retailer")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      escrowSubTab === "retailer"
+                        ? "bg-white text-blue-900 shadow-2xs font-bold"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    🏢 Retail Wholesale Deals
+                  </button>
+                </div>
+              </div>
+
+              {escrowSubTab === "farmer" ? (
+                <FpoEscrowPanel
+                  onEscrowUpdated={() => {
+                    fetchOverviewMetrics();
+                    triggerInventoryRefresh();
+                  }}
+                />
+              ) : (
+                <FpoRetailerEscrowPanel
+                  onEscrowUpdated={fetchOverviewMetrics}
+                />
+              )}
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {/* VIEW 7: IDENTITY & VERIFICATION                               */}
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {activeNav === "identity" && (
+            <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-5 animate-fade-in">
+              <div className="pb-3 border-b border-slate-100">
+                <h2 className="text-base sm:text-lg font-bold text-slate-900">
+                  🪪 Identity & Trust Profile
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Verified W3C Decentralized Identifier (DID) and operational trust profile.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <DidIdentityCard didInfo={didInfo} accentColor="blue" />
+                <TrustReputationCard accentColor="blue" />
+              </div>
+            </div>
+          )}
+        </main>
       </div>
     </div>
   );

@@ -1,12 +1,16 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import { useRefreshSubscription } from "../../context/useRefresh";
 import ProvenanceCard from "../common/ProvenanceCard";
+import BaseModal from "../common/BaseModal";
+import StatusBadge from "../common/StatusBadge";
 
 export default function RetailerOrdersPanel() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectedOrderModal, setSelectedOrderModal] = useState(null);
+  const [statusFilter, setStatusFilter] = useState("all"); // "all" | "active" | "completed"
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -28,27 +32,84 @@ export default function RetailerOrdersPanel() {
 
   useRefreshSubscription(["retailer", "deals", "quotes", "escrow", "inventory"], fetchOrders);
 
+  const activeOrders = useMemo(
+    () => orders.filter((o) => o.status !== "completed" && o.status !== "cancelled"),
+    [orders]
+  );
+  const completedOrders = useMemo(
+    () => orders.filter((o) => o.status === "completed"),
+    [orders]
+  );
+
+  const filteredOrders = useMemo(() => {
+    if (statusFilter === "active") return activeOrders;
+    if (statusFilter === "completed") return completedOrders;
+    return orders;
+  }, [orders, activeOrders, completedOrders, statusFilter]);
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+    <div className="space-y-5">
+      {/* ── Header Bar ─────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
         <div>
-          <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-            <span>📦</span>
-            <span>Commercial Orders & Provenance Records</span>
-          </h2>
+          <div className="flex items-center gap-2">
+            <span className="text-lg">📋</span>
+            <h2 className="text-base font-extrabold text-slate-900">
+              Commercial Order Records
+            </h2>
+          </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Commercial orders placed with FPO partners, featuring 100% verified farmer & crop passport provenance.
+            Confirmed commercial procurement orders placed with FPO partners, featuring multi-farmer provenance.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={fetchOrders}
-          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1"
-        >
-          <span>🔄</span>
-          <span>Refresh</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Status Tabs */}
+          <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 text-xs">
+            <button
+              type="button"
+              onClick={() => setStatusFilter("all")}
+              className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                statusFilter === "all"
+                  ? "bg-white text-slate-900 shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              All ({orders.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("active")}
+              className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                statusFilter === "active"
+                  ? "bg-white text-purple-900 shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Active ({activeOrders.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("completed")}
+              className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                statusFilter === "completed"
+                  ? "bg-white text-emerald-900 shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Completed ({completedOrders.length})
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={fetchOrders}
+            className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 rounded-xl transition-all cursor-pointer text-xs"
+            title="Refresh Orders"
+          >
+            🔄
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -58,94 +119,164 @@ export default function RetailerOrdersPanel() {
       )}
 
       {loading ? (
-        <div className="py-12 text-center text-xs text-slate-400 animate-pulse space-y-2">
-          <div className="h-6 w-48 bg-slate-200 rounded mx-auto" />
-          <p>Loading commercial orders…</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {[1, 2].map((i) => (
+            <div key={i} className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 animate-pulse space-y-2">
+              <div className="h-4 bg-slate-200 rounded w-1/3" />
+              <div className="h-10 bg-slate-200 rounded" />
+            </div>
+          ))}
         </div>
-      ) : orders.length === 0 ? (
-        <div className="py-12 text-center bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
+      ) : filteredOrders.length === 0 ? (
+        <div className="py-12 text-center bg-slate-50/70 rounded-2xl border border-slate-200/80 space-y-2">
           <span className="text-4xl block">📋</span>
-          <h3 className="text-sm font-extrabold text-slate-800">No Commercial Orders Yet</h3>
+          <h3 className="text-sm font-extrabold text-slate-800">
+            {statusFilter === "all" ? "No Commercial Orders Yet" : `No ${statusFilter} orders found`}
+          </h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
-            Reserve FPO quotes in your Retailer Cart and click "Proceed to Commercial Order" to establish order records.
+            Reserve FPO quotes in your Retailer Cart and click "Proceed to Deal" to establish confirmed commercial order records.
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {orders.map((ord) => {
-            const allocations = ord.allocations || [];
-            const provSummary = ord.provenance_summary || {};
-
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {filteredOrders.map((ord) => {
             return (
               <div
                 key={ord.id}
-                className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs hover:border-emerald-300 transition-all space-y-4"
+                className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs hover:border-purple-300 transition-all flex flex-col justify-between gap-3 min-w-0"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2.5 flex-wrap min-w-0">
-                    <span className="text-xs font-mono font-extrabold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
-                      {ord.order_number}
-                    </span>
-                    <span className="text-base font-extrabold text-slate-900 truncate">
-                      {ord.product_name}
-                    </span>
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                      {ord.category || "General"}
-                    </span>
-                    <span className="text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
-                      {ord.status}
-                    </span>
+                <div className="space-y-3 min-w-0">
+                  {/* Top Bar */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-mono font-bold text-slate-500">
+                          {ord.order_number}
+                        </span>
+                        <span className="text-xs font-semibold px-2 py-0.2 rounded-md bg-slate-100 text-slate-700">
+                          {ord.category || "General"}
+                        </span>
+                      </div>
+                      <h3 className="text-base font-extrabold text-slate-900 mt-1 truncate">
+                        {ord.product_name}
+                      </h3>
+                      <p className="text-xs text-slate-500 truncate">
+                        FPO Partner: <strong className="text-slate-800 font-semibold">{ord.fpo_name}</strong>
+                      </p>
+                    </div>
+
+                    <StatusBadge status={ord.status} />
                   </div>
 
-                  <span className="text-xs font-mono text-slate-400 shrink-0">
-                    {new Date(ord.created_at).toLocaleString()}
+                  {/* Pricing and Volume Grid */}
+                  <div className="grid grid-cols-3 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100 font-mono">
+                    <div className="min-w-0">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans truncate">Order Volume</span>
+                      <span className="font-extrabold text-purple-900 mt-0.5 block truncate">
+                        {ord.quantity} {ord.unit}
+                      </span>
+                    </div>
+
+                    <div className="min-w-0">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans truncate">Unit Rate</span>
+                      <span className="font-semibold text-blue-700 mt-0.5 block truncate">
+                        {ord.price_per_unit} ETH
+                      </span>
+                    </div>
+
+                    <div className="min-w-0">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans truncate">Total Price</span>
+                      <span className="font-extrabold text-emerald-700 mt-0.5 block truncate">
+                        {ord.total_price} ETH
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card Action */}
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    {new Date(ord.created_at).toLocaleDateString()}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOrderModal(ord)}
+                    className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold rounded-xl border border-purple-200 transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>📜</span>
+                    <span>View Deal Details</span>
+                  </button>
                 </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-slate-50 p-2.5 sm:p-3 rounded-xl border border-slate-100">
-                  <div className="min-w-0">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">FPO Partner</span>
-                    <span className="font-extrabold text-slate-800 block mt-0.5 truncate">{ord.fpo_name}</span>
-                  </div>
-
-                  <div className="min-w-0">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Order Quantity</span>
-                    <span className="font-mono font-extrabold text-purple-700 block mt-0.5 truncate">
-                      {ord.quantity} {ord.unit}
-                    </span>
-                  </div>
-
-                  <div className="min-w-0">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Price per Unit</span>
-                    <span className="font-mono font-bold text-blue-700 block mt-0.5 truncate">
-                      {ord.price_per_unit} ETH / {ord.unit}
-                    </span>
-                  </div>
-
-                  <div className="min-w-0">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Total Price</span>
-                    <span className="font-mono font-extrabold text-emerald-700 block mt-0.5 text-sm truncate">
-                      {ord.total_price} ETH
-                    </span>
-                  </div>
-                </div>
-
-                {/* Provenance Details Box */}
-                <ProvenanceCard
-                  allocations={allocations}
-                  provenanceSummary={provSummary}
-                  fpoName={ord.fpo_name}
-                />
-
-                {ord.notes && (
-                  <div className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                    <strong className="text-slate-500">Logistics Notes:</strong> {ord.notes}
-                  </div>
-                )}
               </div>
             );
           })}
         </div>
+      )}
+
+      {/* ── Order Details & Provenance Modal ────────────────────────── */}
+      {selectedOrderModal && (
+        <BaseModal
+          isOpen={Boolean(selectedOrderModal)}
+          onClose={() => setSelectedOrderModal(null)}
+          title={`Order ${selectedOrderModal.order_number}: ${selectedOrderModal.product_name}`}
+          subtitle={`Commercial Agreement · FPO Supplier: ${selectedOrderModal.fpo_name}`}
+          icon="📦"
+          badge={<StatusBadge status={selectedOrderModal.status} />}
+          maxWidth="max-w-2xl"
+          footer={
+            <div className="flex justify-end w-full">
+              <button
+                type="button"
+                onClick={() => setSelectedOrderModal(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-4 text-xs">
+            {/* Commercial Summary Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100 font-mono">
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans">Total Volume</span>
+                <span className="font-extrabold text-slate-900 mt-0.5 block">{selectedOrderModal.quantity} {selectedOrderModal.unit}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans">Unit Price</span>
+                <span className="font-semibold text-blue-700 mt-0.5 block">{selectedOrderModal.price_per_unit} ETH</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans">Total Amount</span>
+                <span className="font-extrabold text-emerald-700 mt-0.5 block">{selectedOrderModal.total_price} ETH</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans">Order Placed</span>
+                <span className="font-medium text-slate-700 mt-0.5 block">{new Date(selectedOrderModal.created_at).toLocaleDateString()}</span>
+              </div>
+            </div>
+
+            {/* Delivery & Logistics Notes if any */}
+            {selectedOrderModal.notes && (
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Logistics & Delivery Notes</span>
+                <p className="text-slate-700">{selectedOrderModal.notes}</p>
+              </div>
+            )}
+
+            {/* Complete Provenance Allocations Breakdown */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-900 block">
+                ⛓️ Verified Producer Lineage & Passports
+              </span>
+              <ProvenanceCard
+                allocations={selectedOrderModal.allocations || []}
+                provenanceSummary={selectedOrderModal.provenance_summary || {}}
+                fpoName={selectedOrderModal.fpo_name}
+              />
+            </div>
+          </div>
+        </BaseModal>
       )}
     </div>
   );

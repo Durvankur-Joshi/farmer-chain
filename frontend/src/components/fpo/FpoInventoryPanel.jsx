@@ -232,12 +232,12 @@ export default function FpoInventoryPanel({ onCartUpdated, refreshTrigger }) {
                   </div>
                 </div>
 
-                {/* Footer: View Lots & Reserve Actions */}
+                {/* Footer: View Lots & Sell Actions */}
                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
                   <button
                     type="button"
                     onClick={() => setActiveLotsModal(lot)}
-                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                    className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-1 shrink-0"
                   >
                     <span>📜</span>
                     <span>View Lots</span>
@@ -247,10 +247,10 @@ export default function FpoInventoryPanel({ onCartUpdated, refreshTrigger }) {
                     type="button"
                     onClick={() => handleOpenCartModal(lot)}
                     disabled={!isAvailable}
-                    className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                   >
                     <span>🛒</span>
-                    <span>Reserve Stock</span>
+                    <span>Sell to Retailers</span>
                   </button>
                 </div>
               </div>
@@ -285,10 +285,10 @@ export default function FpoInventoryPanel({ onCartUpdated, refreshTrigger }) {
                   handleOpenCartModal(l);
                 }}
                 disabled={parseFloat(activeLotsModal.available_quantity) <= 0}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
               >
                 <span>🛒</span>
-                <span>Reserve in Stock Cart</span>
+                <span>Sell to Retailers</span>
               </button>
             </div>
           }
@@ -296,7 +296,7 @@ export default function FpoInventoryPanel({ onCartUpdated, refreshTrigger }) {
           <div className="space-y-4 text-xs">
             {/* Provenance Lots List */}
             <div className="space-y-2">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 block">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 Underlying Farmer Harvest Lots
               </span>
 
@@ -304,14 +304,14 @@ export default function FpoInventoryPanel({ onCartUpdated, refreshTrigger }) {
               <div className="p-3.5 bg-emerald-50/50 border border-emerald-200 rounded-2xl space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <span className="font-extrabold text-slate-900 text-xs">
+                    <span className="font-bold text-slate-900 text-xs">
                       👨‍🌾 {activeLotsModal.farmer_name}
                     </span>
                     <p className="text-[11px] text-slate-500">
                       📍 {activeLotsModal.farmer_city}, {activeLotsModal.farmer_state}
                     </p>
                   </div>
-                  <span className="font-extrabold font-mono text-emerald-800 bg-white px-2 py-0.5 rounded-lg border border-emerald-200 text-xs">
+                  <span className="font-bold font-mono text-emerald-800 bg-white px-2 py-0.5 rounded-lg border border-emerald-200 text-xs">
                     {activeLotsModal.available_quantity} / {activeLotsModal.original_quantity} {activeLotsModal.unit}
                   </span>
                 </div>
@@ -327,12 +327,12 @@ export default function FpoInventoryPanel({ onCartUpdated, refreshTrigger }) {
 
             {/* Passport & AI Grade Details if available */}
             {activeLotsModal.crop_passport_details ? (
-              <div className="p-3.5 bg-purple-50/50 border border-purple-200 rounded-2xl space-y-2">
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider">
+                  <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider">
                     📜 Linked Crop Passport Twin
                   </span>
-                  <span className="font-mono text-purple-900 font-extrabold text-xs">
+                  <span className="font-mono text-slate-800 font-bold text-xs">
                     #{activeLotsModal.crop_passport_details.id}
                   </span>
                 </div>
@@ -340,7 +340,7 @@ export default function FpoInventoryPanel({ onCartUpdated, refreshTrigger }) {
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
                     <span className="text-slate-500 block">Harvest Date:</span>
-                    <span className="font-semibold text-slate-800">
+                    <span className="font-medium text-slate-800">
                       {activeLotsModal.crop_passport_details.harvest_date || "N/A"}
                     </span>
                   </div>
@@ -356,7 +356,7 @@ export default function FpoInventoryPanel({ onCartUpdated, refreshTrigger }) {
                   <img
                     src={activeLotsModal.crop_passport_details.primary_image_url}
                     alt={activeLotsModal.product_name}
-                    className="w-full h-32 object-cover rounded-xl border border-purple-200 shadow-xs mt-1"
+                    className="w-full h-32 object-cover rounded-xl border border-slate-200 shadow-xs mt-1"
                   />
                 )}
               </div>

@@ -16,6 +16,7 @@ import RetailerInventoryPanel from "../../components/retailer/RetailerInventoryP
 import NegotiationModal from "../../components/common/NegotiationModal";
 import ProvenanceCard from "../../components/common/ProvenanceCard";
 import BaseModal from "../../components/common/BaseModal";
+import AddressCopy from "../../components/common/AddressCopy";
 
 // activeNav values: "dashboard" | "market" | "deals" | "cart" | "inventory" | "transactions" | "identity"
 
@@ -24,6 +25,7 @@ export default function RetailerDashboard() {
   const navigate = useNavigate();
 
   const [activeNav, setActiveNav] = useState("dashboard");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [fpoQuotes, setFpoQuotes] = useState([]);
   const [quotesLoading, setQuotesLoading] = useState(true);
   const [myBids, setMyBids] = useState([]);
@@ -39,6 +41,7 @@ export default function RetailerDashboard() {
 
   // Product Details Modal
   const [activeProductModal, setActiveProductModal] = useState(null);
+  const [showBlockchainDetails, setShowBlockchainDetails] = useState(false);
 
   // Bidding Modal State
   const [activeBidQuote, setActiveBidQuote] = useState(null);
@@ -231,314 +234,592 @@ export default function RetailerDashboard() {
 
   const acceptedBidsCount = myBids.filter((b) => b.status === "accepted").length;
 
+  const navItems = [
+    { id: "dashboard", label: "Dashboard", icon: "🏪", count: null },
+    { id: "market", label: "Wholesale Market", icon: "🛒", count: fpoQuotes.length },
+    { id: "deals", label: "Deals & Orders", icon: "🤝", count: myBids.length },
+    { id: "cart", label: "Cart", icon: "🛍️", count: cartCount },
+    { id: "inventory", label: "Purchased Stock", icon: "📦", count: null },
+    { id: "transactions", label: "Escrow Payments", icon: "🔐", count: null },
+    { id: "identity", label: "Identity Profile", icon: "🪪", count: null },
+  ];
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col text-slate-900 font-sans">
       {/* ── Top Navbar ──────────────────────────────────────────────── */}
       <DashboardNavbar
         role="retailer"
-        userName={didInfo?.name || "Retailer"}
+        userName={didInfo?.name || "Retail Buyer"}
         didInfo={didInfo}
         onLogout={logout}
+        onToggleMobileMenu={() => setIsMobileMenuOpen((prev) => !prev)}
       />
 
-      <div className="max-w-6xl mx-auto w-full px-3.5 sm:px-6 py-5 sm:py-7 flex-1 space-y-5 min-w-0">
+      {/* ── Main Layout (Sidebar + Content) ─────────────────────────── */}
+      <div className="flex-1 flex max-w-7xl mx-auto w-full">
+        {/* ── Desktop Left Sidebar (~240px) ───────────────────────────── */}
+        <aside className="w-60 xl:w-64 border-r border-slate-200/80 bg-white min-h-[calc(100vh-65px)] flex flex-col justify-between shrink-0 hidden md:flex">
+          <div className="p-4 space-y-4">
+            <div className="px-3 py-2 bg-purple-50/70 border border-purple-200/70 rounded-xl">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 block">
+                Commercial Buyer Portal
+              </span>
+              <p className="text-xs font-extrabold text-slate-900 truncate mt-0.5">
+                {didInfo?.name || "Retail Organization"}
+              </p>
+            </div>
 
-        {/* ── Role Navigation Bar ────────────────────────────────────── */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-1.5 shadow-2xs flex items-center justify-between gap-1 overflow-x-auto">
-          <div className="flex items-center gap-1 min-w-max">
-            <button
-              type="button"
-              onClick={() => setActiveNav("dashboard")}
-              className={`py-2 px-3 sm:px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeNav === "dashboard"
-                  ? "bg-purple-600 text-white shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              <span>🏪</span>
-              <span>Dashboard</span>
-            </button>
+            {/* Navigation Menu */}
+            <nav className="space-y-1">
+              {navItems.map((item) => {
+                const isActive = activeNav === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setActiveNav(item.id)}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      isActive
+                        ? "bg-purple-600 text-white shadow-xs"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-base">{item.icon}</span>
+                      <span>{item.label}</span>
+                    </div>
+                    {item.count !== null && item.count > 0 && (
+                      <span
+                        className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${
+                          isActive
+                            ? "bg-purple-700/80 text-white"
+                            : "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        {item.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
 
-            <button
-              type="button"
-              onClick={() => setActiveNav("market")}
-              className={`py-2 px-3 sm:px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeNav === "market"
-                  ? "bg-purple-600 text-white shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              <span>🛍️</span>
-              <span>Market</span>
-              {fpoQuotes.length > 0 && (
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                  activeNav === "market" ? "bg-purple-700/80 text-white" : "bg-slate-100 text-slate-600"
-                }`}>
-                  {fpoQuotes.length}
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveNav("deals")}
-              className={`py-2 px-3 sm:px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeNav === "deals"
-                  ? "bg-purple-600 text-white shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              <span>🤝</span>
-              <span>Deals</span>
-              {myBids.length > 0 && (
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                  activeNav === "deals" ? "bg-purple-700/80 text-white" : "bg-slate-100 text-slate-600"
-                }`}>
-                  {myBids.length}
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveNav("cart")}
-              className={`py-2 px-3 sm:px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeNav === "cart"
-                  ? "bg-purple-600 text-white shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              <span>🛒</span>
-              <span>Cart</span>
-              {cartCount > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-100 text-purple-900 font-extrabold border border-purple-200">
-                  {cartCount}
-                </span>
-              )}
-            </button>
+          {/* Sidebar Footer */}
+          <div className="p-4 border-t border-slate-100 space-y-3">
+            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-1 text-xs">
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Verified DID</span>
+              <div className="truncate">
+                {didInfo?.did ? (
+                  <AddressCopy address={didInfo.did} />
+                ) : (
+                  <span className="text-slate-400 text-[11px]">Connecting DID…</span>
+                )}
+              </div>
+            </div>
 
             <button
               type="button"
-              onClick={() => setActiveNav("inventory")}
-              className={`py-2 px-3 sm:px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeNav === "inventory"
-                  ? "bg-purple-600 text-white shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
+              onClick={logout}
+              className="w-full py-2 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
             >
-              <span>📦</span>
-              <span>Inventory</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveNav("transactions")}
-              className={`py-2 px-3 sm:px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeNav === "transactions"
-                  ? "bg-purple-600 text-white shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              <span>🔐</span>
-              <span>Transactions</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveNav("identity")}
-              className={`py-2 px-3 sm:px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeNav === "identity"
-                  ? "bg-purple-600 text-white shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              <span>🪪</span>
-              <span>Identity</span>
+              <span>🚪</span>
+              <span>Sign Out</span>
             </button>
           </div>
-        </div>
+        </aside>
 
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {/* VIEW 1: DASHBOARD (Commercial Marketplace Overview)           */}
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {activeNav === "dashboard" && (
-          <div className="space-y-5 animate-fade-in">
-            {/* Commercial Header */}
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse shrink-0" />
-                  <span className="text-[11px] font-bold text-purple-700 uppercase tracking-wider">
-                    Commercial Wholesale Marketplace
+        {/* ── Mobile Slide-over Drawer ────────────────────────────────── */}
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex md:hidden animate-fade-in">
+            <div className="w-72 bg-white h-full shadow-2xl flex flex-col justify-between p-4 space-y-4">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🏪</span>
+                    <div>
+                      <h3 className="text-sm font-extrabold text-slate-900">Retailer Portal</h3>
+                      <p className="text-[11px] text-purple-700 font-semibold">Wholesale Marketplace</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <nav className="space-y-1">
+                  {navItems.map((item) => {
+                    const isActive = activeNav === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveNav(item.id);
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                          isActive
+                            ? "bg-purple-600 text-white"
+                            : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span>{item.icon}</span>
+                          <span>{item.label}</span>
+                        </div>
+                        {item.count !== null && item.count > 0 && (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-100 text-purple-900">
+                            {item.count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="w-full py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl"
+                >
+                  Sign Out
+                </button>
+              </div>
+            </div>
+            <div className="flex-1" onClick={() => setIsMobileMenuOpen(false)} />
+          </div>
+        )}
+
+        {/* ── Main Content Body ───────────────────────────────────────── */}
+        <main className="flex-1 p-3.5 sm:p-6 lg:p-7 min-w-0 space-y-5">
+          {/* Mobile Quick Navigation Pill Bar */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:hidden">
+            {navItems.map((item) => {
+              const isActive = activeNav === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setActiveNav(item.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all ${
+                    isActive
+                      ? "bg-purple-600 text-white shadow-2xs"
+                      : "bg-white text-slate-600 border border-slate-200/80"
+                  }`}
+                >
+                  <span>{item.icon}</span> {item.label}
+                  {item.count !== null && item.count > 0 && ` (${item.count})`}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* ════════════════════════════════════════════════════════════ */}
+          {/* VIEW 1: DASHBOARD (Wholesale Marketplace Homepage)           */}
+          {/* ════════════════════════════════════════════════════════════ */}
+          {activeNav === "dashboard" && (
+            <div className="space-y-5 animate-fade-in">
+              {/* Homepage Hero Surface */}
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse shrink-0" />
+                    <span className="text-[11px] font-bold text-purple-700 uppercase tracking-wider">
+                      B2B Commercial Procurement
+                    </span>
+                  </div>
+                  <h1 className="text-lg sm:text-2xl font-extrabold text-slate-900 tracking-tight truncate">
+                    Wholesale Agricultural Marketplace
+                  </h1>
+                  <p className="text-xs text-slate-500 max-w-xl">
+                    Find verified agricultural products from FPOs with immutable blockchain provenance.
+                  </p>
+                </div>
+
+                {/* Quick Action Buttons */}
+                <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => setActiveNav("market")}
+                    className="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>🛒</span>
+                    <span>Browse Market</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveNav("cart")}
+                    className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>🛍️</span>
+                    <span>Cart ({cartCount})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveNav("inventory")}
+                    className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-all cursor-pointer hidden sm:flex items-center gap-1"
+                  >
+                    <span>📦</span>
+                    <span>Inventory</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4 Compact Operational Metrics */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-purple-200 transition-all min-w-0">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
+                    🛒 Wholesale Lots
+                  </span>
+                  <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight truncate">
+                    {fpoQuotes.length}
+                  </p>
+                  <p className="text-[11px] text-purple-600 font-semibold mt-0.5 truncate">
+                    Open for Bidding
+                  </p>
+                </div>
+
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-blue-200 transition-all min-w-0">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
+                    🛍️ Cart Reserved
+                  </span>
+                  <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight truncate">
+                    {cartCount}
+                  </p>
+                  <p className="text-[11px] text-blue-600 font-semibold mt-0.5 truncate">
+                    Temporary Stock
+                  </p>
+                </div>
+
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-emerald-200 transition-all min-w-0">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
+                    🤝 Active Deals
+                  </span>
+                  <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight truncate">
+                    {acceptedBidsCount}
+                  </p>
+                  <p className="text-[11px] text-emerald-600 font-semibold mt-0.5 truncate">
+                    {myBids.length} Submitted Bids
+                  </p>
+                </div>
+
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-amber-200 transition-all min-w-0">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
+                    🔐 Escrow Protected
+                  </span>
+                  <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight truncate">
+                    Sepolia
+                  </p>
+                  <p className="text-[11px] text-amber-600 font-semibold mt-0.5 truncate">
+                    Smart Contracts
+                  </p>
+                </div>
+              </div>
+
+              {/* Supply Chain Flow Pipeline Overview */}
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900">
+                      ⛓️ End-to-End Agri Supply Chain Pipeline
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Verified path from farm harvest to retail warehouse
+                    </p>
+                  </div>
+                  <span className="text-[10px] uppercase font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                    Retail Procurement Tier
                   </span>
                 </div>
-                <h1 className="text-lg sm:text-2xl font-extrabold text-slate-900 tracking-tight truncate">
-                  Welcome back, {didInfo?.name || "Retail Buyer"}
-                </h1>
-                <p className="text-xs text-slate-500 max-w-xl">
-                  Source bulk agricultural inventory from verified FPOs with immutable blockchain provenance.
-                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-start gap-3">
+                    <span className="text-2xl">🌾</span>
+                    <div>
+                      <span className="font-extrabold text-slate-900 block">1. Farm Producer</span>
+                      <span className="text-slate-500 text-[11px]">Harvest registration, AI quality grading, and IPFS crop passport.</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-start gap-3">
+                    <span className="text-2xl">🏢</span>
+                    <div>
+                      <span className="font-extrabold text-slate-900 block">2. FPO Aggregator</span>
+                      <span className="text-slate-500 text-[11px]">Bulk aggregation, quality sorting, and wholesale market quotes.</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-purple-50/70 rounded-xl border border-purple-200 flex items-start gap-3 ring-1 ring-purple-300">
+                    <span className="text-2xl">🏪</span>
+                    <div>
+                      <span className="font-extrabold text-purple-950 block">3. Retailer Buyer (You)</span>
+                      <span className="text-purple-700 text-[11px]">Bulk reserve, smart contract escrow funding, and delivery receipt.</span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Quick Actions */}
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setActiveNav("market")}
-                  className="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-                >
-                  <span>🛍️</span>
-                  <span>Explore Catalog</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveNav("cart")}
-                  className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-                >
-                  <span>🛒</span>
-                  <span>View Cart ({cartCount})</span>
-                </button>
+              {/* Featured Wholesale Products Preview */}
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
+                  <div>
+                    <h3 className="text-sm sm:text-base font-extrabold text-slate-900">
+                      🛒 Featured Wholesale Lots
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Traceable commercial bulk lots aggregated by verified FPO partners
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveNav("market")}
+                    className="text-xs font-bold text-purple-700 hover:text-purple-800"
+                  >
+                    View All Lots ({fpoQuotes.length}) →
+                  </button>
+                </div>
+
+                {quotesLoading ? (
+                  <div className="py-12 text-center text-xs text-slate-400 animate-pulse">
+                    Loading commercial catalog…
+                  </div>
+                ) : fpoQuotes.length === 0 ? (
+                  <div className="py-12 text-center bg-slate-50/70 rounded-2xl border border-slate-200/80 space-y-2">
+                    <span className="text-4xl block">🏪</span>
+                    <p className="text-sm font-bold text-slate-800">No Wholesale Products Available</p>
+                    <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                      FPOs have not published any open wholesale lots at this time. Please check back shortly.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                    {fpoQuotes.slice(0, 6).map((quote) => {
+                      const avail = quote.available_quantity ?? quote.quantity;
+                      const cp = quote.crop_passport_details;
+                      const aiGrade = cp?.latest_ai_verification?.quality_grade || cp?.quality_grade;
+
+                      return (
+                        <div
+                          key={quote.id}
+                          className="bg-white border border-slate-200/90 rounded-2xl p-4 hover:border-purple-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 min-w-0"
+                        >
+                          <div className="space-y-2 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <h4 className="text-sm font-extrabold text-slate-900 truncate">
+                                  {quote.product_name}
+                                </h4>
+                                <p className="text-[11px] text-slate-500 truncate">
+                                  Supplier: <strong className="text-slate-800 font-semibold">{quote.fpo_name || `FPO #${quote.fpo}`}</strong>
+                                </p>
+                              </div>
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 shrink-0">
+                                {quote.category}
+                              </span>
+                            </div>
+
+                            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between text-xs font-mono">
+                              <div>
+                                <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans">Available Volume</span>
+                                <span className="font-extrabold text-slate-900 font-mono text-xs">
+                                  {avail} {quote.unit}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans">Unit Rate</span>
+                                <span className="font-bold text-purple-700 font-mono text-xs">
+                                  {quote.price_per_unit} ETH
+                                </span>
+                              </div>
+                            </div>
+
+                            {aiGrade && (
+                              <div className="flex items-center gap-1.5 text-[10px]">
+                                <span className="font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                  Grade {aiGrade}
+                                </span>
+                                {quote.deadline && (
+                                  <span className="text-slate-400 truncate">Due: {quote.deadline}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 3 Action Buttons: [View Details], [Negotiate], [Buy] */}
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowBlockchainDetails(false);
+                                setActiveProductModal(quote);
+                              }}
+                              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-all cursor-pointer shrink-0"
+                            >
+                              View
+                            </button>
+
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => openBidModal(quote)}
+                                className="px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold rounded-xl border border-purple-200 transition-all cursor-pointer"
+                              >
+                                Negotiate
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleAddToCart(quote)}
+                                disabled={addingToCartMap[quote.id]}
+                                className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                              >
+                                {addingToCartMap[quote.id] ? "…" : "Buy"}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
+          )}
 
-            {/* 4 Commercial Metrics */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-purple-200 transition-all min-w-0">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
-                  🛍️ Available Lots
-                </span>
-                <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight truncate">
-                  {fpoQuotes.length}
-                </p>
-                <p className="text-[11px] text-purple-600 font-semibold mt-0.5 truncate">
-                  Open Wholesale Lots
-                </p>
-              </div>
-
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-blue-200 transition-all min-w-0">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
-                  🛒 Cart Reserved
-                </span>
-                <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight truncate">
-                  {cartCount}
-                </p>
-                <p className="text-[11px] text-blue-600 font-semibold mt-0.5 truncate">
-                  Temporary Stock
-                </p>
-              </div>
-
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-emerald-200 transition-all min-w-0">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
-                  🤝 Active Deals
-                </span>
-                <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight truncate">
-                  {acceptedBidsCount}
-                </p>
-                <p className="text-[11px] text-emerald-600 font-semibold mt-0.5 truncate">
-                  {myBids.length} Total Bids
-                </p>
-              </div>
-
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-amber-200 transition-all min-w-0">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
-                  🔐 Escrow Settlement
-                </span>
-                <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight truncate">
-                  Active
-                </p>
-                <p className="text-[11px] text-amber-600 font-semibold mt-0.5 truncate">
-                  Sepolia Smart Contracts
-                </p>
-              </div>
-            </div>
-
-            {/* Featured Marketplace Products Preview */}
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
+          {/* ════════════════════════════════════════════════════════════ */}
+          {/* VIEW 2: MARKET (Wholesale Commercial Catalog)                */}
+          {/* ════════════════════════════════════════════════════════════ */}
+          {activeNav === "market" && (
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-4 animate-fade-in">
+              <div className="pb-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
                 <div>
-                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900">
-                    🛍️ Featured Wholesale Products
-                  </h3>
+                  <h2 className="text-base font-extrabold text-slate-900">
+                    🛒 B2B Wholesale Commercial Catalog
+                  </h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Traceable commercial bulk lots aggregated by verified FPOs
+                    Browse bulk agricultural lots aggregated by verified Farmer Producer Organizations (FPOs)
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setActiveNav("market")}
-                  className="text-xs font-bold text-purple-700 hover:text-purple-800"
-                >
-                  Browse All ({fpoQuotes.length}) →
-                </button>
+                {fpoQuotes.length > 0 && (
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                    {fpoQuotes.length} Lots Available
+                  </span>
+                )}
               </div>
+
+              <MarketplaceFilterBar
+                onFilterChange={handleFilterChange}
+                showHarvestDate={false}
+                placeholder="Search wholesale products by name, category, or FPO partner…"
+              />
 
               {quotesLoading ? (
-                <div className="py-12 text-center text-xs text-slate-400 animate-pulse">
-                  Loading commercial catalog…
-                </div>
-              ) : fpoQuotes.length === 0 ? (
-                <div className="py-12 text-center bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
-                  <span className="text-4xl block">🏪</span>
-                  <p className="text-sm font-bold text-slate-800">No Wholesale Products Available</p>
-                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                    FPOs have not published any open wholesale lots at this time. Please check back shortly.
-                  </p>
-                </div>
-              ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                  {fpoQuotes.slice(0, 6).map((quote) => {
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
+                    <div key={i} className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 animate-pulse space-y-2">
+                      <div className="h-4 bg-slate-200 rounded w-1/2"></div>
+                      <div className="h-3 bg-slate-200 rounded w-2/3"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : fpoQuotes.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {fpoQuotes.map((quote) => {
                     const avail = quote.available_quantity ?? quote.quantity;
+                    const cp = quote.crop_passport_details;
+                    const aiGrade = cp?.latest_ai_verification?.quality_grade || cp?.quality_grade;
+
                     return (
                       <div
                         key={quote.id}
-                        className="bg-white border border-slate-200/90 rounded-2xl p-4 hover:border-purple-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 min-w-0"
+                        className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-4.5 hover:border-purple-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 min-w-0"
                       >
-                        <div className="space-y-2 min-w-0">
+                        <div className="space-y-2.5 min-w-0">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <h4 className="text-sm font-extrabold text-slate-900 truncate">
+                              <h4 className="text-sm sm:text-base font-extrabold text-slate-900 truncate">
                                 {quote.product_name}
                               </h4>
-                              <p className="text-[11px] text-slate-500 truncate">
-                                Supplier: <strong>FPO #{quote.fpo}</strong>
+                              <p className="text-xs text-slate-500 truncate">
+                                Supplier: <strong className="text-slate-800 font-semibold">{quote.fpo_name || `FPO #${quote.fpo}`}</strong>
                               </p>
                             </div>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 shrink-0">
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 shrink-0">
                               {quote.category}
                             </span>
                           </div>
 
+                          {/* Image Preview if available */}
+                          {quote.primary_image_url ? (
+                            <img
+                              src={quote.primary_image_url}
+                              alt={quote.product_name}
+                              className="w-full h-32 object-cover rounded-xl border border-slate-200 shadow-2xs"
+                            />
+                          ) : (
+                            <div className="w-full h-24 bg-purple-50/40 rounded-xl border border-purple-100 flex items-center justify-center text-slate-400 text-xs">
+                              🌾 Verified Agri Lot
+                            </div>
+                          )}
+
                           <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between text-xs font-mono">
                             <div>
-                              <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans">Available</span>
+                              <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans">Available Volume</span>
                               <span className="font-extrabold text-slate-900 font-mono text-xs">
                                 {avail} {quote.unit}
                               </span>
                             </div>
                             <div className="text-right">
-                              <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans">Rate</span>
+                              <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans">Unit Price</span>
                               <span className="font-bold text-purple-700 font-mono text-xs">
                                 {quote.price_per_unit} ETH
                               </span>
                             </div>
                           </div>
+
+                          <div className="flex items-center justify-between text-[10px]">
+                            {aiGrade ? (
+                              <span className="font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                Grade {aiGrade}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">Verified Crop</span>
+                            )}
+                            {quote.deadline && (
+                              <span className="font-semibold text-slate-500">
+                                Due: {quote.deadline}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
+                        {/* 3 Clear Actions: [View Details], [Negotiate], [Buy] */}
                         <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5">
                           <button
                             type="button"
-                            onClick={() => setActiveProductModal(quote)}
-                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                            onClick={() => {
+                              setShowBlockchainDetails(false);
+                              setActiveProductModal(quote);
+                            }}
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-all cursor-pointer shrink-0"
                           >
-                            View
+                            View Details
                           </button>
 
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1.5 shrink-0">
                             <button
                               type="button"
                               onClick={() => openBidModal(quote)}
-                              className="px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold rounded-xl border border-purple-200 transition-all cursor-pointer"
+                              className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold rounded-xl border border-purple-200 transition-all cursor-pointer"
                             >
                               Negotiate
                             </button>
@@ -547,9 +828,10 @@ export default function RetailerDashboard() {
                               type="button"
                               onClick={() => handleAddToCart(quote)}
                               disabled={addingToCartMap[quote.id]}
-                              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                              className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
                             >
-                              {addingToCartMap[quote.id] ? "…" : "Buy"}
+                              <span>🛒</span>
+                              <span>{addingToCartMap[quote.id] ? "…" : "Buy"}</span>
                             </button>
                           </div>
                         </div>
@@ -557,333 +839,195 @@ export default function RetailerDashboard() {
                     );
                   })}
                 </div>
+              ) : (
+                <div className="py-12 text-center bg-slate-50/70 rounded-2xl border border-slate-100 space-y-2">
+                  <span className="text-4xl block">🔍</span>
+                  <p className="text-sm font-bold text-slate-800">No Wholesale Products Found</p>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    Try adjusting or clearing your search filters to view more listings.
+                  </p>
+                </div>
               )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {/* VIEW 2: MARKET (Wholesale Catalog)                            */}
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {activeNav === "market" && (
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-4 animate-fade-in">
-            <div className="pb-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
-              <div>
+          {/* ════════════════════════════════════════════════════════════ */}
+          {/* VIEW 3: DEALS (My Bids & Orders)                             */}
+          {/* ════════════════════════════════════════════════════════════ */}
+          {activeNav === "deals" && (
+            <div className="space-y-5 animate-fade-in">
+              {/* Section 1: My Submitted Bids */}
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-4">
+                <div className="pb-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <h2 className="text-base font-extrabold text-slate-900">
+                      🤝 My Submitted Wholesale Bids ({myBids.length})
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Status of your procurement offers submitted to FPO suppliers
+                    </p>
+                  </div>
+                </div>
+
+                {bidsLoading ? (
+                  <div className="space-y-3">
+                    {[1, 2].map((i) => (
+                      <div key={i} className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 animate-pulse space-y-2">
+                        <div className="h-4 bg-slate-200 rounded w-1/3"></div>
+                        <div className="h-3 bg-slate-200 rounded w-1/2"></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : myBids.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {myBids.map((bid) => {
+                      const totalVal = calculateTotalEth(bid.bid_amount, bid.quote.quantity);
+                      return (
+                        <div
+                          key={bid.id}
+                          className="border border-slate-200/80 rounded-2xl p-4 bg-white hover:border-purple-300 transition-all space-y-3 shadow-2xs"
+                        >
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-extrabold text-slate-900 truncate">
+                                {bid.quote.product_name}
+                              </p>
+                              <span className="text-[11px] text-slate-500 font-medium">
+                                {bid.quote.category} · FPO Supplier #{bid.quote.fpo}
+                              </span>
+                            </div>
+                            <StatusBadge status={bid.status} />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50/70 p-2.5 rounded-xl border border-slate-100 font-mono">
+                            <div>
+                              <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans">Bid Rate</span>
+                              <span className="font-extrabold text-slate-800">{bid.bid_amount} ETH/{bid.quote.unit}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans">Delivery</span>
+                              <span className="font-semibold text-slate-700 font-sans">{bid.delivery_time_days} days</span>
+                            </div>
+                            <div className="col-span-2 pt-1 border-t border-slate-200/60 flex items-center justify-between">
+                              <span className="text-[10px] text-slate-400 font-bold uppercase font-sans">Total Value</span>
+                              <span className="font-extrabold text-purple-700">{totalVal} ETH</span>
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setNegotiatingBid({ bid: bid, contentType: "retailer.retailerbid" })}
+                              className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-900 text-xs font-bold rounded-xl border border-purple-200 transition-all cursor-pointer flex items-center gap-1"
+                            >
+                              <span>💬</span>
+                              <span>Chat / Counter Offer</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="py-10 text-center bg-slate-50/70 rounded-2xl border border-slate-100 space-y-2">
+                    <span className="text-4xl block mb-1">🤝</span>
+                    <p className="text-sm font-bold text-slate-800">No Bids Submitted Yet</p>
+                    <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                      Browse open FPO quotes in the Market tab and submit your procurement offers.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 2: Commercial Orders History */}
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs">
+                <RetailerOrdersPanel />
+              </div>
+            </div>
+          )}
+
+          {/* ════════════════════════════════════════════════════════════ */}
+          {/* VIEW 4: CART (Temporary Checkout State)                      */}
+          {/* ════════════════════════════════════════════════════════════ */}
+          {activeNav === "cart" && (
+            <div className="space-y-4 animate-fade-in">
+              <RetailerCartPanel
+                onCartUpdated={() => {
+                  fetchCartCount();
+                  fetchFpoQuotes(currentFilters);
+                }}
+                onOrderCreated={() => {
+                  fetchCartCount();
+                  setActiveNav("deals");
+                }}
+              />
+            </div>
+          )}
+
+          {/* ════════════════════════════════════════════════════════════ */}
+          {/* VIEW 5: INVENTORY (Permanent Purchased Stock)                */}
+          {/* ════════════════════════════════════════════════════════════ */}
+          {activeNav === "inventory" && (
+            <div className="space-y-4 animate-fade-in">
+              <RetailerInventoryPanel />
+            </div>
+          )}
+
+          {/* ════════════════════════════════════════════════════════════ */}
+          {/* VIEW 6: TRANSACTIONS (Escrow Deals)                          */}
+          {/* ════════════════════════════════════════════════════════════ */}
+          {activeNav === "transactions" && (
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-4 animate-fade-in">
+              <div className="pb-3 border-b border-slate-100">
                 <h2 className="text-base font-extrabold text-slate-900">
-                  🛍️ B2B Wholesale Commercial Catalog
+                  🔐 Smart Contract Escrow Payments (FPO ↔ Retailer)
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Browse bulk agricultural lots aggregated by verified Farmer Producer Organizations (FPOs)
+                  Lock escrow funds in Sepolia testnet smart contracts and release payment once bulk delivery is inspected
                 </p>
               </div>
 
-              {fpoQuotes.length > 0 && (
-                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
-                  {fpoQuotes.length} Lots Available
-                </span>
-              )}
+              <RetailerEscrowPanel
+                onPaymentReleased={() => setActiveNav("inventory")}
+                onEscrowUpdated={() => {
+                  fetchMyBids();
+                  fetchFpoQuotes(currentFilters);
+                }}
+              />
             </div>
+          )}
 
-            <MarketplaceFilterBar
-              onFilterChange={handleFilterChange}
-              showHarvestDate={false}
-              placeholder="Search wholesale products by name, category, or notes…"
-            />
-
-            {quotesLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <div key={i} className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 animate-pulse space-y-2">
-                    <div className="h-4 bg-slate-200 rounded w-1/2"></div>
-                    <div className="h-3 bg-slate-200 rounded w-2/3"></div>
-                  </div>
-                ))}
-              </div>
-            ) : fpoQuotes.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                {fpoQuotes.map((quote) => {
-                  const avail = quote.available_quantity ?? quote.quantity;
-                  const cp = quote.crop_passport_details;
-                  const aiGrade = cp?.latest_ai_verification?.quality_grade || cp?.ai_grade;
-
-                  return (
-                    <div
-                      key={quote.id}
-                      className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-4.5 hover:border-purple-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 min-w-0"
-                    >
-                      <div className="space-y-2 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <h4 className="text-sm sm:text-base font-extrabold text-slate-900 truncate">
-                              {quote.product_name}
-                            </h4>
-                            <p className="text-xs text-slate-500 truncate">
-                              Supplier: <strong>{quote.fpo_name || `FPO #${quote.fpo}`}</strong>
-                            </p>
-                          </div>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 shrink-0">
-                            {quote.category}
-                          </span>
-                        </div>
-
-                        {/* Image Preview if available */}
-                        {quote.primary_image_url && (
-                          <img
-                            src={quote.primary_image_url}
-                            alt={quote.product_name}
-                            className="w-full h-32 object-cover rounded-xl border border-slate-200 shadow-xs"
-                          />
-                        )}
-
-                        <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between text-xs font-mono">
-                          <div>
-                            <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans">Available Volume</span>
-                            <span className="font-extrabold text-slate-900 font-mono text-xs">
-                              {avail} {quote.unit}
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans">Unit Price</span>
-                            <span className="font-bold text-purple-700 font-mono text-xs">
-                              {quote.price_per_unit} ETH
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1.5">
-                          {aiGrade && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                              Grade {aiGrade}
-                            </span>
-                          )}
-                          <span className="text-[10px] font-semibold text-slate-500">
-                            Deadline: {quote.deadline}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Primary Actions: [View], [Negotiate], [Buy] */}
-                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setActiveProductModal(quote)}
-                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-all cursor-pointer shrink-0"
-                        >
-                          View Details
-                        </button>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => openBidModal(quote)}
-                            className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold rounded-xl border border-purple-200 transition-all cursor-pointer"
-                          >
-                            Negotiate
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleAddToCart(quote)}
-                            disabled={addingToCartMap[quote.id]}
-                            className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                          >
-                            <span>🛒</span>
-                            <span>{addingToCartMap[quote.id] ? "…" : "Buy"}</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-100 space-y-2">
-                <span className="text-4xl block">🔍</span>
-                <p className="text-sm font-bold text-slate-800">No Wholesale Products Found</p>
-                <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                  Try adjusting or clearing your search filters to view more listings.
+          {/* ════════════════════════════════════════════════════════════ */}
+          {/* VIEW 7: IDENTITY & VERIFICATION                              */}
+          {/* ════════════════════════════════════════════════════════════ */}
+          {activeNav === "identity" && (
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-5 animate-fade-in">
+              <div className="pb-3 border-b border-slate-100">
+                <h2 className="text-base font-extrabold text-slate-900">
+                  🪪 Retailer Commercial Identity & Trust Profile
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Verified W3C Decentralized Identifier (DID) and Web3 commercial reputation index
                 </p>
               </div>
-            )}
-          </div>
-        )}
 
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {/* VIEW 3: DEALS (My Bids & Orders)                              */}
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {activeNav === "deals" && (
-          <div className="space-y-5 animate-fade-in">
-            {/* My Submitted Bids */}
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-4">
-              <div className="pb-3 border-b border-slate-100 flex items-center justify-between">
-                <div>
-                  <h2 className="text-base font-extrabold text-slate-900">
-                    📑 My Submitted Wholesale Bids ({myBids.length})
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Track status of your commercial procurement bids submitted to FPOs
-                  </p>
-                </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <DidIdentityCard didInfo={didInfo} accentColor="purple" />
+                <TrustReputationCard accentColor="purple" />
               </div>
-
-              {bidsLoading ? (
-                <div className="space-y-3">
-                  {[1, 2].map((i) => (
-                    <div key={i} className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 animate-pulse space-y-2">
-                      <div className="h-4 bg-slate-200 rounded w-1/3"></div>
-                      <div className="h-3 bg-slate-200 rounded w-1/2"></div>
-                    </div>
-                  ))}
-                </div>
-              ) : myBids.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  {myBids.map((bid) => {
-                    const totalVal = calculateTotalEth(bid.bid_amount, bid.quote.quantity);
-                    return (
-                      <div
-                        key={bid.id}
-                        className="border border-slate-200/80 rounded-2xl p-4 bg-white hover:border-slate-300 transition-all space-y-3 shadow-2xs"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="text-sm font-extrabold text-slate-900 truncate">
-                              {bid.quote.product_name}
-                            </p>
-                            <span className="text-[11px] text-slate-500 font-medium">
-                              {bid.quote.category}
-                            </span>
-                          </div>
-                          <StatusBadge status={bid.status} />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50/70 p-2.5 rounded-xl border border-slate-100 font-mono">
-                          <div>
-                            <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans">Bid Rate</span>
-                            <span className="font-extrabold text-slate-800">{bid.bid_amount} ETH/{bid.quote.unit}</span>
-                          </div>
-                          <div>
-                            <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans">Delivery</span>
-                            <span className="font-semibold text-slate-700 font-sans">{bid.delivery_time_days} days</span>
-                          </div>
-                          <div className="col-span-2 pt-1 border-t border-slate-200/60 flex items-center justify-between">
-                            <span className="text-[10px] text-slate-400 font-bold uppercase font-sans">Total Value</span>
-                            <span className="font-extrabold text-purple-700">{totalVal} ETH</span>
-                          </div>
-                        </div>
-
-                        <div className="flex justify-end pt-1">
-                          <button
-                            type="button"
-                            onClick={() => setNegotiatingBid({ bid: bid, contentType: "retailer.retailerbid" })}
-                            className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-900 text-xs font-bold rounded-xl border border-purple-300 transition-all cursor-pointer flex items-center gap-1"
-                          >
-                            <span>💬</span>
-                            <span>Chat / Negotiate</span>
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-100 space-y-2">
-                  <span className="text-4xl block mb-2">📑</span>
-                  <p className="text-sm font-bold text-slate-800">No Bids Submitted Yet</p>
-                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                    Browse open FPO quotes in the Market tab and submit your procurement offers.
-                  </p>
-                </div>
-              )}
             </div>
-
-            {/* Commercial Orders History */}
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs">
-              <RetailerOrdersPanel />
-            </div>
-          </div>
-        )}
-
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {/* VIEW 4: CART (Temporary Checkout State)                       */}
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {activeNav === "cart" && (
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-4 animate-fade-in">
-            <RetailerCartPanel
-              onCartUpdated={() => {
-                fetchCartCount();
-                fetchFpoQuotes(currentFilters);
-              }}
-              onOrderCreated={() => {
-                fetchCartCount();
-                setActiveNav("deals");
-              }}
-            />
-          </div>
-        )}
-
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {/* VIEW 5: INVENTORY (Permanent Purchased Stock)                 */}
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {activeNav === "inventory" && (
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-4 animate-fade-in">
-            <RetailerInventoryPanel />
-          </div>
-        )}
-
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {/* VIEW 6: TRANSACTIONS (Escrow Deals)                           */}
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {activeNav === "transactions" && (
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-4 animate-fade-in">
-            <div className="pb-3 border-b border-slate-100">
-              <h2 className="text-base font-extrabold text-slate-900">
-                🔐 Smart Contract Escrow Payments (FPO ↔ Retailer)
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Lock escrow funds in Sepolia testnet smart contracts and release payment once bulk delivery is inspected
-              </p>
-            </div>
-
-            <RetailerEscrowPanel
-              onPaymentReleased={() => setActiveNav("inventory")}
-              onEscrowUpdated={() => {
-                fetchMyBids();
-                fetchFpoQuotes(currentFilters);
-              }}
-            />
-          </div>
-        )}
-
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {/* VIEW 7: IDENTITY & VERIFICATION                               */}
-        {/* ══════════════════════════════════════════════════════════════ */}
-        {activeNav === "identity" && (
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-5 animate-fade-in">
-            <div className="pb-3 border-b border-slate-100">
-              <h2 className="text-base font-extrabold text-slate-900">
-                🪪 Retailer Commercial Identity & Trust Profile
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Verified W3C Decentralized Identifier (DID) and Web3 commercial reputation index
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <DidIdentityCard didInfo={didInfo} accentColor="purple" />
-              <TrustReputationCard accentColor="purple" />
-            </div>
-          </div>
-        )}
+          )}
+        </main>
       </div>
 
-      {/* ── Retailer Product Details Modal with Provenance Flow ─────── */}
+      {/* ── Retailer Product Details Modal with Supply Chain Provenance Flow ── */}
       {activeProductModal && (
         <BaseModal
           isOpen={Boolean(activeProductModal)}
           onClose={() => setActiveProductModal(null)}
           title={activeProductModal.product_name}
-          subtitle={`Wholesale Offer #${activeProductModal.id} · Supplied by ${activeProductModal.fpo_name || `FPO #${activeProductModal.fpo}`}`}
-          icon="🛍️"
+          subtitle={`Wholesale Lot #${activeProductModal.id} · Supplied by ${activeProductModal.fpo_name || `FPO #${activeProductModal.fpo}`}`}
+          icon="🛒"
           badge={<StatusBadge status={activeProductModal.status || "open"} />}
           maxWidth="max-w-2xl"
           footer={
@@ -928,7 +1072,7 @@ export default function RetailerDashboard() {
               <img
                 src={activeProductModal.primary_image_url}
                 alt={activeProductModal.product_name}
-                className="w-full h-44 object-cover rounded-2xl border border-slate-200 shadow-xs"
+                className="w-full h-44 object-cover rounded-2xl border border-slate-200 shadow-2xs"
               />
             )}
 
@@ -960,7 +1104,7 @@ export default function RetailerDashboard() {
               </div>
             </div>
 
-            {/* Visual Provenance Chain: Farmer → Crop Passport → FPO → Retailer Purchase */}
+            {/* Visual Provenance Flow: Farmer → Crop Passport → FPO → Retailer */}
             <div className="bg-purple-50/50 border border-purple-200/80 rounded-2xl p-4 space-y-3">
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-900 block">
                 ⛓️ Supply Chain Provenance Lineage
@@ -968,7 +1112,7 @@ export default function RetailerDashboard() {
 
               <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
                 <div className="bg-white p-2.5 rounded-xl border border-purple-100 text-center flex-1 w-full">
-                  <span className="text-base block mb-0.5">👨‍🌾</span>
+                  <span className="text-base block mb-0.5">🌾</span>
                   <span className="font-bold text-slate-900 block text-[11px]">Farmer Harvest</span>
                   <span className="text-[10px] text-slate-500">Verified Producer</span>
                 </div>
@@ -998,6 +1142,46 @@ export default function RetailerDashboard() {
                 provenanceSummary={activeProductModal.provenance_summary}
                 fpoName={activeProductModal.fpo_name}
               />
+            </div>
+
+            {/* Collapsible Blockchain & Contract Details */}
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowBlockchainDetails((prev) => !prev)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100 flex items-center justify-between text-xs font-bold text-slate-700 transition-all cursor-pointer"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>🔐</span>
+                  <span>Blockchain & Smart Contract Verification</span>
+                </div>
+                <span className="text-slate-400">{showBlockchainDetails ? "▲ Hide" : "▼ Show"}</span>
+              </button>
+
+              {showBlockchainDetails && (
+                <div className="p-3.5 space-y-2 bg-white text-xs border-t border-slate-200">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Settlement Network:</span>
+                    <span className="font-mono font-bold text-slate-800">Ethereum Sepolia Testnet</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Smart Contract:</span>
+                    <span className="font-mono text-purple-700 font-semibold">AgriEscrowV2</span>
+                  </div>
+                  {activeProductModal.crop_passport_details?.farmer_did && (
+                    <div className="flex justify-between items-center pt-1 border-t border-slate-100">
+                      <span className="text-slate-500">Farmer DID:</span>
+                      <AddressCopy address={activeProductModal.crop_passport_details.farmer_did} />
+                    </div>
+                  )}
+                  {activeProductModal.crop_passport_details?.ipfs_hash && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">IPFS Metadata Hash:</span>
+                      <AddressCopy address={activeProductModal.crop_passport_details.ipfs_hash} />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Quantity Selector for Direct Add to Cart */}
