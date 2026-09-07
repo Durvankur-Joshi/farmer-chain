@@ -334,6 +334,7 @@ export default function FpoRetailerEscrowPanel({ onEscrowUpdated }) {
                   partnerLabel="Retail Buyer"
                   partnerName={escrow.retailer_name}
                   requiredActionLabel={requiredAction}
+                  actionLabel="View Transaction"
                   onViewDeal={(esc) => setActiveModalEscrow(esc)}
                   isRetailer={false}
                 />

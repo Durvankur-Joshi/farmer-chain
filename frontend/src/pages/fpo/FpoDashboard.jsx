@@ -28,6 +28,12 @@ export default function FpoDashboard() {
   const [cartItemsCount, setCartItemsCount] = useState(0);
   const [inventoryRefreshTrigger, setInventoryRefreshTrigger] = useState(0);
 
+  // Preview records for the 4 compact dashboard sections
+  const [recentFarmerQuotes, setRecentFarmerQuotes] = useState([]);
+  const [recentMarketQuotes, setRecentMarketQuotes] = useState([]);
+  const [recentEscrows, setRecentEscrows] = useState([]);
+  const [recentCartItems, setRecentCartItems] = useState([]);
+
   const triggerInventoryRefresh = useCallback(() => {
     setInventoryRefreshTrigger((prev) => prev + 1);
   }, []);
@@ -36,6 +42,7 @@ export default function FpoDashboard() {
     try {
       const res = await axios.get("/api/fpo/cart/", { withCredentials: true });
       setCartItemsCount(res.data?.summary?.total_items_count || 0);
+      setRecentCartItems(res.data?.items?.slice(0, 3) || []);
     } catch {
       // ignore
     }
@@ -66,7 +73,7 @@ export default function FpoDashboard() {
     }
   }, []);
 
-  // Fetch real overview metrics
+  // Fetch real overview metrics & top preview records
   const fetchOverviewMetrics = useCallback(async () => {
     try {
       const [farmerRes, marketRes, escrowRes] = await Promise.allSettled([
@@ -76,13 +83,19 @@ export default function FpoDashboard() {
       ]);
 
       if (farmerRes.status === "fulfilled") {
-        setFarmerQuotesCount(farmerRes.value.data?.length || 0);
+        const fData = farmerRes.value.data || [];
+        setFarmerQuotesCount(fData.length);
+        setRecentFarmerQuotes(fData.slice(0, 3));
       }
       if (marketRes.status === "fulfilled") {
-        setMarketQuotesCount(marketRes.value.data?.length || 0);
+        const mData = marketRes.value.data || [];
+        setMarketQuotesCount(mData.length);
+        setRecentMarketQuotes(mData.slice(0, 3));
       }
       if (escrowRes.status === "fulfilled") {
-        setEscrowsCount(escrowRes.value.data?.escrows?.length || 0);
+        const eData = escrowRes.value.data?.escrows || [];
+        setEscrowsCount(eData.length);
+        setRecentEscrows(eData.slice(0, 3));
       }
     } catch (err) {
       console.error("Error fetching overview metrics:", err);
@@ -447,15 +460,15 @@ export default function FpoDashboard() {
                 </div>
               </div>
 
-              {/* Compact Overview Sections */}
+              {/* Compact Overview Sections (4 Key Operational Areas) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* 1. Recent Farmer Supply */}
                 <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-2xs space-y-3">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                     <div className="flex items-center gap-2">
                       <span className="text-base">🌾</span>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                        Farmer Supply
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-800">
+                        Recent Farmer Supply
                       </h3>
                     </div>
                     <button
@@ -466,24 +479,109 @@ export default function FpoDashboard() {
                       View All ({farmerQuotesCount}) →
                     </button>
                   </div>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Review open harvest lots from verified local farmers and submit direct procurement bids.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setActiveNav("farmer_market")}
-                    className="w-full py-2 bg-blue-50 hover:bg-blue-100 text-blue-800 text-xs font-semibold rounded-xl border border-blue-200 transition-all cursor-pointer"
-                  >
-                    Open Farmer Procurement Market
-                  </button>
+
+                  {recentFarmerQuotes.length === 0 ? (
+                    <div className="py-5 text-center text-xs text-slate-500 bg-slate-50/50 rounded-xl">
+                      <p>No open farmer supply lots at this moment.</p>
+                      <button
+                        type="button"
+                        onClick={() => setActiveNav("farmer_market")}
+                        className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
+                      >
+                        Browse Supply Marketplace →
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {recentFarmerQuotes.map((q) => (
+                        <div
+                          key={q.id}
+                          className="p-2.5 bg-slate-50/80 rounded-xl border border-slate-100 flex items-center justify-between gap-2 text-xs"
+                        >
+                          <div className="min-w-0">
+                            <span className="font-semibold text-slate-900 truncate block">
+                              {q.product_name}
+                            </span>
+                            <span className="text-[11px] text-slate-500 truncate block">
+                              Farmer: <span className="font-medium text-slate-700">{q.farmer_name || "Verified Farmer"}</span> · {q.quantity} {q.unit}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setActiveNav("farmer_market")}
+                            className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg shrink-0 cursor-pointer"
+                          >
+                            Make Offer
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* 2. Retailer Opportunities */}
+                {/* 2. Current Inventory */}
+                <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">📦</span>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-800">
+                        Current Inventory
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveNav("inventory")}
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
+                    >
+                      View All ({cartItemsCount}) →
+                    </button>
+                  </div>
+
+                  {recentCartItems.length === 0 ? (
+                    <div className="py-5 text-center text-xs text-slate-500 bg-slate-50/50 rounded-xl">
+                      <p>No inventory stock currently assembled.</p>
+                      <button
+                        type="button"
+                        onClick={() => setActiveNav("inventory")}
+                        className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
+                      >
+                        Open Inventory Workspace →
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {recentCartItems.map((item) => (
+                        <div
+                          key={item.id}
+                          className="p-2.5 bg-slate-50/80 rounded-xl border border-slate-100 flex items-center justify-between gap-2 text-xs"
+                        >
+                          <div className="min-w-0">
+                            <span className="font-semibold text-slate-900 truncate block">
+                              {item.crop_name}
+                            </span>
+                            <span className="text-[11px] text-slate-500 truncate block">
+                              {item.quantity} {item.unit} · {item.source_lots_count || 1} lot(s)
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setActiveNav("retailer_market")}
+                            className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shrink-0 cursor-pointer"
+                          >
+                            Sell to Retailers
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Retailer Opportunities */}
                 <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-2xs space-y-3">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                     <div className="flex items-center gap-2">
                       <span className="text-base">🛒</span>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-800">
                         Retailer Opportunities
                       </h3>
                     </div>
@@ -495,16 +593,101 @@ export default function FpoDashboard() {
                       View All ({marketQuotesCount}) →
                     </button>
                   </div>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Aggregate acquired harvest lots into wholesale lots and receive bids from commercial retailers.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setActiveNav("retailer_market")}
-                    className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-xl border border-slate-200 transition-all cursor-pointer"
-                  >
-                    Manage Wholesale Offers
-                  </button>
+
+                  {recentMarketQuotes.length === 0 ? (
+                    <div className="py-5 text-center text-xs text-slate-500 bg-slate-50/50 rounded-xl">
+                      <p>No wholesale lots published yet.</p>
+                      <button
+                        type="button"
+                        onClick={() => setActiveNav("retailer_market")}
+                        className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
+                      >
+                        Publish Wholesale Offer →
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {recentMarketQuotes.map((q) => (
+                        <div
+                          key={q.id}
+                          className="p-2.5 bg-slate-50/80 rounded-xl border border-slate-100 flex items-center justify-between gap-2 text-xs"
+                        >
+                          <div className="min-w-0">
+                            <span className="font-semibold text-slate-900 truncate block">
+                              {q.product_name}
+                            </span>
+                            <span className="text-[11px] text-purple-700 font-mono font-medium truncate block">
+                              {q.available_quantity ?? q.quantity} {q.unit} · {q.price_per_unit} ETH/{q.unit}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setActiveNav("retailer_market")}
+                            className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-semibold rounded-lg border border-purple-200 shrink-0 cursor-pointer"
+                          >
+                            View Deal
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 4. Active Deals */}
+                <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🤝</span>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-800">
+                        Active Deals
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveNav("deals")}
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
+                    >
+                      View All ({escrowsCount}) →
+                    </button>
+                  </div>
+
+                  {recentEscrows.length === 0 ? (
+                    <div className="py-5 text-center text-xs text-slate-500 bg-slate-50/50 rounded-xl">
+                      <p>No active settlement deals in progress.</p>
+                      <button
+                        type="button"
+                        onClick={() => setActiveNav("deals")}
+                        className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
+                      >
+                        Check Commercial Deals →
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {recentEscrows.map((esc) => (
+                        <div
+                          key={esc.id}
+                          className="p-2.5 bg-slate-50/80 rounded-xl border border-slate-100 flex items-center justify-between gap-2 text-xs"
+                        >
+                          <div className="min-w-0">
+                            <span className="font-semibold text-slate-900 truncate block">
+                              {esc.product_name}
+                            </span>
+                            <span className="text-[11px] text-slate-500 font-mono truncate block">
+                              {esc.amount_eth} ETH · {esc.farmer_name || esc.retailer_name || "Partner"}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setActiveNav("transactions")}
+                            className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shrink-0 cursor-pointer"
+                          >
+                            View Transaction
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -8,6 +8,7 @@ export default function EscrowDealCard({
   requiredActionLabel,
   onViewDeal,
   isRetailer = false,
+  actionLabel = "View Transaction",
 }) {
   const isOnChain = Boolean(escrow.escrow_id);
   const status = escrow.status;
@@ -17,8 +18,8 @@ export default function EscrowDealCard({
   let deliveryTag = { label: "Awaiting Handover", color: "bg-slate-100 text-slate-700 border-slate-200", icon: "⏳" };
 
   if (status === "funded") {
-    paymentTag = { label: "Payment Secured in Escrow", color: "bg-blue-50 text-blue-800 border-blue-200", icon: "🔒" };
-    deliveryTag = { label: "In Transit / Awaiting Confirmation", color: "bg-amber-50 text-amber-800 border-amber-200", icon: "🚚" };
+    paymentTag = { label: "Payment Secured", color: "bg-blue-50 text-blue-800 border-blue-200", icon: "🔒" };
+    deliveryTag = { label: "In Transit / Awaiting Handover", color: "bg-amber-50 text-amber-800 border-amber-200", icon: "🚚" };
   } else if (status === "delivery_confirmed") {
     paymentTag = { label: "Payment Secured", color: "bg-blue-50 text-blue-800 border-blue-200", icon: "🔒" };
     deliveryTag = { label: "Delivery Confirmed", color: "bg-emerald-50 text-emerald-800 border-emerald-200", icon: "📦" };
@@ -42,15 +43,15 @@ export default function EscrowDealCard({
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <h4 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight truncate">
+              <h4 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
                 {escrow.product_name}
               </h4>
-              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
+              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
                 {isOnChain ? `Escrow #${escrow.escrow_id}` : `Draft #${escrow.id}`}
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium truncate mt-0.5">
-              {partnerLabel}: <strong className="text-slate-800">{partnerName || escrow.fpo_name || escrow.farmer_name || "Verified Participant"}</strong>
+              {partnerLabel}: <span className="font-semibold text-slate-800">{partnerName || escrow.fpo_name || escrow.farmer_name || "Verified Participant"}</span>
             </p>
           </div>
           <StatusBadge status={status} />
@@ -59,14 +60,14 @@ export default function EscrowDealCard({
         {/* Product, Quantity & Price */}
         <div className="flex items-center justify-between gap-2 p-2.5 bg-slate-50/80 rounded-xl border border-slate-100 text-xs">
           <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Quantity & Rate</span>
+            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Quantity & Rate</span>
             <span className="font-semibold text-slate-800 font-mono text-xs">
               {escrow.quantity} {escrow.unit} {ratePerUnit ? `· ${ratePerUnit} ETH/${escrow.unit}` : ""}
             </span>
           </div>
           <div className="text-right">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Value</span>
-            <span className="font-extrabold text-slate-900 font-mono text-xs sm:text-sm">
+            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Total Value</span>
+            <span className="font-bold text-slate-900 font-mono text-xs sm:text-sm">
               {escrow.amount_eth} ETH
             </span>
           </div>
@@ -74,11 +75,11 @@ export default function EscrowDealCard({
 
         {/* State Badges: Payment secured, delivery status */}
         <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${paymentTag.color}`}>
+          <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${paymentTag.color}`}>
             <span>{paymentTag.icon}</span>
             <span>{paymentTag.label}</span>
           </span>
-          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${deliveryTag.color}`}>
+          <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${deliveryTag.color}`}>
             <span>{deliveryTag.icon}</span>
             <span>{deliveryTag.label}</span>
           </span>
@@ -88,7 +89,7 @@ export default function EscrowDealCard({
       {/* Footer Actions */}
       <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
         {requiredActionLabel ? (
-          <span className="text-[11px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 truncate">
+          <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 truncate">
             ⚡ {requiredActionLabel}
           </span>
         ) : (
@@ -100,14 +101,14 @@ export default function EscrowDealCard({
         <button
           type="button"
           onClick={() => onViewDeal(escrow)}
-          className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all shadow-2xs flex items-center gap-1 cursor-pointer shrink-0 ${
+          className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all shadow-2xs flex items-center gap-1 cursor-pointer shrink-0 ${
             isRetailer
               ? "bg-purple-600 hover:bg-purple-500 text-white"
               : "bg-slate-900 hover:bg-slate-800 text-white"
           }`}
         >
           <span>🔐</span>
-          <span>View Deal</span>
+          <span>{actionLabel}</span>
         </button>
       </div>
     </div>

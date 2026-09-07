@@ -338,10 +338,10 @@ export default function EscrowPanel({ onEscrowUpdated }) {
       {quotesNeedingEscrow.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between pb-1">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
-              <span>💼</span> Accepted Quotes Awaiting Smart Escrow
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+              <span>💼</span> Accepted Deals Awaiting Payment Setup
             </h3>
-            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
               {quotesNeedingEscrow.length} Action Required
             </span>
           </div>
@@ -362,14 +362,14 @@ export default function EscrowPanel({ onEscrowUpdated }) {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <h4 className="text-sm font-extrabold text-slate-900 truncate">
+                      <h4 className="text-sm font-bold text-slate-900 truncate">
                         {quote.product_name}
                       </h4>
                       <p className="text-xs text-slate-600">
-                        Buyer: <strong>{acceptedBid?.fpo_name || "Verified FPO"}</strong>
+                        Buyer: <span className="font-semibold text-slate-800">{acceptedBid?.fpo_name || "Verified FPO"}</span>
                       </p>
                     </div>
-                    <span className="text-xs font-bold font-mono text-emerald-700 bg-white px-2 py-0.5 rounded-md border border-emerald-200">
+                    <span className="text-xs font-semibold font-mono text-emerald-700 bg-white px-2 py-0.5 rounded-md border border-emerald-200">
                       {totalAmount} ETH
                     </span>
                   </div>
@@ -383,10 +383,10 @@ export default function EscrowPanel({ onEscrowUpdated }) {
                       type="button"
                       onClick={() => createEscrow(quote)}
                       disabled={tx.loading}
-                      className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50 shrink-0"
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50 shrink-0"
                     >
                       <span>🔐</span>
-                      <span>{tx.loading ? "Initializing…" : "Initialize Escrow"}</span>
+                      <span>{tx.loading ? "Securing…" : "Secure Payment"}</span>
                     </button>
                   </div>
 
@@ -411,16 +411,16 @@ export default function EscrowPanel({ onEscrowUpdated }) {
       {escrows.length === 0 && quotesNeedingEscrow.length === 0 ? (
         <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-100">
           <span className="text-4xl block mb-2">🔐</span>
-          <p className="text-sm font-bold text-slate-800">No Escrow Transactions Yet</p>
+          <p className="text-sm font-bold text-slate-800">No Transactions Yet</p>
           <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-            Once an FPO places a bid and you accept it, you can initialize a trustless Sepolia smart contract escrow payment right here.
+            Once an FPO places an offer and you accept it, you can secure payment and confirm delivery right here.
           </p>
         </div>
       ) : (
         <div className="space-y-3">
           <div className="flex items-center justify-between pb-1">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              Active Escrow Transactions ({escrows.length})
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+              Secured Transactions ({escrows.length})
             </h3>
           </div>
 
@@ -429,9 +429,9 @@ export default function EscrowPanel({ onEscrowUpdated }) {
               const isOnChain = Boolean(escrow.escrow_id);
               let requiredAction = null;
               if (escrow.status === "created" && !isOnChain) {
-                requiredAction = "Complete Escrow on Sepolia";
+                requiredAction = "Complete Payment Setup";
               } else if (escrow.status === "funded") {
-                requiredAction = "Confirm Handover Delivery";
+                requiredAction = "Confirm Delivery Handover";
               }
 
               return (
@@ -441,6 +441,7 @@ export default function EscrowPanel({ onEscrowUpdated }) {
                   partnerLabel="FPO Buyer"
                   partnerName={escrow.fpo_name}
                   requiredActionLabel={requiredAction}
+                  actionLabel="View Transaction"
                   onViewDeal={(esc) => setActiveModalEscrow(esc)}
                 />
               );

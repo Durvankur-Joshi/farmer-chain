@@ -150,18 +150,18 @@ export default function RetailerOrdersPanel() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs font-mono font-bold text-slate-500">
+                        <span className="text-xs font-mono font-semibold text-slate-500">
                           {ord.order_number}
                         </span>
-                        <span className="text-xs font-semibold px-2 py-0.2 rounded-md bg-slate-100 text-slate-700">
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
                           {ord.category || "General"}
                         </span>
                       </div>
-                      <h3 className="text-base font-extrabold text-slate-900 mt-1 truncate">
+                      <h3 className="text-base font-bold text-slate-900 mt-1 truncate">
                         {ord.product_name}
                       </h3>
                       <p className="text-xs text-slate-500 truncate">
-                        FPO Partner: <strong className="text-slate-800 font-semibold">{ord.fpo_name}</strong>
+                        FPO Partner: <span className="text-slate-800 font-semibold">{ord.fpo_name}</span>
                       </p>
                     </div>
 
@@ -171,22 +171,22 @@ export default function RetailerOrdersPanel() {
                   {/* Pricing and Volume Grid */}
                   <div className="grid grid-cols-3 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100 font-mono">
                     <div className="min-w-0">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans truncate">Order Volume</span>
-                      <span className="font-extrabold text-purple-900 mt-0.5 block truncate">
+                      <span className="text-[10px] text-slate-500 font-semibold uppercase block font-sans truncate">Order Volume</span>
+                      <span className="font-bold text-purple-900 mt-0.5 block truncate">
                         {ord.quantity} {ord.unit}
                       </span>
                     </div>
 
                     <div className="min-w-0">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans truncate">Unit Rate</span>
+                      <span className="text-[10px] text-slate-500 font-semibold uppercase block font-sans truncate">Unit Rate</span>
                       <span className="font-semibold text-blue-700 mt-0.5 block truncate">
                         {ord.price_per_unit} ETH
                       </span>
                     </div>
 
                     <div className="min-w-0">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans truncate">Total Price</span>
-                      <span className="font-extrabold text-emerald-700 mt-0.5 block truncate">
+                      <span className="text-[10px] text-slate-500 font-semibold uppercase block font-sans truncate">Total Price</span>
+                      <span className="font-bold text-emerald-700 mt-0.5 block truncate">
                         {ord.total_price} ETH
                       </span>
                     </div>
@@ -201,10 +201,10 @@ export default function RetailerOrdersPanel() {
                   <button
                     type="button"
                     onClick={() => setSelectedOrderModal(ord)}
-                    className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold rounded-xl border border-purple-200 transition-all flex items-center gap-1 cursor-pointer"
+                    className="px-3.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-semibold rounded-xl border border-purple-200 transition-all flex items-center gap-1 cursor-pointer"
                   >
                     <span>📜</span>
-                    <span>View Deal Details</span>
+                    <span>View Deal</span>
                   </button>
                 </div>
               </div>

@@ -359,7 +359,7 @@ export default function FarmerDashboard() {
               {/* Clean Greeting Header with Prominent Primary Action */}
               <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="space-y-1 min-w-0">
-                  <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight truncate">
+                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight truncate">
                     Good morning, {didInfo?.name || "Farmer"}
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-500">
@@ -375,7 +375,7 @@ export default function FarmerDashboard() {
                       setCropViewMode("new");
                       setActiveNav("crops");
                     }}
-                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>🌱</span>
                     <span>+ Add New Crop</span>
@@ -386,7 +386,7 @@ export default function FarmerDashboard() {
                       setDealViewMode("new");
                       setActiveNav("deals");
                     }}
-                    className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>➕</span>
                     <span>Publish Quote</span>
@@ -397,50 +397,50 @@ export default function FarmerDashboard() {
               {/* 4 Compact Summary Metrics */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-emerald-200 transition-all min-w-0">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block truncate">
                     🌱 My Crops
                   </span>
-                  <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight truncate">
+                  <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight truncate">
                     {crops.length}
                   </p>
-                  <p className="text-[11px] text-emerald-600 font-semibold mt-0.5 truncate">
-                    {mintedCropsCount} Minted NFTs
+                  <p className="text-[11px] text-emerald-700 font-medium mt-0.5 truncate">
+                    {mintedCropsCount} Minted Records
                   </p>
                 </div>
 
                 <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-blue-200 transition-all min-w-0">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block truncate">
                     🤝 Active Deals
                   </span>
-                  <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight truncate">
+                  <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight truncate">
                     {openQuotesCount}
                   </p>
-                  <p className="text-[11px] text-blue-600 font-semibold mt-0.5 truncate">
+                  <p className="text-[11px] text-blue-700 font-medium mt-0.5 truncate">
                     {activeBidsTotal} Bids Received
                   </p>
                 </div>
 
                 <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-purple-200 transition-all min-w-0">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block truncate">
                     📦 Available Quantity
                   </span>
-                  <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight truncate">
+                  <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight truncate">
                     {totalAvailableQuantity.toLocaleString()}
                   </p>
-                  <p className="text-[11px] text-purple-600 font-semibold mt-0.5 truncate">
+                  <p className="text-[11px] text-purple-700 font-medium mt-0.5 truncate">
                     Ready for Sale
                   </p>
                 </div>
 
                 <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-amber-200 transition-all min-w-0">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
-                    💰 Sales / Transactions
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block truncate">
+                    💰 Transactions
                   </span>
-                  <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight truncate">
+                  <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight truncate">
                     {escrowsCount}
                   </p>
-                  <p className="text-[11px] text-amber-600 font-semibold mt-0.5 truncate">
-                    Escrow Contracts
+                  <p className="text-[11px] text-amber-700 font-medium mt-0.5 truncate">
+                    Secured Payments
                   </p>
                 </div>
               </div>
@@ -449,7 +449,7 @@ export default function FarmerDashboard() {
               <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-6 shadow-2xs space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
                   <div>
-                    <h3 className="text-base font-extrabold text-slate-900">
+                    <h3 className="text-base font-semibold text-slate-900">
                       Your Crops
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
@@ -464,7 +464,7 @@ export default function FarmerDashboard() {
                         setCropViewMode("new");
                         setActiveNav("crops");
                       }}
-                      className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl border border-emerald-200 transition-all cursor-pointer flex items-center gap-1"
+                      className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold rounded-xl border border-emerald-200 transition-all cursor-pointer flex items-center gap-1"
                     >
                       <span>➕</span>
                       <span>Add Crop</span>
@@ -476,7 +476,7 @@ export default function FarmerDashboard() {
                           setCropViewMode("list");
                           setActiveNav("crops");
                         }}
-                        className="text-xs font-bold text-emerald-700 hover:text-emerald-800"
+                        className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 cursor-pointer"
                       >
                         View All ({crops.length}) →
                       </button>
@@ -546,7 +546,7 @@ export default function FarmerDashboard() {
               {history.some((q) => q.bids?.length > 0) && (
                 <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-6 shadow-2xs space-y-3.5">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                    <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <h3 className="text-xs font-semibold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                       <span>🤝</span>
                       <span>Active Deals & Incoming Offers</span>
                     </h3>
@@ -556,7 +556,7 @@ export default function FarmerDashboard() {
                         setDealViewMode("history");
                         setActiveNav("deals");
                       }}
-                      className="text-xs font-bold text-emerald-700 hover:text-emerald-800"
+                      className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 cursor-pointer"
                     >
                       View All Deals →
                     </button>
@@ -572,13 +572,13 @@ export default function FarmerDashboard() {
                           className="flex items-center justify-between p-3.5 bg-slate-50/80 rounded-2xl border border-slate-100 text-xs gap-3"
                         >
                           <div className="min-w-0">
-                            <span className="font-extrabold text-slate-900 truncate block">
+                            <span className="font-semibold text-slate-900 truncate block">
                               {q.product_name}
                             </span>
                             <span className="text-[11px] text-slate-500 font-mono block">
                               {q.quantity} {q.unit}
                             </span>
-                            <span className="text-[11px] text-emerald-700 font-semibold block mt-0.5">
+                            <span className="text-[11px] text-emerald-700 font-medium block mt-0.5">
                               {q.bids.length} FPO Bid(s) waiting
                             </span>
                           </div>
@@ -590,7 +590,7 @@ export default function FarmerDashboard() {
                               setDealViewMode("bids");
                               setActiveNav("deals");
                             }}
-                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shrink-0 shadow-2xs"
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl transition-all cursor-pointer shrink-0 shadow-2xs"
                           >
                             Review Bids
                           </button>
@@ -609,7 +609,7 @@ export default function FarmerDashboard() {
             <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-5 animate-fade-in">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
                 <div>
-                  <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
+                  <h2 className="text-base sm:text-lg font-bold text-slate-900">
                     🌱 My Crops
                   </h2>
                   <p className="text-xs text-slate-500 mt-0.5">
@@ -621,7 +621,7 @@ export default function FarmerDashboard() {
                   <button
                     type="button"
                     onClick={() => setCropViewMode("new")}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>🌱</span>
                     <span>+ Add New Crop</span>
@@ -630,7 +630,7 @@ export default function FarmerDashboard() {
                   <button
                     type="button"
                     onClick={() => setCropViewMode("list")}
-                    className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                    className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-all cursor-pointer"
                   >
                     ← Back to My Crops
                   </button>
@@ -731,7 +731,7 @@ export default function FarmerDashboard() {
                 <>
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
                     <div>
-                      <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
+                      <h2 className="text-base sm:text-lg font-bold text-slate-900">
                         🤝 Deals & Supply Quotes
                       </h2>
                       <p className="text-xs text-slate-500 mt-0.5">
@@ -741,7 +741,7 @@ export default function FarmerDashboard() {
                     <button
                       type="button"
                       onClick={() => setDealViewMode("new")}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
                     >
                       <span>➕</span>
                       <span>Publish Quote</span>
@@ -768,7 +768,7 @@ export default function FarmerDashboard() {
                 <div>
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                     <div>
-                      <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
+                      <h2 className="text-base sm:text-lg font-bold text-slate-900">
                         ➕ Publish Supply Quote
                       </h2>
                       <p className="text-xs text-slate-500 mt-0.5">
@@ -832,11 +832,11 @@ export default function FarmerDashboard() {
           {activeNav === "transactions" && (
             <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-4 animate-fade-in">
               <div className="pb-3 border-b border-slate-100">
-                <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
-                  💰 Transactions & Escrow Settlement
+                <h2 className="text-base sm:text-lg font-bold text-slate-900">
+                  💰 Transactions & Payments
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Trustless payment locks on Ethereum Sepolia between Farmer and FPO.
+                  Payment records and deliveries secured with FPO buyers.
                 </p>
               </div>
 
@@ -855,7 +855,7 @@ export default function FarmerDashboard() {
           {activeNav === "identity" && (
             <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-5 animate-fade-in">
               <div className="pb-3 border-b border-slate-100">
-                <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
+                <h2 className="text-base sm:text-lg font-bold text-slate-900">
                   🪪 Identity & Reputation Profile
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">

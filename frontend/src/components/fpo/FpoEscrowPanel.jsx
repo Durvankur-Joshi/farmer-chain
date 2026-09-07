@@ -244,6 +244,7 @@ export default function FpoEscrowPanel({ onEscrowUpdated }) {
               partnerLabel="Farmer Supplier"
               partnerName={escrow.farmer_name}
               requiredActionLabel={requiredAction}
+              actionLabel="View Transaction"
               onViewDeal={(esc) => setActiveModalEscrow(esc)}
             />
           );

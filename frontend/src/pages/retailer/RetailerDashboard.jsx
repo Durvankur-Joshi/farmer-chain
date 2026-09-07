@@ -38,6 +38,9 @@ export default function RetailerDashboard() {
   const [cartCount, setCartCount] = useState(0);
   const [cartQuantities, setCartQuantities] = useState({});
   const [addingToCartMap, setAddingToCartMap] = useState({});
+  // Overview counts
+  const [inventoryCount, setInventoryCount] = useState(0);
+  const [escrowsCount, setEscrowsCount] = useState(0);
 
   // Product Details Modal
   const [activeProductModal, setActiveProductModal] = useState(null);
@@ -154,12 +157,30 @@ export default function RetailerDashboard() {
     }
   }, []);
 
+  const fetchEscrowsAndInventoryCounts = useCallback(async () => {
+    try {
+      const [escrowRes, invRes] = await Promise.allSettled([
+        axios.get("/api/escrow/retailer/my/", { withCredentials: true }),
+        axios.get("/api/retailer/inventory/my/", { withCredentials: true }),
+      ]);
+      if (escrowRes.status === "fulfilled") {
+        setEscrowsCount(escrowRes.value.data?.escrows?.length || 0);
+      }
+      if (invRes.status === "fulfilled") {
+        setInventoryCount(invRes.value.data?.items?.length || 0);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   useEffect(() => {
     fetchFpoQuotes();
     fetchMyBids();
     fetchDid();
     fetchCartCount();
-  }, [fetchFpoQuotes, fetchMyBids, fetchDid, fetchCartCount]);
+    fetchEscrowsAndInventoryCounts();
+  }, [fetchFpoQuotes, fetchMyBids, fetchDid, fetchCartCount, fetchEscrowsAndInventoryCounts]);
 
   useRefreshSubscription(
     ["retailer", "fpo", "quotes", "bids", "deals", "inventory", "escrow", "transactions"],
@@ -168,6 +189,7 @@ export default function RetailerDashboard() {
       fetchMyBids();
       fetchDid();
       fetchCartCount();
+      fetchEscrowsAndInventoryCounts();
     }
   );
 
@@ -235,13 +257,13 @@ export default function RetailerDashboard() {
   const acceptedBidsCount = myBids.filter((b) => b.status === "accepted").length;
 
   const navItems = [
-    { id: "dashboard", label: "Dashboard", icon: "🏪", count: null },
-    { id: "market", label: "Wholesale Market", icon: "🛒", count: fpoQuotes.length },
-    { id: "deals", label: "Deals & Orders", icon: "🤝", count: myBids.length },
-    { id: "cart", label: "Cart", icon: "🛍️", count: cartCount },
-    { id: "inventory", label: "Purchased Stock", icon: "📦", count: null },
-    { id: "transactions", label: "Escrow Payments", icon: "🔐", count: null },
-    { id: "identity", label: "Identity Profile", icon: "🪪", count: null },
+    { id: "dashboard", label: "Dashboard", icon: "🏠", count: null },
+    { id: "market", label: "Market", icon: "🛒", count: fpoQuotes.length > 0 ? fpoQuotes.length : null },
+    { id: "deals", label: "Deals", icon: "🤝", count: myBids.length > 0 ? myBids.length : null },
+    { id: "cart", label: "Cart", icon: "🛍️", count: cartCount > 0 ? cartCount : null },
+    { id: "inventory", label: "Inventory", icon: "📦", count: inventoryCount > 0 ? inventoryCount : null },
+    { id: "transactions", label: "Transactions", icon: "💰", count: escrowsCount > 0 ? escrowsCount : null },
+    { id: "identity", label: "Identity", icon: "🪪", count: null },
   ];
 
   return (
@@ -429,17 +451,11 @@ export default function RetailerDashboard() {
               {/* Homepage Hero Surface */}
               <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="space-y-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse shrink-0" />
-                    <span className="text-[11px] font-bold text-purple-700 uppercase tracking-wider">
-                      B2B Commercial Procurement
-                    </span>
-                  </div>
-                  <h1 className="text-lg sm:text-2xl font-extrabold text-slate-900 tracking-tight truncate">
-                    Wholesale Agricultural Marketplace
+                  <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight truncate">
+                    Wholesale Marketplace
                   </h1>
                   <p className="text-xs text-slate-500 max-w-xl">
-                    Find verified agricultural products from FPOs with immutable blockchain provenance.
+                    Find verified agricultural products from FPOs.
                   </p>
                 </div>
 
@@ -448,26 +464,26 @@ export default function RetailerDashboard() {
                   <button
                     type="button"
                     onClick={() => setActiveNav("market")}
-                    className="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>🛒</span>
                     <span>Browse Market</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActiveNav("cart")}
-                    className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    onClick={() => setActiveNav("inventory")}
+                    className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-1"
                   >
-                    <span>🛍️</span>
-                    <span>Cart ({cartCount})</span>
+                    <span>📦</span>
+                    <span>View Inventory</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActiveNav("inventory")}
-                    className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-all cursor-pointer hidden sm:flex items-center gap-1"
+                    onClick={() => setActiveNav("cart")}
+                    className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
                   >
-                    <span>📦</span>
-                    <span>Inventory</span>
+                    <span>🛍️</span>
+                    <span>Cart ({cartCount})</span>
                   </button>
                 </div>
               </div>
@@ -475,50 +491,50 @@ export default function RetailerDashboard() {
               {/* 4 Compact Operational Metrics */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-purple-200 transition-all min-w-0">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
-                    🛒 Wholesale Lots
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block truncate">
+                    🛒 Market Offers
                   </span>
-                  <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight truncate">
+                  <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight truncate">
                     {fpoQuotes.length}
                   </p>
-                  <p className="text-[11px] text-purple-600 font-semibold mt-0.5 truncate">
-                    Open for Bidding
+                  <p className="text-[11px] text-purple-700 font-medium mt-0.5 truncate">
+                    Available Lots
                   </p>
                 </div>
 
                 <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-blue-200 transition-all min-w-0">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
-                    🛍️ Cart Reserved
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block truncate">
+                    🤝 Active Deals
                   </span>
-                  <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight truncate">
-                    {cartCount}
+                  <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight truncate">
+                    {myBids.length}
                   </p>
-                  <p className="text-[11px] text-blue-600 font-semibold mt-0.5 truncate">
-                    Temporary Stock
+                  <p className="text-[11px] text-blue-700 font-medium mt-0.5 truncate">
+                    {acceptedBidsCount} Accepted
                   </p>
                 </div>
 
                 <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-emerald-200 transition-all min-w-0">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
-                    🤝 Active Deals
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block truncate">
+                    📦 My Inventory
                   </span>
-                  <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight truncate">
-                    {acceptedBidsCount}
+                  <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight truncate">
+                    {inventoryCount}
                   </p>
-                  <p className="text-[11px] text-emerald-600 font-semibold mt-0.5 truncate">
-                    {myBids.length} Submitted Bids
+                  <p className="text-[11px] text-emerald-700 font-medium mt-0.5 truncate">
+                    Purchased Lots
                   </p>
                 </div>
 
                 <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-amber-200 transition-all min-w-0">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
-                    🔐 Escrow Protected
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block truncate">
+                    💰 Transactions
                   </span>
-                  <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight truncate">
-                    Sepolia
+                  <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight truncate">
+                    {escrowsCount}
                   </p>
-                  <p className="text-[11px] text-amber-600 font-semibold mt-0.5 truncate">
-                    Smart Contracts
+                  <p className="text-[11px] text-amber-700 font-medium mt-0.5 truncate">
+                    Secured Escrows
                   </p>
                 </div>
               </div>
@@ -852,19 +868,19 @@ export default function RetailerDashboard() {
           )}
 
           {/* ════════════════════════════════════════════════════════════ */}
-          {/* VIEW 3: DEALS (My Bids & Orders)                             */}
+          {/* VIEW 3: DEALS (Negotiations, Orders & Completed Deals)       */}
           {/* ════════════════════════════════════════════════════════════ */}
           {activeNav === "deals" && (
             <div className="space-y-5 animate-fade-in">
-              {/* Section 1: My Submitted Bids */}
+              {/* Section 1: Active Negotiations */}
               <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-4">
                 <div className="pb-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
                   <div>
-                    <h2 className="text-base font-extrabold text-slate-900">
-                      🤝 My Submitted Wholesale Bids ({myBids.length})
+                    <h2 className="text-base font-bold text-slate-900">
+                      🤝 Active Negotiations ({myBids.length})
                     </h2>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Status of your procurement offers submitted to FPO suppliers
+                      Ongoing negotiations and procurement bids placed with FPO suppliers.
                     </p>
                   </div>
                 </div>
@@ -889,39 +905,42 @@ export default function RetailerDashboard() {
                         >
                           <div className="flex justify-between items-start gap-2">
                             <div className="min-w-0">
-                              <p className="text-sm font-extrabold text-slate-900 truncate">
+                              <p className="text-sm font-bold text-slate-900 truncate">
                                 {bid.quote.product_name}
                               </p>
-                              <span className="text-[11px] text-slate-500 font-medium">
-                                {bid.quote.category} · FPO Supplier #{bid.quote.fpo}
+                              <span className="text-[11px] text-slate-500 font-medium truncate block mt-0.5">
+                                FPO: <span className="font-semibold text-slate-800">{bid.quote.fpo_name || `FPO #${bid.quote.fpo}`}</span>
                               </span>
                             </div>
                             <StatusBadge status={bid.status} />
                           </div>
 
-                          <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50/70 p-2.5 rounded-xl border border-slate-100 font-mono">
+                          <div className="grid grid-cols-3 gap-2 text-xs bg-slate-50/70 p-2.5 rounded-xl border border-slate-100 font-mono">
                             <div>
-                              <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans">Bid Rate</span>
-                              <span className="font-extrabold text-slate-800">{bid.bid_amount} ETH/{bid.quote.unit}</span>
+                              <span className="text-[10px] text-slate-500 font-semibold uppercase block font-sans">Quantity</span>
+                              <span className="font-bold text-slate-800 mt-0.5 block truncate">{bid.quote.quantity} {bid.quote.unit}</span>
                             </div>
                             <div>
-                              <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans">Delivery</span>
-                              <span className="font-semibold text-slate-700 font-sans">{bid.delivery_time_days} days</span>
+                              <span className="text-[10px] text-slate-500 font-semibold uppercase block font-sans">Unit Price</span>
+                              <span className="font-semibold text-blue-700 mt-0.5 block truncate">{bid.bid_amount} ETH</span>
                             </div>
-                            <div className="col-span-2 pt-1 border-t border-slate-200/60 flex items-center justify-between">
-                              <span className="text-[10px] text-slate-400 font-bold uppercase font-sans">Total Value</span>
-                              <span className="font-extrabold text-purple-700">{totalVal} ETH</span>
+                            <div>
+                              <span className="text-[10px] text-slate-500 font-semibold uppercase block font-sans">Total</span>
+                              <span className="font-bold text-purple-700 mt-0.5 block truncate">{totalVal} ETH</span>
                             </div>
                           </div>
 
-                          <div className="flex justify-end pt-1">
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                            <span className="text-[11px] text-slate-400 font-medium">
+                              Delivery in {bid.delivery_time_days} days
+                            </span>
                             <button
                               type="button"
                               onClick={() => setNegotiatingBid({ bid: bid, contentType: "retailer.retailerbid" })}
-                              className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-900 text-xs font-bold rounded-xl border border-purple-200 transition-all cursor-pointer flex items-center gap-1"
+                              className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-2xs shrink-0"
                             >
                               <span>💬</span>
-                              <span>Chat / Counter Offer</span>
+                              <span>View Deal</span>
                             </button>
                           </div>
                         </div>
@@ -939,7 +958,7 @@ export default function RetailerDashboard() {
                 )}
               </div>
 
-              {/* Section 2: Commercial Orders History */}
+              {/* Sections 2 & 3: Confirmed Orders & Completed Deals */}
               <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-2xs">
                 <RetailerOrdersPanel />
               </div>
