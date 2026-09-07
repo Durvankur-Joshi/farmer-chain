@@ -148,12 +148,14 @@ class AcceptNegotiationView(APIView):
                 bid.status = 'accepted'
                 bid.save()
 
+            price_display = f"₹{final_price}" if (final_price and Decimal(str(final_price)) >= 1) else f"{final_price} ETH"
+            unit_name = getattr(bid.quote, 'unit', 'unit')
             NegotiationMessage.objects.create(
                 negotiation=negotiation,
                 sender_role=request.user.role,
                 sender_id=user_obj.id,
                 sender_name=user_obj.name,
-                message=f"🤝 Agreement Accepted! Final price locked at {final_price} ETH per unit."
+                message=f"🤝 Agreement Accepted! Final price locked at {price_display} per {unit_name}."
             )
 
         emit_event("deal_updated", {"negotiation_id": negotiation.pk, "status": "accepted"})

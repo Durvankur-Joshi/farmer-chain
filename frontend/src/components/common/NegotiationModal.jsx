@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { useRefresh } from "../../context/useRefresh";
 import ProvenanceCard from "./ProvenanceCard";
+import { formatCommercialPrice, formatSettlementBreakdown } from "../../utils/pricing";
 
 export default function NegotiationModal({
   bid,
@@ -231,22 +232,22 @@ export default function NegotiationModal({
                 <div>
                   <span className="text-[10px] text-slate-400 font-bold uppercase block">Asking Price</span>
                   <span className="font-bold text-slate-800 font-mono">
-                    {details.quote_price_per_unit ? `${details.quote_price_per_unit} ETH/${details.unit}` : "N/A"}
+                    {details.quote_price_per_unit ? formatCommercialPrice(details.quote_price_per_unit, details.unit) : "N/A"}
                   </span>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 font-bold uppercase block">Initial Bid</span>
                   <span className="font-bold text-blue-700 font-mono">
-                    {details.bid_amount ? `${details.bid_amount} ETH/${details.unit}` : "N/A"}
+                    {details.bid_amount ? formatCommercialPrice(details.bid_amount, details.unit) : "N/A"}
                   </span>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 font-bold uppercase block">Agreed / Current</span>
                   <span className="font-extrabold text-purple-700 font-mono">
                     {negotiation.agreed_price_per_unit
-                      ? `${negotiation.agreed_price_per_unit} ETH`
+                      ? formatCommercialPrice(negotiation.agreed_price_per_unit, details.unit)
                       : details.bid_amount
-                      ? `${details.bid_amount} ETH`
+                      ? formatCommercialPrice(details.bid_amount, details.unit)
                       : "Pending"}
                   </span>
                 </div>
@@ -295,7 +296,7 @@ export default function NegotiationModal({
                           }`}
                         >
                           <span>Counter Offer Price:</span>
-                          <span>{m.counter_amount} ETH / {details.unit}</span>
+                          <span>{formatCommercialPrice(m.counter_amount, details.unit)}</span>
                         </div>
                       )}
 
@@ -323,17 +324,22 @@ export default function NegotiationModal({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                      Counter Price (ETH/{details.unit})
+                      Counter Price (₹ INR/{details.unit || "unit"})
                     </label>
                     <input
                       type="number"
                       step="any"
                       min="0.000001"
-                      placeholder="e.g. 0.08"
+                      placeholder="e.g. 150"
                       value={counterAmount}
                       onChange={(e) => setCounterAmount(e.target.value)}
                       className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold outline-none focus:bg-white focus:border-purple-500"
                     />
+                    {counterAmount && !isNaN(counterAmount) && parseFloat(counterAmount) > 0 && (
+                      <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">
+                        ≈ {formatSettlementBreakdown(counterAmount, 1).totalEth} / {details.unit || "unit"}
+                      </span>
+                    )}
                   </div>
 
                   <div>

@@ -3,6 +3,7 @@ import axios from "axios";
 import { useRefresh, useRefreshSubscription } from "../../context/useRefresh";
 import ProvenanceCard from "../common/ProvenanceCard";
 import BaseModal from "../common/BaseModal";
+import { formatInr, formatCommercialPrice, DEFAULT_INR_PER_ETH } from "../../utils/pricing";
 
 export default function RetailerCartPanel({ onCartUpdated, onOrderCreated }) {
   const { refresh } = useRefresh();
@@ -200,9 +201,9 @@ export default function RetailerCartPanel({ onCartUpdated, onOrderCreated }) {
         <div className="bg-white border border-slate-200/80 p-3.5 rounded-2xl shadow-2xs min-w-0">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block truncate">Total Cart Value</span>
           <span className="text-xl sm:text-2xl font-extrabold text-purple-900 font-mono mt-1 block truncate">
-            {summary.total_cart_value_eth || "0"} ETH
+            {formatInr(Math.round(parseFloat(summary.total_cart_value_eth || 0) * DEFAULT_INR_PER_ETH))}
           </span>
-          <span className="text-[11px] text-purple-600 font-semibold mt-0.5 block">Estimated Total</span>
+          <span className="text-[11px] text-purple-600 font-semibold mt-0.5 block">{summary.total_cart_value_eth || "0"} ETH Settlement</span>
         </div>
 
         <div className="bg-white border border-slate-200/80 p-3.5 rounded-2xl shadow-2xs min-w-0">
@@ -293,7 +294,7 @@ export default function RetailerCartPanel({ onCartUpdated, onOrderCreated }) {
                     </div>
                     <div>
                       <span className="text-slate-400">Unit Price:</span>{" "}
-                      <strong className="font-mono text-blue-700">{quote.price_per_unit} ETH / {quote.unit}</strong>
+                      <strong className="font-mono text-blue-700">{formatCommercialPrice(quote.price_per_unit, quote.unit)}</strong>
                     </div>
                   </div>
 
@@ -315,6 +316,9 @@ export default function RetailerCartPanel({ onCartUpdated, onOrderCreated }) {
                 <div className="bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-100 text-center shrink-0 min-w-28">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Price</span>
                   <span className="text-base font-extrabold font-mono text-emerald-700 block mt-0.5">
+                    {formatInr(Math.round(parseFloat(totalItemEth || 0) * DEFAULT_INR_PER_ETH))}
+                  </span>
+                  <span className="text-[10px] font-mono text-purple-700 block">
                     {totalItemEth} ETH
                   </span>
                 </div>
@@ -463,16 +467,25 @@ export default function RetailerCartPanel({ onCartUpdated, onOrderCreated }) {
             {/* Deal Summary Box */}
             <div className="bg-purple-50/70 border border-purple-200 rounded-2xl p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="font-bold text-purple-900">Total Deal Value:</span>
-                <span className="font-extrabold text-purple-950 font-mono text-sm sm:text-base">
-                  {summary.total_cart_value_eth} ETH
-                </span>
+                <div>
+                  <span className="font-bold text-purple-900 block">Total Commercial Deal:</span>
+                  <span className="text-[10px] text-slate-500">Rate: 1 ETH = ₹250,000 INR (Oracle)</span>
+                </div>
+                <div className="text-right">
+                  <span className="font-extrabold text-purple-950 font-mono text-base sm:text-lg block">
+                    {formatInr(Math.round(parseFloat(summary.total_cart_value_eth || 0) * DEFAULT_INR_PER_ETH))}
+                  </span>
+                  <span className="text-[11px] font-mono text-purple-700 font-semibold block">
+                    {summary.total_cart_value_eth} ETH Settlement
+                  </span>
+                </div>
               </div>
 
               <div className="border-t border-purple-200/60 pt-2 space-y-1.5 text-slate-700">
                 <div className="font-semibold text-purple-950 text-[11px]">Included Wholesale Lots:</div>
                 {items.map((item, idx) => {
                   const q = item.quote_details || {};
+                  const itemInr = Math.round(parseFloat(item.item_total_price || 0) * DEFAULT_INR_PER_ETH);
                   return (
                     <div key={item.id} className="flex justify-between items-center text-[11px] bg-white/70 p-2 rounded-xl border border-purple-100">
                       <div className="truncate pr-2">
@@ -480,7 +493,7 @@ export default function RetailerCartPanel({ onCartUpdated, onOrderCreated }) {
                         <span className="text-slate-400">({q.fpo_name})</span>
                       </div>
                       <span className="font-mono font-bold text-purple-900 shrink-0">
-                        {item.selected_quantity} {q.unit} · {item.item_total_price} ETH
+                        {item.selected_quantity} {q.unit} · {formatInr(itemInr)} ({item.item_total_price} ETH)
                       </span>
                     </div>
                   );

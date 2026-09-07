@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import { useRefresh, useRefreshSubscription } from "../../context/useRefresh";
-import { calculateTotalEth } from "../../utils/pricing";
+import { formatCommercialPrice, formatSettlementBreakdown } from "../../utils/pricing";
 import MarketplaceFilterBar from "../common/MarketplaceFilterBar";
 import BaseModal from "../common/BaseModal";
 import StatusBadge from "../common/StatusBadge";
@@ -187,7 +187,7 @@ export default function FarmerQuotes({ onBidPlaced }) {
                       </span>
                       {quote.price_per_unit && (
                         <span className="text-blue-700 font-mono font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                          {quote.price_per_unit} ETH/{quote.unit}
+                          {formatCommercialPrice(quote.price_per_unit, quote.unit)}
                         </span>
                       )}
                     </div>
@@ -422,21 +422,21 @@ export default function FarmerQuotes({ onBidPlaced }) {
               {bidModalQuote.price_per_unit && (
                 <div className="flex justify-between">
                   <span className="text-slate-500">Farmer Asking Rate:</span>
-                  <span className="font-mono text-blue-700 font-bold">{bidModalQuote.price_per_unit} ETH / {bidModalQuote.unit}</span>
+                  <span className="font-mono text-blue-700 font-bold">{formatCommercialPrice(bidModalQuote.price_per_unit, bidModalQuote.unit)}</span>
                 </div>
               )}
             </div>
 
             <div>
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Your Procurement Offer (ETH / {bidModalQuote.unit}) *
+                Your Procurement Offer (₹ INR / {bidModalQuote.unit}) *
               </label>
               <input
                 type="number"
                 step="any"
-                min="0.000001"
+                min="1"
                 required
-                placeholder="e.g. 0.005"
+                placeholder="e.g. 115"
                 value={bidAmount}
                 onChange={(e) => setBidAmount(e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:border-blue-500 focus:outline-none"
@@ -458,15 +458,26 @@ export default function FarmerQuotes({ onBidPlaced }) {
               />
             </div>
 
-            {/* Computed Total Lot Procurement Value */}
-            {bidAmount && Number(bidAmount) > 0 && (
-              <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 flex items-center justify-between">
-                <span className="text-blue-900 font-semibold">Total Escrow Value:</span>
-                <span className="font-extrabold text-blue-950 font-mono text-sm">
-                  {calculateTotalEth(bidAmount, bidModalQuote.quantity)} ETH
-                </span>
-              </div>
-            )}
+            {/* Computed Commercial Total & Settlement Breakdown */}
+            {bidAmount && Number(bidAmount) > 0 && (() => {
+              const s = formatSettlementBreakdown(bidAmount, bidModalQuote.quantity, bidModalQuote.unit);
+              if (!s) return null;
+              return (
+                <div className="p-3 bg-blue-50/80 rounded-xl border border-blue-200 space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-blue-900 font-semibold">Total Commercial Offer:</span>
+                    <span className="font-extrabold text-blue-950 font-mono text-sm">
+                      {s.formattedTotalInr}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-500">
+                    <span>Blockchain Escrow Settlement:</span>
+                    <span className="font-bold font-mono text-purple-700">{s.formattedAmountEth}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-medium">Rate: {s.exchangeRateNote}</p>
+                </div>
+              );
+            })()}
 
             {bidStatusMsg && (
               <div className={`p-3 rounded-xl text-xs font-semibold ${

@@ -378,7 +378,7 @@ export default function FarmerDashboard() {
                     className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>🌱</span>
-                    <span>+ Add New Crop</span>
+                    <span>+ Add Your Crop</span>
                   </button>
                   <button
                     type="button"
@@ -389,7 +389,7 @@ export default function FarmerDashboard() {
                     className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>➕</span>
-                    <span>Publish Quote</span>
+                    <span>+ Create Offer</span>
                   </button>
                 </div>
               </div>
@@ -398,13 +398,13 @@ export default function FarmerDashboard() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-emerald-200 transition-all min-w-0">
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block truncate">
-                    🌱 My Crops
+                    🌱 Your Crop Records
                   </span>
                   <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight truncate">
                     {crops.length}
                   </p>
                   <p className="text-[11px] text-emerald-700 font-medium mt-0.5 truncate">
-                    {mintedCropsCount} Minted Records
+                    {mintedCropsCount} Permanent Records
                   </p>
                 </div>
 
@@ -416,7 +416,7 @@ export default function FarmerDashboard() {
                     {openQuotesCount}
                   </p>
                   <p className="text-[11px] text-blue-700 font-medium mt-0.5 truncate">
-                    {activeBidsTotal} Bids Received
+                    {activeBidsTotal} Buyer Offers
                   </p>
                 </div>
 
@@ -434,13 +434,13 @@ export default function FarmerDashboard() {
 
                 <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-amber-200 transition-all min-w-0">
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block truncate">
-                    💰 Transactions
+                    🔒 Payment Secured
                   </span>
                   <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight truncate">
                     {escrowsCount}
                   </p>
                   <p className="text-[11px] text-amber-700 font-medium mt-0.5 truncate">
-                    Secured Payments
+                    Blockchain Escrows
                   </p>
                 </div>
               </div>

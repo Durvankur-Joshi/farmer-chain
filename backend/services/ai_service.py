@@ -35,7 +35,10 @@ import json
 import base64
 import logging
 import re
+import io
+import hashlib
 import requests
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -70,32 +73,74 @@ def _get_api_key() -> str:
     return key
 
 
+def validate_image_bytes(image_bytes: bytes) -> dict:
+    """
+    Pre-validate image authenticity, readability, and minimum resolution before AI inference.
+    Returns: {'format': str, 'width': int, 'height': int, 'sha256': str}
+    Raises: AIAnalysisError on invalid/corrupt/tiny images.
+    """
+    if not image_bytes or len(image_bytes) == 0:
+        raise AIAnalysisError("Uploaded image file is empty or missing.")
+
+    # Integrity verification via Pillow
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            img.verify()
+    except Exception as exc:
+        raise AIAnalysisError(f"Uploaded file is corrupted or not a readable image: {exc}")
+
+    # Inspect dimensions and format
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            width, height = img.size
+            fmt = img.format or "UNKNOWN"
+            if width < 100 or height < 100:
+                raise AIAnalysisError(
+                    f"Image resolution is too low ({width}x{height}px). Minimum required is 100x100 pixels."
+                )
+            sha256_hash = hashlib.sha256(image_bytes).hexdigest()
+            return {
+                "format": fmt,
+                "width": width,
+                "height": height,
+                "sha256": sha256_hash,
+            }
+    except AIAnalysisError:
+        raise
+    except Exception as exc:
+        raise AIAnalysisError(f"Unable to read image dimensions: {exc}")
+
+
 def _build_prompt(crop_name: str) -> str:
     """
-    Compact prompt that forces short JSON-only output.
+    Compact prompt that forces short JSON-only output with agricultural validation.
     Explicitly tells the model to keep all string values concise —
     critical because thinking tokens eat into the output budget.
     """
     return (
-        f'You are a crop quality assessment assistant.\n'
-        f'Analyze the supplied crop image. The registered crop is: "{crop_name}".\n\n'
-        f'Return ONLY one valid JSON object. '
-        f'Do not return markdown. Do not return ```json fences. '
-        f'Do not provide explanations. '
-        f'Keep all string values concise (under 20 words each).\n\n'
+        f'You are an expert agricultural crop quality and authenticity verification assistant.\n'
+        f'Analyze the supplied image. The farmer registered this crop as: "{crop_name}".\n\n'
+        f'Strict Verification Requirements:\n'
+        f'1. Is this an agricultural crop, harvest, or farm plant produce? (is_crop_image: true/false). Flag false for people, animals, vehicles, documents, logos, screenshots, electronics, or unrelated items.\n'
+        f'2. Identify what specific agricultural crop is shown.\n'
+        f'3. Does the detected crop reasonably match the registered crop "{crop_name}"? (crop_matches_expected: true/false).\n'
+        f'4. Commercial grade (A=Excellent, B=Good, C=Acceptable, D=Poor, F=Unacceptable) and confidence score (0.0 to 1.0).\n\n'
+        f'Return ONLY one valid JSON object. Do not return markdown fences. Keep strings concise (under 20 words).\n\n'
         f'{{\n'
-        f'  "crop_detected": "crop name or unknown",\n'
+        f'  "is_crop_image": true,\n'
+        f'  "crop_detected": "crop name or unrelated",\n'
+        f'  "crop_matches_expected": true,\n'
         f'  "quality_grade": "A or B or C or D or F",\n'
         f'  "quality_score": 0,\n'
         f'  "confidence_score": 0.0,\n'
+        f'  "authenticity_flag": "normal or suspicious or unrelated",\n'
         f'  "disease_detected": false,\n'
         f'  "disease_name": null,\n'
         f'  "visible_defects": "short description or None",\n'
         f'  "summary": "one concise sentence"\n'
         f'}}\n\n'
-        f'Grading: A=Excellent B=Good C=Acceptable D=Poor F=Unacceptable.\n'
         f'quality_score: 0-100. confidence_score: 0.0-1.0.\n'
-        f'If the image does not show "{crop_name}", set crop_detected to what you see.\n'
+        f'If the image is not an agricultural crop, set is_crop_image: false, crop_matches_expected: false, authenticity_flag: "unrelated".\n'
         f'Output ONLY the JSON. Nothing else.'
     )
 
@@ -169,11 +214,15 @@ def analyze_crop_image(image_bytes: bytes, mime_type: str, crop_name: str) -> di
     Returns:
         dict with keys: crop_detected, quality_grade, quality_score,
             confidence_score, disease_detected, disease_name,
-            visible_defects, summary
+            visible_defects, summary, is_crop_image, crop_matches_expected,
+            authenticity_flag
 
     Raises:
         AIAnalysisError: on API failure, MAX_TOKENS truncation, invalid response.
     """
+    # Pre-validate file readability, corruption, and minimum dimensions
+    img_meta = validate_image_bytes(image_bytes)
+
     api_key = _get_api_key()
     prompt  = _build_prompt(crop_name)
     b64_image = base64.b64encode(image_bytes).decode("utf-8")
@@ -370,13 +419,26 @@ def _validate_ai_result(raw: dict) -> dict:
     if not summary:
         summary = "No summary provided by AI."
 
+    # is_crop_image — bool
+    is_crop_image = bool(raw.get("is_crop_image", True))
+
+    # crop_matches_expected — bool
+    crop_matches_expected = bool(raw.get("crop_matches_expected", True))
+
+    # authenticity_flag — "normal" | "suspicious" | "unrelated"
+    raw_auth = str(raw.get("authenticity_flag", "normal")).strip().lower()
+    authenticity_flag = raw_auth if raw_auth in {"normal", "suspicious", "unrelated"} else ("normal" if is_crop_image else "unrelated")
+
     return {
-        "crop_detected":    crop_detected,
-        "quality_grade":    quality_grade,
-        "quality_score":    quality_score,
-        "confidence_score": confidence_score,
-        "disease_detected": disease_detected,
-        "disease_name":     disease_name,
-        "visible_defects":  visible_defects,
-        "summary":          summary,
+        "crop_detected":         crop_detected,
+        "quality_grade":         quality_grade,
+        "quality_score":         quality_score,
+        "confidence_score":      confidence_score,
+        "disease_detected":      disease_detected,
+        "disease_name":          disease_name,
+        "visible_defects":       visible_defects,
+        "summary":               summary,
+        "is_crop_image":         is_crop_image,
+        "crop_matches_expected": crop_matches_expected,
+        "authenticity_flag":     authenticity_flag,
     }

@@ -7,7 +7,7 @@ import TrustReputationCard from "../../components/common/TrustReputationCard";
 import DidIdentityCard from "../../components/common/DidIdentityCard";
 import DashboardNavbar from "../../components/common/DashboardNavbar";
 import StatusBadge from "../../components/common/StatusBadge";
-import { calculateTotalEth } from "../../utils/pricing";
+import { formatCommercialPrice, formatSettlementBreakdown } from "../../utils/pricing";
 import MarketplaceFilterBar from "../../components/common/MarketplaceFilterBar";
 import RetailerEscrowPanel from "../../components/retailer/RetailerEscrowPanel";
 import RetailerCartPanel from "../../components/retailer/RetailerCartPanel";
@@ -652,7 +652,7 @@ export default function RetailerDashboard() {
                               <div className="text-right">
                                 <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans">Unit Rate</span>
                                 <span className="font-bold text-purple-700 font-mono text-xs">
-                                  {quote.price_per_unit} ETH
+                                  {formatCommercialPrice(quote.price_per_unit, quote.unit)}
                                 </span>
                               </div>
                             </div>
@@ -797,7 +797,7 @@ export default function RetailerDashboard() {
                             <div className="text-right">
                               <span className="text-[10px] text-slate-400 font-bold uppercase block font-sans">Unit Price</span>
                               <span className="font-bold text-purple-700 font-mono text-xs">
-                                {quote.price_per_unit} ETH
+                                {formatCommercialPrice(quote.price_per_unit, quote.unit)}
                               </span>
                             </div>
                           </div>
@@ -897,7 +897,7 @@ export default function RetailerDashboard() {
                 ) : myBids.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                     {myBids.map((bid) => {
-                      const totalVal = calculateTotalEth(bid.bid_amount, bid.quote.quantity);
+                      const breakdown = formatSettlementBreakdown(bid.bid_amount, bid.quote.quantity);
                       return (
                         <div
                           key={bid.id}
@@ -922,11 +922,14 @@ export default function RetailerDashboard() {
                             </div>
                             <div>
                               <span className="text-[10px] text-slate-500 font-semibold uppercase block font-sans">Unit Price</span>
-                              <span className="font-semibold text-blue-700 mt-0.5 block truncate">{bid.bid_amount} ETH</span>
+                              <span className="font-semibold text-blue-700 mt-0.5 block truncate">
+                                {formatCommercialPrice(bid.bid_amount, bid.quote.unit)}
+                              </span>
                             </div>
                             <div>
                               <span className="text-[10px] text-slate-500 font-semibold uppercase block font-sans">Total</span>
-                              <span className="font-bold text-purple-700 mt-0.5 block truncate">{totalVal} ETH</span>
+                              <span className="font-bold text-purple-700 mt-0.5 block truncate">{breakdown.totalInr}</span>
+                              <span className="text-[9px] text-slate-400 block truncate font-sans font-normal">≈ {breakdown.totalEth}</span>
                             </div>
                           </div>
 
@@ -1106,7 +1109,10 @@ export default function RetailerDashboard() {
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 min-w-0">
                 <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Wholesale Rate</span>
                 <span className="font-extrabold font-mono text-purple-700 block mt-0.5 truncate">
-                  {activeProductModal.price_per_unit} ETH/{activeProductModal.unit}
+                  {formatCommercialPrice(activeProductModal.price_per_unit, activeProductModal.unit)}
+                </span>
+                <span className="text-[10px] text-slate-400 block truncate font-sans">
+                  Settlement: {formatSettlementBreakdown(activeProductModal.price_per_unit, 1).totalEth} / {activeProductModal.unit}
                 </span>
               </div>
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 min-w-0">
@@ -1256,14 +1262,14 @@ export default function RetailerDashboard() {
 
             <div>
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Your Offer (ETH / {activeBidQuote.unit}) *
+                Your Offer (₹ INR / {activeBidQuote.unit}) *
               </label>
               <input
                 type="number"
                 step="any"
                 min="0.000001"
                 required
-                placeholder="e.g. 0.005"
+                placeholder="e.g. 150"
                 value={bidAmountInput}
                 onChange={(e) => setBidAmountInput(e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:border-purple-500 outline-none"
@@ -1287,10 +1293,15 @@ export default function RetailerDashboard() {
 
             {bidAmountInput && Number(bidAmountInput) > 0 && (
               <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 flex items-center justify-between">
-                <span className="text-purple-900 font-semibold">Estimated Total Value:</span>
-                <span className="font-extrabold text-purple-950 font-mono text-sm">
-                  {calculateTotalEth(bidAmountInput, activeBidQuote.quantity)} ETH
-                </span>
+                <span className="text-purple-900 font-semibold text-xs">Estimated Total:</span>
+                <div className="text-right">
+                  <span className="font-extrabold text-purple-950 font-mono text-sm block">
+                    {formatSettlementBreakdown(bidAmountInput, activeBidQuote.quantity).totalInr}
+                  </span>
+                  <span className="text-[10px] text-purple-700 font-mono block">
+                    Settlement: {formatSettlementBreakdown(bidAmountInput, activeBidQuote.quantity).totalEth}
+                  </span>
+                </div>
               </div>
             )}
 

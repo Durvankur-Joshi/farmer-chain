@@ -198,9 +198,13 @@ export default function MintButton({ crop, onMintSuccess }) {
             : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
           }`}
       >
-        <span>{isReadyToMint ? "🪙" : "🔒"}</span>
-        <span>{minting ? "Minting on Sepolia…" : isReadyToMint ? "Mint NFT Digital Twin" : "Minting Gated (Complete Checklist)"}</span>
+        <span>{isReadyToMint ? "📜" : "🔒"}</span>
+        <span>{minting ? "Creating Digital Record…" : isReadyToMint ? "Create Digital Record" : "Record Gated (Complete Checklist)"}</span>
       </button>
+
+      <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+        This creates a permanent, tamper-proof blockchain record for your crop.
+      </p>
 
       {status && (
         <div className="text-xs text-purple-900 font-semibold bg-purple-50 border border-purple-200 p-3 rounded-xl flex items-center gap-2 animate-fade-in">

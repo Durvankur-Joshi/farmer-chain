@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import axios from "axios";
 import { useRefresh } from "../../context/useRefresh";
 import StatusBadge from "../common/StatusBadge";
-import { calculateTotalEth } from "../../utils/pricing";
+import { formatCommercialPrice, formatInr, inrToEth, DEFAULT_INR_PER_ETH } from "../../utils/pricing";
 import NegotiationModal from "../common/NegotiationModal";
 
 export default function QuoteBids({ quote, onBack, refreshHistory, onQuoteUpdated }) {
@@ -20,13 +20,16 @@ export default function QuoteBids({ quote, onBack, refreshHistory, onQuoteUpdate
         {},
         { withCredentials: true }
       );
-      setFeedback({ type: "success", text: "✅ Bid accepted successfully! You can now create an Escrow payment." });
+      setFeedback({
+        type: "success",
+        text: "✅ Offer accepted! The buyer will secure payment on the blockchain before you deliver.",
+      });
       if (onQuoteUpdated) onQuoteUpdated(bidId);
       if (refreshHistory) refreshHistory();
       refresh(["quotes", "bids", "deals", "farmer", "fpo", "escrow"]);
     } catch (err) {
       console.error("Error accepting bid:", err);
-      const msg = err.response?.data?.error || err.response?.data?.detail || "Failed to accept bid. Please try again.";
+      const msg = err.response?.data?.error || err.response?.data?.detail || "Failed to accept offer. Please try again.";
       setFeedback({ type: "error", text: `❌ ${msg}` });
     } finally {
       setAcceptingId(null);
@@ -45,7 +48,7 @@ export default function QuoteBids({ quote, onBack, refreshHistory, onQuoteUpdate
             ← Back to Supply Quotes
           </button>
           <h3 className="text-base font-extrabold text-slate-900">
-            📦 Bids for {quote.product_name} <span className="text-xs text-slate-500 font-normal">({quote.category})</span>
+            📦 Offers for {quote.product_name} <span className="text-xs text-slate-500 font-normal">({quote.category})</span>
           </h3>
         </div>
         <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
@@ -68,7 +71,11 @@ export default function QuoteBids({ quote, onBack, refreshHistory, onQuoteUpdate
       {quote.bids && quote.bids.length > 0 ? (
         <div className="space-y-3">
           {quote.bids.map((bid, index) => {
-            const totalValue = calculateTotalEth(bid.bid_amount, quote.quantity);
+            const b = parseFloat(bid.bid_amount);
+            const q = parseFloat(quote.quantity);
+            const isLegacy = b < 1;
+            const totalInr = isLegacy ? Math.round(b * q * DEFAULT_INR_PER_ETH) : Math.round(b * q);
+            const amountEth = isLegacy ? parseFloat((b * q).toFixed(6)) : inrToEth(totalInr);
             const isAccepted = bid.status === "accepted";
             const isProcessing = acceptingId === bid.id;
 
@@ -84,16 +91,19 @@ export default function QuoteBids({ quote, onBack, refreshHistory, onQuoteUpdate
                 <div className="space-y-1.5 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-lg font-extrabold text-slate-900 font-mono">
-                      {bid.bid_amount} ETH <span className="text-xs text-slate-400 font-normal font-sans">/ {quote.unit}</span>
+                      {formatCommercialPrice(bid.bid_amount, quote.unit)}
                     </span>
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 font-mono">
-                      Total: {totalValue} ETH
+                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono">
+                      Total: {formatInr(totalInr)}
+                    </span>
+                    <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                      Settlement: {amountEth} ETH
                     </span>
                     <StatusBadge status={bid.status} />
                   </div>
 
                   <p className="text-xs text-slate-700 font-semibold">
-                    🏢 FPO Buyer: <span className="font-bold text-slate-900">{bid.fpo_name || `FPO #${bid.fpo}`}</span>
+                    🏢 Buyer / FPO: <span className="font-bold text-slate-900">{bid.fpo_name || `FPO #${bid.fpo}`}</span>
                   </p>
 
                   <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 pt-0.5">
@@ -129,10 +139,10 @@ export default function QuoteBids({ quote, onBack, refreshHistory, onQuoteUpdate
                       {isProcessing
                         ? "Accepting…"
                         : isAccepted
-                        ? "Bid Accepted"
+                        ? "Offer Accepted"
                         : quote.status !== "open"
                         ? "Quote Closed"
-                        : "Accept FPO Bid"}
+                        : "Accept Offer"}
                     </span>
                   </button>
                 </div>

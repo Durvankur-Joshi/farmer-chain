@@ -828,6 +828,20 @@ def verify_crop_view(request, crop_id):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    # ── Step 0: Pre-validate image bytes & resolution with Pillow ─
+    uploaded_file.seek(0)
+    image_bytes = uploaded_file.read()
+    uploaded_file.seek(0)
+
+    from services.ai_service import validate_image_bytes, AIAnalysisError
+    try:
+        validate_image_bytes(image_bytes)
+    except AIAnalysisError as exc:
+        return Response(
+            {'error': f'Image validation error: {str(exc)}'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     # ── Step 1: Upload image to IPFS ──────────────────────────
     try:
         from services.ipfs_service import upload_file_to_ipfs, IPFSUploadError
@@ -843,13 +857,41 @@ def verify_crop_view(request, crop_id):
             status=status.HTTP_502_BAD_GATEWAY,
         )
 
-    # ── Step 2: Read image bytes for Gemini (rewind after IPFS upload) ─
-    uploaded_file.seek(0)
-    image_bytes = uploaded_file.read()
+    # ── Step 1b: Duplicate/Reused Image Detection across different crops ──
+    existing_dup = (
+        AIQualityVerification.objects
+        .exclude(crop_passport=crop)
+        .filter(image_cid=cid)
+        .first()
+    )
+    if existing_dup:
+        dup_reason = (
+            f"Duplicate Image Flagged: This exact image has already been used for "
+            f"Crop Record #{existing_dup.crop_passport_id} ({existing_dup.crop_passport.crop_name}). "
+            f"Please upload a genuine, distinct photo of your current harvest lot."
+        )
+        failed_record = AIQualityVerification.objects.create(
+            crop_passport=crop,
+            verified_by=farmer,
+            image_cid=cid,
+            image_uri=image_uri,
+            verification_status=AIQualityVerification.STATUS_FAILED,
+            failure_reason=dup_reason,
+            ai_provider='gemini-1.5-flash',
+        )
+        serializer = AIQualityVerificationSerializer(failed_record)
+        emit_event("crop_updated", {"crop_id": crop.pk})
+        return Response(
+            {
+                'error': dup_reason,
+                'verification': serializer.data,
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
-    # ── Step 3: AI analysis ───────────────────────────────
+    # ── Step 2: AI analysis ───────────────────────────────
     try:
-        from services.ai_service import analyze_crop_image, AIAnalysisError
+        from services.ai_service import analyze_crop_image
         ai_result = analyze_crop_image(
             image_bytes=image_bytes,
             mime_type=content_type,
@@ -859,9 +901,6 @@ def verify_crop_view(request, crop_id):
         error_msg = str(exc)
         logger.warning('Gemini analysis failed for crop %s: %s', crop_id, error_msg)
 
-        # If output was truncated (MAX_TOKENS), do NOT save a record —
-        # there is no valid result to store.  Return a clean 502 with
-        # retry guidance so the farmer can try again.
         is_truncation = 'incomplete' in error_msg.lower() or 'truncated' in error_msg.lower()
         if is_truncation:
             return Response(
@@ -872,8 +911,6 @@ def verify_crop_view(request, crop_id):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
-        # For other AI failures, save a failed record so farmer can
-        # see the error history and the IPFS image is not lost.
         failed_record = AIQualityVerification.objects.create(
             crop_passport=crop,
             verified_by=farmer,
@@ -883,29 +920,60 @@ def verify_crop_view(request, crop_id):
             failure_reason=error_msg,
         )
         serializer = AIQualityVerificationSerializer(failed_record)
+        emit_event("crop_updated", {"crop_id": crop.pk})
         return Response(
             {
                 'error': f'AI analysis failed: {error_msg}',
                 'verification': serializer.data,
             },
             status=status.HTTP_502_BAD_GATEWAY,
-
         )
 
-    # ── Step 4: Crop mismatch check ───────────────────────────
+    # ── Step 3: Check agricultural relevance ─────────────────
+    is_crop = ai_result.get('is_crop_image', True)
+    auth_flag = ai_result.get('authenticity_flag', 'normal')
+    if not is_crop or auth_flag == 'unrelated':
+        unrelated_reason = (
+            "The uploaded photo does not appear to contain an agricultural crop or harvest produce. "
+            "Please upload a clear photo of your actual crop harvest."
+        )
+        failed_record = AIQualityVerification.objects.create(
+            crop_passport=crop,
+            verified_by=farmer,
+            image_cid=cid,
+            image_uri=image_uri,
+            crop_detected=ai_result.get('crop_detected', ''),
+            confidence_score=ai_result.get('confidence_score'),
+            ai_summary=ai_result.get('summary', ''),
+            verification_status=AIQualityVerification.STATUS_FAILED,
+            failure_reason=unrelated_reason,
+            ai_provider='gemini-1.5-flash',
+        )
+        serializer = AIQualityVerificationSerializer(failed_record)
+        emit_event("crop_updated", {"crop_id": crop.pk})
+        return Response(
+            {
+                'error': unrelated_reason,
+                'verification': serializer.data,
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # ── Step 4: Strict crop match check (NO unknown loophole) ─
     detected  = ai_result.get('crop_detected', '').lower().strip()
     expected  = crop.crop_name.lower().strip()
-    # Accept if detected name contains the expected crop or vice versa
-    crop_match = (
-        detected == expected
-        or detected in expected
-        or expected in detected
-        or detected == 'unknown'
+    crop_matches_expected = ai_result.get('crop_matches_expected', False)
+
+    # Strict match: must match or substring match, but strictly NOT 'unknown' or 'unrelated'
+    name_match = (
+        (detected == expected or detected in expected or expected in detected)
+        and detected not in {'unknown', 'unrelated', 'non-crop', 'other'}
     )
+    crop_match = crop_matches_expected or name_match
 
     if not crop_match:
         mismatch_reason = (
-            f"Image appears to show '{ai_result['crop_detected']}' "
+            f"Crop mismatch detected: Image appears to show '{ai_result.get('crop_detected', 'unknown')}' "
             f"but the registered crop is '{crop.crop_name}'."
         )
         failed_record = AIQualityVerification.objects.create(
@@ -921,6 +989,7 @@ def verify_crop_view(request, crop_id):
             ai_provider='gemini-1.5-flash',
         )
         serializer = AIQualityVerificationSerializer(failed_record)
+        emit_event("crop_updated", {"crop_id": crop.pk})
         return Response(
             {
                 'error': mismatch_reason,
@@ -929,7 +998,37 @@ def verify_crop_view(request, crop_id):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # ── Step 5: Save verified record ──────────────────────────
+    # ── Step 5: Confidence threshold check (< 0.45 flags failure) ─
+    conf_score = float(ai_result.get('confidence_score') or 0.0)
+    if conf_score < 0.45:
+        low_conf_reason = (
+            f"Verification Confidence too low ({int(conf_score * 100)}%). "
+            f"The AI could not confidently verify this crop. "
+            f"Please upload a clearer, well-lit photo of your harvest."
+        )
+        failed_record = AIQualityVerification.objects.create(
+            crop_passport=crop,
+            verified_by=farmer,
+            image_cid=cid,
+            image_uri=image_uri,
+            crop_detected=ai_result.get('crop_detected', ''),
+            confidence_score=ai_result.get('confidence_score'),
+            ai_summary=ai_result.get('summary', ''),
+            verification_status=AIQualityVerification.STATUS_FAILED,
+            failure_reason=low_conf_reason,
+            ai_provider='gemini-1.5-flash',
+        )
+        serializer = AIQualityVerificationSerializer(failed_record)
+        emit_event("crop_updated", {"crop_id": crop.pk})
+        return Response(
+            {
+                'error': low_conf_reason,
+                'verification': serializer.data,
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # ── Step 6: Save verified record ──────────────────────────
     verification = AIQualityVerification.objects.create(
         crop_passport=crop,
         verified_by=farmer,

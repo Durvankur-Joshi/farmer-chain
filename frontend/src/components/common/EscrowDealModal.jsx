@@ -2,6 +2,7 @@ import React from "react";
 import BaseModal from "./BaseModal";
 import StatusBadge from "./StatusBadge";
 import AddressCopy from "./AddressCopy";
+import { formatInr } from "../../utils/pricing";
 
 const ESCROW_STEPS = [
   { key: "created", label: "Agreement", icon: "📝", desc: "Contract Created" },
@@ -33,6 +34,9 @@ export default function EscrowDealModal({
 
   const currentIdx = getStepIndex(escrow.status);
   const isOnChain = Boolean(escrow.escrow_id);
+  const inrDisplay = escrow.amount_inr 
+    ? formatInr(escrow.amount_inr) 
+    : formatInr(Math.round(parseFloat(escrow.amount_eth || 0) * 250000));
 
   return (
     <BaseModal
@@ -95,9 +99,12 @@ export default function EscrowDealModal({
           </span>
         </div>
         <div className="bg-slate-50/70 p-3 rounded-xl border border-slate-100 min-w-0">
-          <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Total Locked Value</span>
+          <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Commercial Value</span>
           <span className="font-extrabold text-emerald-700 font-mono mt-0.5 block truncate">
-            {escrow.amount_eth} ETH
+            {inrDisplay}
+          </span>
+          <span className="text-[10px] text-slate-400 font-mono block truncate">
+            Settlement: {escrow.amount_eth} ETH
           </span>
         </div>
         <div className="bg-slate-50/70 p-3 rounded-xl border border-slate-100 min-w-0">
@@ -161,6 +168,11 @@ export default function EscrowDealModal({
         </summary>
 
         <div className="space-y-2.5 pt-3 mt-3 border-t border-slate-200/80">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+            <span className="text-slate-500 font-semibold text-[11px]">Pricing Conversion:</span>
+            <span className="font-mono text-slate-700 text-[11px]">1 ETH = ₹250,000 INR (Sepolia demo rate)</span>
+          </div>
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
             <span className="text-slate-500 font-semibold text-[11px]">On-Chain Escrow ID:</span>
             <span className="font-mono font-bold text-slate-800">

@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 TX_HASH_RE = re.compile(r'^0x[a-fA-F0-9]{64}$')
 
 ESCROW_CONTRACT = os.environ.get('ESCROW_CONTRACT_ADDRESS', '').strip()
+DEFAULT_INR_PER_ETH = Decimal('250000')  # Centralized Demo Testnet Oracle Rate: 1 ETH = ₹250,000 INR
 
 
 def _validate_tx_hash(tx_hash: str) -> bool:
@@ -43,15 +44,13 @@ def _validate_tx_hash(tx_hash: str) -> bool:
 @permission_classes([IsAuthenticated, IsFarmer])
 def create_escrow(request):
     """
-    Create an escrow record for an accepted quote.
-
-    Body: { "quote_id": <int> }
-
-    Preconditions:
-      - Quote exists and belongs to the farmer
-      - Quote has an accepted bid
-      - Both farmer and FPO have wallet addresses
-      - No existing escrow for this quote
+    Create a new EscrowTransaction record in status 'created' by the Farmer.
+    Validates that:
+      1. Requesting user owns the FarmerQuote
+      2. Quote has an accepted FPOBid
+      3. No escrow already exists for this quote
+      4. Farmer and FPO both have registered wallet addresses
+      5. Calculates amount_eth using the commercial INR pricing layer
     """
     farmer = request.user.user_obj
     quote_id = request.data.get('quote_id')
@@ -64,7 +63,7 @@ def create_escrow(request):
 
     quote = get_object_or_404(FarmerQuote, pk=quote_id)
 
-    # Ownership check
+    # Permission: only the quote's farmer can create the escrow
     if quote.farmer_id != farmer.pk:
         return Response(
             {'error': 'You do not own this quote.'},
@@ -72,16 +71,16 @@ def create_escrow(request):
         )
 
     # Must have an accepted bid
-    if not quote.accepted_bid:
+    bid = quote.accepted_bid
+    if not bid:
         return Response(
-            {'error': 'This quote does not have an accepted bid yet.'},
+            {'error': 'Quote does not have an accepted bid.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    bid = quote.accepted_bid
     fpo = bid.fpo
 
-    # Wallet addresses required
+    # Wallet address validation
     if not farmer.wallet_address:
         return Response(
             {'error': 'Farmer wallet address is not registered.'},
@@ -104,8 +103,18 @@ def create_escrow(request):
             status=status.HTTP_409_CONFLICT,
         )
 
-    # Calculate amount: bid_amount (price per unit) × quantity
-    amount_eth = Decimal(str(bid.bid_amount)) * Decimal(str(quote.quantity))
+    # Calculate amount: support commercial INR pricing with Sepolia ETH settlement
+    unit_price = Decimal(str(bid.bid_amount))
+    quantity = Decimal(str(quote.quantity))
+    total_val = unit_price * quantity
+
+    # If unit_price >= 1, it represents INR commercial pricing: convert to ETH
+    # If unit_price < 1, support legacy testnet ETH values directly
+    if unit_price >= Decimal('1'):
+        amount_eth = (total_val / DEFAULT_INR_PER_ETH).quantize(Decimal('0.000001'))
+    else:
+        amount_eth = total_val
+
     if amount_eth <= 0:
         return Response(
             {'error': 'Calculated escrow amount must be greater than zero.'},
@@ -493,7 +502,17 @@ def create_retailer_escrow(request):
     price = neg.agreed_price_per_unit if (neg and neg.agreed_price_per_unit) else bid.bid_amount
     qty = neg.agreed_quantity if (neg and neg.agreed_quantity) else quote.quantity
 
-    amount_eth = Decimal(str(price)) * Decimal(str(qty))
+    price_dec = Decimal(str(price))
+    qty_dec = Decimal(str(qty))
+    total_val = price_dec * qty_dec
+
+    # If price_dec >= 1, treat as INR commercial pricing: convert to ETH
+    # If price_dec < 1, support legacy testnet ETH values directly
+    if price_dec >= Decimal('1'):
+        amount_eth = (total_val / DEFAULT_INR_PER_ETH).quantize(Decimal('0.000001'))
+    else:
+        amount_eth = total_val
+
     if amount_eth <= 0:
         return Response(
             {'error': 'Calculated escrow amount must be greater than zero.'},

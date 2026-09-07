@@ -126,14 +126,24 @@ export default function CropPassportCard({
             <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
               <StatusBadge status={crop.status} />
 
+              {crop.latest_ai_verification?.verification_status === "verified" ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  ✓ AI Verified
+                </span>
+              ) : crop.latest_ai_verification?.verification_status === "failed" ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200">
+                  ⚠️ Needs Review
+                </span>
+              ) : null}
+
               {isMinted ? (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
-                  <span>💎</span>
-                  <span>NFT #{crop.nft_token_id}</span>
+                  <span>📜</span>
+                  <span>Record #{crop.nft_token_id}</span>
                 </span>
               ) : (
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                  Passport #{crop.id}
+                  Record #{crop.id}
                 </span>
               )}
 
@@ -181,7 +191,7 @@ export default function CropPassportCard({
         isOpen={showDetailsModal}
         onClose={() => setShowDetailsModal(false)}
         title={crop.crop_name}
-        subtitle={`${crop.crop_category} · Digital Crop Passport #${crop.id}`}
+        subtitle={`${crop.crop_category} · Your Crop Record #${crop.id} (Digital Passport)`}
         icon="🌾"
         badge={<StatusBadge status={crop.status} />}
         maxWidth="max-w-2xl"
@@ -352,14 +362,14 @@ export default function CropPassportCard({
 
                   {crop.nft_contract_address && (
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                      <span className="text-slate-500 font-semibold text-[11px]">Contract Address:</span>
+                      <span className="text-slate-500 font-semibold text-[11px]">Blockchain Contract:</span>
                       <AddressCopy value={crop.nft_contract_address} etherscanType="address" />
                     </div>
                   )}
 
                   {crop.nft_transaction_hash && (
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                      <span className="text-slate-500 font-semibold text-[11px]">Mint Transaction:</span>
+                      <span className="text-slate-500 font-semibold text-[11px]">Blockchain Receipt:</span>
                       <AddressCopy value={crop.nft_transaction_hash} etherscanType="tx" />
                     </div>
                   )}
@@ -409,8 +419,8 @@ export default function CropPassportCard({
               ) : (
                 <div className="p-3.5 bg-purple-50 rounded-xl border border-purple-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                   <div>
-                    <p className="text-xs font-bold text-purple-950">Ready for On-Chain Minting</p>
-                    <p className="text-[11px] text-slate-500">Mint ERC-721 token on Ethereum Sepolia.</p>
+                    <p className="text-xs font-bold text-purple-950">Ready for Permanent Digital Record</p>
+                    <p className="text-[11px] text-slate-500">Record permanently on Ethereum Sepolia blockchain.</p>
                   </div>
                   <MintButton crop={crop} onMintSuccess={onMintSuccess} />
                 </div>

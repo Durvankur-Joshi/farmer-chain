@@ -22,6 +22,8 @@ class EscrowTransactionSerializer(serializers.ModelSerializer):
     etherscan_deposit_url  = serializers.CharField(read_only=True)
     etherscan_release_url  = serializers.CharField(read_only=True)
     etherscan_contract_url = serializers.CharField(read_only=True)
+    amount_inr             = serializers.SerializerMethodField()
+    conversion_rate        = serializers.SerializerMethodField()
 
     class Meta:
         model = EscrowTransaction
@@ -31,6 +33,7 @@ class EscrowTransactionSerializer(serializers.ModelSerializer):
             'fpo_name', 'fpo_wallet',
             'product_name', 'quantity', 'unit',
             'escrow_id', 'contract_address', 'amount_eth',
+            'amount_inr', 'conversion_rate',
             'status',
             'create_tx_hash', 'deposit_tx_hash',
             'delivery_tx_hash', 'release_tx_hash',
@@ -40,6 +43,14 @@ class EscrowTransactionSerializer(serializers.ModelSerializer):
             'delivery_confirmed_at', 'released_at',
         ]
         read_only_fields = fields  # fully read-only — writes go through custom views
+
+    def get_conversion_rate(self, obj):
+        return 250000
+
+    def get_amount_inr(self, obj):
+        if obj.amount_eth is not None:
+            return round(float(obj.amount_eth) * 250000, 2)
+        return None
 
 
 class RetailerEscrowTransactionSerializer(serializers.ModelSerializer):
@@ -59,6 +70,8 @@ class RetailerEscrowTransactionSerializer(serializers.ModelSerializer):
     etherscan_release_url  = serializers.CharField(read_only=True)
     etherscan_contract_url = serializers.CharField(read_only=True)
     allocations    = serializers.SerializerMethodField()
+    amount_inr     = serializers.SerializerMethodField()
+    conversion_rate = serializers.SerializerMethodField()
 
     class Meta:
         model = RetailerEscrowTransaction
@@ -68,6 +81,7 @@ class RetailerEscrowTransactionSerializer(serializers.ModelSerializer):
             'retailer_name', 'retailer_wallet',
             'product_name', 'quantity', 'unit',
             'escrow_id', 'contract_address', 'amount_eth',
+            'amount_inr', 'conversion_rate',
             'status',
             'create_tx_hash', 'deposit_tx_hash',
             'delivery_tx_hash', 'release_tx_hash',
@@ -78,6 +92,14 @@ class RetailerEscrowTransactionSerializer(serializers.ModelSerializer):
             'delivery_confirmed_at', 'released_at',
         ]
         read_only_fields = fields
+
+    def get_conversion_rate(self, obj):
+        return 250000
+
+    def get_amount_inr(self, obj):
+        if obj.amount_eth is not None:
+            return round(float(obj.amount_eth) * 250000, 2)
+        return None
 
     def get_allocations(self, obj):
         if not obj.quote or not hasattr(obj.quote, 'allocations'):

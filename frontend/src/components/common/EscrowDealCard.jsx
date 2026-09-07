@@ -1,5 +1,6 @@
 import React from "react";
 import StatusBadge from "./StatusBadge";
+import { formatInr } from "../../utils/pricing";
 
 export default function EscrowDealCard({
   escrow,
@@ -34,7 +35,10 @@ export default function EscrowDealCard({
   // Calculate rate if available
   const qty = parseFloat(escrow.quantity);
   const amount = parseFloat(escrow.amount_eth);
-  const ratePerUnit = qty > 0 && amount > 0 ? (amount / qty).toFixed(5) : null;
+  const inrTotal = escrow.amount_inr ? formatInr(escrow.amount_inr) : formatInr(Math.round((amount || 0) * 250000));
+  const unitRateInr = qty > 0 && amount > 0 
+    ? (escrow.amount_inr ? formatInr(Math.round(escrow.amount_inr / qty)) : formatInr(Math.round((amount * 250000) / qty)))
+    : null;
 
   return (
     <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 min-w-0">
@@ -62,13 +66,16 @@ export default function EscrowDealCard({
           <div>
             <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Quantity & Rate</span>
             <span className="font-semibold text-slate-800 font-mono text-xs">
-              {escrow.quantity} {escrow.unit} {ratePerUnit ? `· ${ratePerUnit} ETH/${escrow.unit}` : ""}
+              {escrow.quantity} {escrow.unit} {unitRateInr ? `· ${unitRateInr}/${escrow.unit}` : ""}
             </span>
           </div>
           <div className="text-right">
-            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Total Value</span>
-            <span className="font-bold text-slate-900 font-mono text-xs sm:text-sm">
-              {escrow.amount_eth} ETH
+            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Commercial Value</span>
+            <span className="font-bold text-slate-900 font-mono text-xs sm:text-sm block">
+              {inrTotal}
+            </span>
+            <span className="text-[10px] text-slate-400 font-mono block">
+              Settlement: {escrow.amount_eth} ETH
             </span>
           </div>
         </div>

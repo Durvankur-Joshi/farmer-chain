@@ -339,7 +339,43 @@ export default function CropPassportForm({ onSuccess, onCancel }) {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="space-y-6">
+      {/* Action Guidance Box for Low-Literacy Farmer Understanding */}
+      <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-4 sm:p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">🌱</span>
+          <h3 className="text-sm font-extrabold text-emerald-950 tracking-tight">
+            How to Record Your Crop
+          </h3>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+          <div className="bg-white/90 p-3 rounded-xl border border-emerald-100 shadow-2xs">
+            <span className="font-extrabold text-emerald-800 block text-[10px] uppercase tracking-wider">
+              1. WHAT?
+            </span>
+            <p className="text-slate-700 mt-1 font-medium leading-relaxed">
+              Add your crop details and upload a clear photo of your harvest.
+            </p>
+          </div>
+          <div className="bg-white/90 p-3 rounded-xl border border-emerald-100 shadow-2xs">
+            <span className="font-extrabold text-emerald-800 block text-[10px] uppercase tracking-wider">
+              2. WHY?
+            </span>
+            <p className="text-slate-700 mt-1 font-medium leading-relaxed">
+              AI checks your crop photo for authenticity, category match, and quality grade.
+            </p>
+          </div>
+          <div className="bg-white/90 p-3 rounded-xl border border-emerald-100 shadow-2xs">
+            <span className="font-extrabold text-emerald-800 block text-[10px] uppercase tracking-wider">
+              3. WHAT HAPPENS NEXT?
+            </span>
+            <p className="text-slate-700 mt-1 font-medium leading-relaxed">
+              Your verified crop record can be offered directly to buyers and FPOs.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Visual Step Progress Indicator */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <div className="flex items-center gap-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-900">
@@ -356,7 +392,7 @@ export default function CropPassportForm({ onSuccess, onCancel }) {
         </div>
         <div className="flex items-center gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-500">
           <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-[10px] shrink-0">4</span>
-          <span className="truncate">Digital Record</span>
+          <span className="truncate">Your Crop Record</span>
         </div>
       </div>
 
@@ -376,7 +412,7 @@ export default function CropPassportForm({ onSuccess, onCancel }) {
           <div className="border-b border-slate-100 pb-4">
             <div className="flex items-center gap-2">
               <span className="text-xl">🌱</span>
-              <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">Add New Crop</h2>
+              <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">Add Your Crop</h2>
             </div>
             <p className="text-xs text-slate-500 mt-1">
               Create a secure digital record for your crop lot with instant AI quality assessment.
@@ -653,7 +689,7 @@ export default function CropPassportForm({ onSuccess, onCancel }) {
                 className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white px-7 py-3 rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-700/20 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>🌱</span>
-                <span>{submitting ? "Registering & Verifying…" : "Register Crop"}</span>
+                <span>{submitting ? "Saving & Verifying Photo…" : "Save Crop Record & Verify Photo"}</span>
               </button>
 
               {onCancel && !submitting && (
