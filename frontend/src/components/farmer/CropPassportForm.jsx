@@ -9,16 +9,16 @@ const CATEGORY_OPTIONS = [
 ];
 
 const STEPS = [
-  { key: "creating", label: "Creating crop passport", icon: "📝" },
-  { key: "uploading", label: "Uploading crop image to IPFS", icon: "📤" },
-  { key: "verifying", label: "Running AI verification", icon: "🔬" },
-  { key: "done", label: "Passport ready", icon: "✓" },
+  { key: "creating", label: "Creating crop record", icon: "📝" },
+  { key: "uploading", label: "Uploading image to IPFS", icon: "📤" },
+  { key: "verifying", label: "AI quality assessment", icon: "🔬" },
+  { key: "done", label: "Crop record ready", icon: "✓" },
 ];
 
 function ProgressStepper({ currentStep, failed }) {
   const currentIdx = STEPS.findIndex((s) => s.key === currentStep);
   return (
-    <div className="flex items-center gap-1.5 flex-wrap">
+    <div className="flex items-center gap-1.5 flex-wrap p-3 bg-slate-50 border border-slate-200 rounded-2xl">
       {STEPS.map((step, i) => {
         const isActive = step.key === currentStep;
         const isDone = i < currentIdx || currentStep === "done";
@@ -26,7 +26,7 @@ function ProgressStepper({ currentStep, failed }) {
         return (
           <div key={step.key} className="flex items-center gap-1.5">
             {i > 0 && (
-              <div className={`w-5 h-px ${isDone ? "bg-emerald-400" : "bg-slate-200"}`} />
+              <div className={`w-4 sm:w-6 h-0.5 ${isDone ? "bg-emerald-500" : "bg-slate-200"}`} />
             )}
             <div
               className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all ${
@@ -35,8 +35,8 @@ function ProgressStepper({ currentStep, failed }) {
                   : isDone
                   ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                   : isActive
-                  ? "bg-purple-50 text-purple-800 border-purple-300 animate-pulse"
-                  : "bg-slate-50 text-slate-400 border-slate-200"
+                  ? "bg-emerald-600 text-white border-emerald-600 animate-pulse"
+                  : "bg-white text-slate-400 border-slate-200"
               }`}
             >
               <span className="text-xs">
@@ -93,6 +93,11 @@ export default function CropPassportForm({ onSuccess, onCancel }) {
     }
   };
 
+  const handleRemoveFile = () => {
+    setFile(null);
+    setFilePreview(null);
+  };
+
   const handleEvidenceChange = (e) => {
     const files = Array.from(e.target.files);
     setEvidenceFiles(files);
@@ -112,7 +117,7 @@ export default function CropPassportForm({ onSuccess, onCancel }) {
     if (!form.harvest_date) return setError("Harvest completion date is required.");
     if (form.cultivation_date > form.harvest_date)
       return setError("Cultivation date cannot be after harvest date.");
-    if (!file) return setError("Primary crop image is required. Please upload a crop photo.");
+    if (!file) return setError("Primary crop image is required. Please upload a clear crop photo.");
 
     setSubmitting(true);
 
@@ -130,7 +135,7 @@ export default function CropPassportForm({ onSuccess, onCancel }) {
         err.response?.data?.detail ||
         err.response?.data?.error ||
         JSON.stringify(err.response?.data) ||
-        "Failed to create crop passport.";
+        "Failed to create crop record.";
       setError(msg);
       setStep(null);
       setSubmitting(false);
@@ -193,7 +198,7 @@ export default function CropPassportForm({ onSuccess, onCancel }) {
     refresh(["farmer", "quotes", "inventory"]);
   };
 
-  // If registration + verification is done, show result card
+  // ── Success View ────────────────────────────────────────────────
   if (result) {
     const v = result.verification || {};
     const c = result.crop || {};
@@ -207,124 +212,102 @@ export default function CropPassportForm({ onSuccess, onCancel }) {
         : "bg-rose-100 text-rose-800 border-rose-300";
 
     return (
-      <div className="space-y-5 max-w-2xl">
+      <div className="space-y-6 max-w-4xl mx-auto animate-fade-in">
         <ProgressStepper currentStep="done" />
 
-        {/* Success Result Card */}
-        <div className="bg-gradient-to-br from-emerald-50/60 via-white to-purple-50/30 border border-emerald-200 rounded-3xl p-5 sm:p-7 space-y-5 shadow-xs">
-          <div className="flex items-center gap-3 pb-3 border-b border-emerald-100">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center text-lg shadow-md shadow-emerald-500/20">
+        {/* Success Card */}
+        <div className="bg-white border border-emerald-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
+          <div className="flex items-center gap-3.5 pb-4 border-b border-emerald-100">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-600 flex items-center justify-center text-xl text-white shadow-md shadow-emerald-600/20 shrink-0">
               ✓
             </div>
             <div>
-              <h2 className="text-sm font-extrabold text-slate-900">
-                Crop Passport Registered & Verified
+              <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
+                Crop Registered & Verified Successfully!
               </h2>
-              <p className="text-[11px] text-slate-500 font-medium">
-                AI verification complete — passport is ready for NFT minting.
+              <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                AI quality verification is complete. Your crop is recorded and ready for FPO procurement offers.
               </p>
             </div>
           </div>
 
           {/* Crop Image + Details */}
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col sm:flex-row gap-5">
             {(v.image_gateway_url || filePreview) && (
               <img
                 src={v.image_gateway_url || filePreview}
                 alt={c.crop_name}
-                className="w-full sm:w-40 h-32 object-cover rounded-2xl border border-emerald-200 shadow-sm shrink-0"
+                className="w-full sm:w-48 h-40 object-cover rounded-2xl border border-emerald-200 shadow-xs shrink-0"
               />
             )}
-            <div className="flex-1 space-y-2">
+            <div className="flex-1 space-y-2.5">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-base font-extrabold text-slate-900">
+                <span className="text-lg font-extrabold text-slate-900">
                   {c.crop_name}
                 </span>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600">
                   {c.crop_category}
                 </span>
+                {v.quality_grade && (
+                  <span className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full border ${gradeColor}`}>
+                    Grade {v.quality_grade}
+                  </span>
+                )}
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs pt-1">
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                   <span className="text-[10px] text-slate-400 font-bold uppercase block">Quantity</span>
-                  <span className="font-extrabold text-slate-900 font-mono">
+                  <span className="font-extrabold text-slate-800 font-mono mt-0.5 block">
                     {c.quantity} {c.unit}
                   </span>
                 </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Harvest Date</span>
-                  <span className="font-semibold text-slate-800">{c.harvest_date}</span>
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase block">AI Score</span>
+                  <span className="font-extrabold text-emerald-700 font-mono mt-0.5 block">
+                    {v.quality_score ? `${v.quality_score} / 100` : "Verified"}
+                  </span>
+                </div>
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Location</span>
+                  <span className="font-medium text-slate-700 mt-0.5 block truncate">
+                    {c.location || "Farm Field"}
+                  </span>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* AI Assessment Summary */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider">
-                🤖 Gemini Vision AI Assessment
-              </span>
-              <span className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full border ${gradeColor}`}>
-                Grade {v.quality_grade}
-              </span>
+              {v.ai_summary && (
+                <p className="text-xs text-slate-600 italic bg-emerald-50/50 p-3 rounded-xl border border-emerald-100/60">
+                  "{v.ai_summary}"
+                </p>
+              )}
             </div>
-            <div className="grid grid-cols-3 gap-3 text-xs">
-              <div>
-                <span className="text-[10px] text-slate-400 font-bold uppercase block">Crop Detected</span>
-                <span className="font-bold text-slate-800">{v.crop_detected}</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-400 font-bold uppercase block">Quality Score</span>
-                <span className="font-extrabold font-mono text-emerald-700">
-                  {v.quality_score} / 100
-                </span>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-400 font-bold uppercase block">Confidence</span>
-                <span className="font-bold font-mono text-blue-700">
-                  {Math.round((v.confidence_score || 0) * 100)}%
-                </span>
-              </div>
-            </div>
-            {v.ai_summary && (
-              <p className="text-xs text-slate-600 italic bg-slate-50 p-3 rounded-xl border border-slate-100">
-                "{v.ai_summary}"
-              </p>
-            )}
           </div>
 
           {/* IPFS CID Link */}
           {v.image_cid && (
             <div className="flex items-center gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
-              <span className="font-bold text-slate-500">IPFS:</span>
+              <span className="font-bold text-slate-500">IPFS CID:</span>
               <a
                 href={v.image_gateway_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-mono text-blue-600 hover:text-blue-800 transition-colors truncate"
+                className="font-mono text-emerald-700 hover:text-emerald-900 transition-colors truncate"
               >
                 {v.image_cid}
               </a>
             </div>
           )}
 
-          {/* Evidence documents note */}
-          {evidenceFiles.length > 0 && (
-            <div className="text-xs text-slate-500 bg-blue-50/50 p-2.5 rounded-xl border border-blue-100">
-              📦 {evidenceFiles.length} optional evidence document(s) uploaded.
-            </div>
-          )}
-
           {/* Actions */}
-          <div className="flex items-center gap-3 pt-2 border-t border-emerald-100">
+          <div className="flex items-center gap-3 pt-3 border-t border-slate-100 flex-wrap">
             <button
               type="button"
               onClick={() => onSuccess && onSuccess()}
-              className="bg-purple-600 hover:bg-purple-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md shadow-purple-900/20 cursor-pointer flex items-center gap-2"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
             >
-              <span>🪙</span>
-              <span>View Passport & Mint NFT</span>
+              <span>🌱</span>
+              <span>View in My Crops</span>
             </button>
             <button
               type="button"
@@ -347,7 +330,7 @@ export default function CropPassportForm({ onSuccess, onCancel }) {
               }}
               className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
             >
-              Register Another
+              + Add Another Crop
             </button>
           </div>
         </div>
@@ -356,7 +339,27 @@ export default function CropPassportForm({ onSuccess, onCancel }) {
   }
 
   return (
-    <div className="space-y-5 max-w-2xl">
+    <div className="max-w-5xl mx-auto space-y-6">
+      {/* Visual Step Progress Indicator */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="flex items-center gap-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-900">
+          <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] shrink-0">1</span>
+          <span className="truncate">Crop Details</span>
+        </div>
+        <div className="flex items-center gap-2 p-2.5 bg-emerald-50/70 border border-emerald-200/60 rounded-xl text-xs font-bold text-emerald-900">
+          <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] shrink-0">2</span>
+          <span className="truncate">Quantity & Dates</span>
+        </div>
+        <div className="flex items-center gap-2 p-2.5 bg-emerald-50/70 border border-emerald-200/60 rounded-xl text-xs font-bold text-emerald-900">
+          <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] shrink-0">3</span>
+          <span className="truncate">AI Verification</span>
+        </div>
+        <div className="flex items-center gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-500">
+          <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-[10px] shrink-0">4</span>
+          <span className="truncate">Digital Record</span>
+        </div>
+      </div>
+
       {step && <ProgressStepper currentStep={step} failed={!!error && step !== null} />}
 
       {error && (
@@ -366,269 +369,378 @@ export default function CropPassportForm({ onSuccess, onCancel }) {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Header */}
-        <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center text-lg shadow-md shadow-emerald-500/20">
-            🌾
-          </div>
-          <div>
-            <h2 className="text-sm font-extrabold text-slate-900">Register Digital Crop Passport</h2>
-            <p className="text-[11px] text-slate-500 font-medium">
-              Create a blockchain-backed digital twin for your crop lot.
+      {/* Main Grid: Form Container + Helpful Information Panel */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: The Form */}
+        <div className="lg:col-span-8 bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-6">
+          <div className="border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🌱</span>
+              <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">Add New Crop</h2>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Create a secure digital record for your crop lot with instant AI quality assessment.
             </p>
           </div>
-        </div>
 
-        {/* Section 1: Crop Lot Information */}
-        <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 sm:p-5 space-y-3.5">
-          <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2">
-            <span className="text-sm">🌾</span>
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              1. Crop Lot Information
-            </h3>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Crop / Lot Name <span className="text-rose-500">*</span>
-              </label>
-              <input
-                name="crop_name"
-                value={form.crop_name}
-                onChange={handleChange}
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all font-medium"
-                placeholder="e.g. Organic Sharbati Wheat (Grade A)"
-                required
-                disabled={submitting}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Category <span className="text-rose-500">*</span>
-              </label>
-              <select
-                name="crop_category"
-                value={form.crop_category}
-                onChange={handleChange}
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all cursor-pointer font-medium"
-                required
-                disabled={submitting}
-              >
-                <option value="">Select Category</option>
-                {CATEGORY_OPTIONS.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Description & Agronomic Notes
-            </label>
-            <textarea
-              name="description"
-              value={form.description}
-              onChange={handleChange}
-              rows={2}
-              className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all resize-none font-medium"
-              placeholder="Seed variety, pesticide-free practices, organic farm details…"
-              disabled={submitting}
-            />
-          </div>
-        </div>
-
-        {/* Section 2: Batch Quantity & Location */}
-        <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 sm:p-5 space-y-3.5">
-          <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2">
-            <span className="text-sm">⚖️</span>
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              2. Yield & Batch Specifications
-            </h3>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Lot Quantity <span className="text-rose-500">*</span>
-              </label>
-              <input
-                name="quantity"
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={form.quantity}
-                onChange={handleChange}
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all font-mono font-semibold"
-                placeholder="e.g. 500"
-                required
-                disabled={submitting}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Unit <span className="text-rose-500">*</span>
-              </label>
-              <select
-                name="unit"
-                value={form.unit}
-                onChange={handleChange}
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all cursor-pointer font-medium"
-                required
-                disabled={submitting}
-              >
-                {UNIT_OPTIONS.map((u) => (
-                  <option key={u} value={u}>{u}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Farm Location
-              </label>
-              <input
-                name="location"
-                type="text"
-                value={form.location}
-                onChange={handleChange}
-                placeholder="e.g. Pune, Maharashtra"
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all font-medium"
-                disabled={submitting}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Section 3: Cultivation Timeline */}
-        <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 sm:p-5 space-y-3.5">
-          <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2">
-            <span className="text-sm">📅</span>
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              3. Cultivation & Harvest Timeline
-            </h3>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Cultivation Start Date <span className="text-rose-500">*</span>
-              </label>
-              <input
-                name="cultivation_date"
-                type="date"
-                value={form.cultivation_date}
-                onChange={handleChange}
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all font-medium"
-                required
-                disabled={submitting}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Harvest Completion Date <span className="text-rose-500">*</span>
-              </label>
-              <input
-                name="harvest_date"
-                type="date"
-                value={form.harvest_date}
-                onChange={handleChange}
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all font-medium"
-                required
-                disabled={submitting}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Section 4: Primary Crop Image (REQUIRED) */}
-        <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 sm:p-5 space-y-3.5">
-          <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2">
-            <span className="text-sm">📸</span>
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              4. Primary Crop Image <span className="text-rose-500">*</span>
-            </h3>
-          </div>
-
-          <p className="text-xs text-slate-500">
-            Upload ONE clear crop harvest photo. This image is uploaded to IPFS and automatically verified by Gemini Vision AI during registration.
-          </p>
-
-          <div className="space-y-2">
-            <input
-              type="file"
-              accept="image/jpeg,image/jpg,image/png,image/webp"
-              onChange={handleFileChange}
-              className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 cursor-pointer"
-              disabled={submitting}
-            />
-
-            {filePreview && (
-              <div className="mt-2 relative w-40 h-28 rounded-xl border border-purple-200 overflow-hidden shadow-xs">
-                <img src={filePreview} alt="Primary Crop Preview" className="w-full h-full object-cover" />
-                <span className="absolute bottom-1 right-1 text-[9px] bg-slate-900/80 text-white font-bold px-1.5 py-0.5 rounded">
-                  Primary Image
-                </span>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Section 1: Crop Details */}
+            <div className="space-y-3.5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>🌾</span>
+                  <span>Crop Details</span>
+                </h3>
+                <span className="text-[10px] font-semibold text-rose-600">* Required</span>
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* Section 5: Optional Evidence Documents */}
-        <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 sm:p-5 space-y-3.5">
-          <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2">
-            <span className="text-sm">📦</span>
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              5. Optional Evidence
-            </h3>
-          </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Crop Name / Variety <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    name="crop_name"
+                    value={form.crop_name}
+                    onChange={handleChange}
+                    className="w-full px-3.5 py-2.5 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all font-medium"
+                    placeholder="e.g. Organic Basmati Rice"
+                    required
+                    disabled={submitting}
+                  />
+                </div>
 
-          <p className="text-xs text-slate-500">
-            Upload certificates, soil reports, quality reports, harvest records, or other supporting documents. This is optional.
-          </p>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Category <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    name="crop_category"
+                    value={form.crop_category}
+                    onChange={handleChange}
+                    className="w-full px-3.5 py-2.5 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all cursor-pointer font-medium"
+                    required
+                    disabled={submitting}
+                  >
+                    <option value="">Select Crop Category</option>
+                    {CATEGORY_OPTIONS.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-          <input
-            type="file"
-            accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf"
-            multiple
-            onChange={handleEvidenceChange}
-            className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-            disabled={submitting}
-          />
-
-          {evidenceFiles.length > 0 && (
-            <div className="text-xs text-slate-600 bg-blue-50/60 p-2 rounded-lg border border-blue-100">
-              📎 {evidenceFiles.length} file(s) selected: {evidenceFiles.map((f) => f.name).join(", ")}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-slate-700">
+                    Description & Farm Notes
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-medium">Optional</span>
+                </div>
+                <textarea
+                  name="description"
+                  value={form.description}
+                  onChange={handleChange}
+                  rows={2}
+                  className="w-full px-3.5 py-2.5 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all resize-none font-medium"
+                  placeholder="Seed variety, pesticide-free practices, organic soil management…"
+                  disabled={submitting}
+                />
+              </div>
             </div>
-          )}
+
+            {/* Section 2: Quantity & Farm Details */}
+            <div className="space-y-3.5 pt-2">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>⚖️</span>
+                  <span>Quantity & Farm Details</span>
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Harvest Quantity <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    name="quantity"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={form.quantity}
+                    onChange={handleChange}
+                    className="w-full px-3.5 py-2.5 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all font-mono font-semibold"
+                    placeholder="e.g. 500"
+                    required
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Unit <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    name="unit"
+                    value={form.unit}
+                    onChange={handleChange}
+                    className="w-full px-3.5 py-2.5 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all cursor-pointer font-medium"
+                    required
+                    disabled={submitting}
+                  >
+                    {UNIT_OPTIONS.map((u) => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-slate-700">
+                      Farm Location
+                    </label>
+                    <span className="text-[10px] text-slate-400 font-medium">Optional</span>
+                  </div>
+                  <input
+                    name="location"
+                    type="text"
+                    value={form.location}
+                    onChange={handleChange}
+                    placeholder="e.g. Pune, Maharashtra"
+                    className="w-full px-3.5 py-2.5 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all font-medium"
+                    disabled={submitting}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Cultivation & Harvest Dates */}
+            <div className="space-y-3.5 pt-2">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>📅</span>
+                  <span>Cultivation & Harvest Dates</span>
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Cultivation Start Date <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    name="cultivation_date"
+                    type="date"
+                    value={form.cultivation_date}
+                    onChange={handleChange}
+                    className="w-full px-3.5 py-2.5 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all font-medium"
+                    required
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Harvest Date <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    name="harvest_date"
+                    type="date"
+                    value={form.harvest_date}
+                    onChange={handleChange}
+                    className="w-full px-3.5 py-2.5 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all font-medium"
+                    required
+                    disabled={submitting}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 4: Crop Image (Required for AI Verification) */}
+            <div className="space-y-3.5 pt-2">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>📸</span>
+                  <span>Crop Photo</span>
+                  <span className="text-emerald-700 font-semibold text-[11px] normal-case">
+                    (Used for AI Verification)
+                  </span>
+                </h3>
+                <span className="text-[10px] font-semibold text-rose-600">* Required</span>
+              </div>
+
+              <div className="p-3.5 bg-emerald-50/50 border border-emerald-200/70 rounded-2xl space-y-3">
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Upload a clear photo of your harvested crop. Our AI automatically verifies the crop type and calculates a quality score.
+                </p>
+
+                <div className="space-y-3">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                    onChange={handleFileChange}
+                    className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 cursor-pointer"
+                    disabled={submitting}
+                  />
+
+                  {filePreview && (
+                    <div className="flex items-center gap-3 pt-2">
+                      <div className="relative w-32 h-24 rounded-xl border border-emerald-300 overflow-hidden shadow-xs shrink-0">
+                        <img src={filePreview} alt="Crop Preview" className="w-full h-full object-cover" />
+                        <span className="absolute bottom-1 right-1 text-[9px] bg-slate-900/80 text-white font-bold px-1.5 py-0.5 rounded">
+                          Preview
+                        </span>
+                      </div>
+                      <div className="text-xs space-y-1 min-w-0">
+                        <span className="font-bold text-slate-900 block truncate">
+                          {file?.name}
+                        </span>
+                        <span className="text-slate-500 text-[11px] block">
+                          {(file?.size / (1024 * 1024)).toFixed(2)} MB
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleRemoveFile}
+                          className="text-rose-600 hover:text-rose-700 font-semibold text-[11px] cursor-pointer"
+                        >
+                          ✕ Remove Photo
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Section 5: Optional Supporting Documents */}
+            <div className="space-y-3.5 pt-2">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>📄</span>
+                  <span>Supporting Documents</span>
+                </h3>
+                <span className="text-[10px] text-slate-400 font-medium">Optional</span>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs text-slate-500">
+                  Optionally attach lab certificates, organic farming proof, or soil health cards.
+                </p>
+
+                <input
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf"
+                  multiple
+                  onChange={handleEvidenceChange}
+                  className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer"
+                  disabled={submitting}
+                />
+
+                {evidenceFiles.length > 0 && (
+                  <div className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                    📎 {evidenceFiles.length} file(s) selected: {evidenceFiles.map((f) => f.name).join(", ")}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white px-7 py-3 rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-700/20 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>🌱</span>
+                <span>{submitting ? "Registering & Verifying…" : "Register Crop"}</span>
+              </button>
+
+              {onCancel && !submitting && (
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          </form>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-3 pt-2">
-          <button
-            type="submit"
-            disabled={submitting}
-            className="bg-purple-600 hover:bg-purple-500 text-white px-6 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md shadow-purple-900/20 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
-          >
-            <span>🌾</span>
-            <span>{submitting ? "Registering…" : "Register Crop Passport"}</span>
-          </button>
-          {onCancel && !submitting && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
-            >
-              Cancel
-            </button>
-          )}
+        {/* Right Column: Helpful Information Panel */}
+        <div className="lg:col-span-4 space-y-4">
+          <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xs">
+            <div className="flex items-center gap-2 pb-2 border-b border-emerald-200/60">
+              <span className="text-base">💡</span>
+              <h4 className="text-xs font-extrabold text-emerald-950 uppercase tracking-wider">
+                How it works
+              </h4>
+            </div>
+
+            <ol className="space-y-3 text-xs text-slate-600 font-medium leading-relaxed">
+              <li className="flex items-start gap-2.5">
+                <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                  1
+                </span>
+                <div>
+                  <strong className="text-slate-900 block">Add Crop Details</strong>
+                  Enter your crop variety, harvest quantity, and cultivation dates.
+                </div>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                  2
+                </span>
+                <div>
+                  <strong className="text-slate-900 block">Upload Clear Photo</strong>
+                  Upload a photo of your harvest for decentralized IPFS storage.
+                </div>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                  3
+                </span>
+                <div>
+                  <strong className="text-slate-900 block">AI Quality Assessment</strong>
+                  Gemini Vision AI checks the crop and assigns an instant quality grade.
+                </div>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                  4
+                </span>
+                <div>
+                  <strong className="text-slate-900 block">Secure Crop Record</strong>
+                  Your verified crop passport is created and can be minted on Ethereum.
+                </div>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                  5
+                </span>
+                <div>
+                  <strong className="text-slate-900 block">Receive FPO Offers</strong>
+                  FPO buyers can discover your harvest and submit purchase bids.
+                </div>
+              </li>
+            </ol>
+          </div>
+
+          <div className="bg-white border border-slate-200/80 rounded-3xl p-5 space-y-2.5 text-xs shadow-2xs">
+            <h5 className="font-bold text-slate-900 flex items-center gap-1.5">
+              <span>🌾</span>
+              <span>Tips for Quality Grading</span>
+            </h5>
+            <ul className="space-y-1.5 text-slate-500 list-disc list-inside">
+              <li>Take photo in bright daylight</li>
+              <li>Keep the produce in clear focus</li>
+              <li>Avoid heavy shadows or blurry angles</li>
+            </ul>
+          </div>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

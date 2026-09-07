@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useSocket } from "../../context/useSocket";
 
 export default function DashboardNavbar({
@@ -6,8 +6,20 @@ export default function DashboardNavbar({
   userName,
   didInfo,
   onLogout,
+  onToggleMobileMenu,
 }) {
   const { isConnected } = useSocket();
+  const [copiedDid, setCopiedDid] = useState(false);
+
+  const handleCopyDid = (e) => {
+    e.stopPropagation();
+    if (didInfo?.did) {
+      navigator.clipboard.writeText(didInfo.did);
+      setCopiedDid(true);
+      setTimeout(() => setCopiedDid(false), 2000);
+    }
+  };
+
   const roleThemes = {
     farmer: {
       badge: "bg-emerald-50 text-emerald-800 border-emerald-200",
@@ -35,9 +47,23 @@ export default function DashboardNavbar({
 
   return (
     <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 shadow-2xs">
-      <div className="max-w-6xl mx-auto px-3.5 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3">
-        {/* Brand */}
+      <div className="max-w-7xl mx-auto px-3.5 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3">
+        {/* Brand & Mobile Menu Toggle */}
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          {onToggleMobileMenu && (
+            <button
+              type="button"
+              onClick={onToggleMobileMenu}
+              className="lg:hidden p-1.5 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer shrink-0"
+              aria-label="Toggle navigation menu"
+              title="Toggle Menu"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          )}
+
           <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center text-base sm:text-xl shadow-xs text-white font-bold shrink-0">
             🌾
           </div>
@@ -81,9 +107,21 @@ export default function DashboardNavbar({
               <span className="text-xs font-bold text-slate-800">
                 {userName}
               </span>
-              <span className="text-[10px] text-slate-400 font-mono">
-                {didInfo?.did ? `${didInfo.did.slice(0, 18)}…` : "Verified Participant"}
-              </span>
+              {didInfo?.did ? (
+                <button
+                  type="button"
+                  onClick={handleCopyDid}
+                  className="text-[10px] text-slate-400 hover:text-emerald-700 font-mono flex items-center gap-1 transition-colors cursor-pointer"
+                  title="Click to copy DID"
+                >
+                  <span>{didInfo.did.slice(0, 18)}…</span>
+                  <span>{copiedDid ? "✓ Copied" : "📋"}</span>
+                </button>
+              ) : (
+                <span className="text-[10px] text-slate-400 font-mono">
+                  Verified Participant
+                </span>
+              )}
             </div>
           )}
 

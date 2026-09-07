@@ -246,14 +246,14 @@ export default function CropPassportCard({
 
           {/* AI Verification & Primary Photo Assessment */}
           {crop.primary_image_url && (
-            <div className="flex flex-col sm:flex-row items-center gap-3 bg-purple-50/50 p-3.5 rounded-2xl border border-purple-200/80">
+            <div className="flex flex-col sm:flex-row items-center gap-3 bg-emerald-50/40 p-3.5 rounded-2xl border border-emerald-200/80">
               <img
                 src={crop.primary_image_url}
                 alt={crop.crop_name}
-                className="w-full sm:w-28 h-24 object-cover rounded-xl border border-purple-200 shadow-xs shrink-0"
+                className="w-full sm:w-28 h-24 object-cover rounded-xl border border-emerald-200 shadow-xs shrink-0"
               />
               <div className="space-y-1 text-xs min-w-0 flex-1">
-                <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider block">
+                <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
                   📸 Verified Primary Crop Photo
                 </span>
                 <p className="font-extrabold text-slate-900">{crop.crop_name}</p>
@@ -265,7 +265,7 @@ export default function CropPassportCard({
                     <span className="text-[11px] text-slate-600 font-medium">
                       Crop: <strong>{crop.latest_ai_verification.crop_detected}</strong>
                     </span>
-                    <span className="text-[11px] font-mono text-purple-800 font-bold">
+                    <span className="text-[11px] font-mono text-emerald-800 font-bold">
                       Score: {crop.latest_ai_verification.quality_score} / 100
                     </span>
                   </div>
