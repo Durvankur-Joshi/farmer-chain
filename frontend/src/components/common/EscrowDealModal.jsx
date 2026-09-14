@@ -34,9 +34,13 @@ export default function EscrowDealModal({
 
   const currentIdx = getStepIndex(escrow.status);
   const isOnChain = Boolean(escrow.escrow_id);
-  const inrDisplay = escrow.amount_inr 
-    ? formatInr(escrow.amount_inr) 
-    : formatInr(Math.round(parseFloat(escrow.amount_eth || 0) * 250000));
+
+  // Phase 1: prefer stored INR fields (source of truth) over ETH conversion.
+  const inrDisplay =
+    escrow.agreed_price_inr != null ? formatInr(parseFloat(escrow.agreed_price_inr))
+    : escrow.total_amount_inr != null ? formatInr(parseFloat(escrow.total_amount_inr))
+    : escrow.amount_inr != null ? formatInr(parseFloat(escrow.amount_inr))
+    : formatInr(Math.round(parseFloat(escrow.amount_eth || 0) * 250000)); // legacy fallback
 
   return (
     <BaseModal
@@ -169,8 +173,8 @@ export default function EscrowDealModal({
 
         <div className="space-y-2.5 pt-3 mt-3 border-t border-slate-200/80">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-            <span className="text-slate-500 font-semibold text-[11px]">Pricing Conversion:</span>
-            <span className="font-mono text-slate-700 text-[11px]">1 ETH = ₹250,000 INR (Sepolia demo rate)</span>
+            <span className="text-slate-500 font-semibold text-[11px]">Blockchain Settlement Rate:</span>
+            <span className="font-mono text-slate-700 text-[11px]">1 ETH = ₹2,50,000 (Sepolia testnet — not commercial price)</span>
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">

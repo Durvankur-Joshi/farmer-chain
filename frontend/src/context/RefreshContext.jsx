@@ -10,6 +10,7 @@ const EVENT_DOMAIN_MAP = {
   quote_updated: ["quotes", "farmer", "fpo", "retailer"],
   bid_updated: ["bids", "quotes", "deals", "farmer", "fpo", "retailer"],
   deal_updated: ["deals", "quotes", "bids", "escrow", "farmer", "fpo", "retailer"],
+  negotiation_updated: ["bids", "deals", "quotes", "farmer", "fpo", "retailer"],
   inventory_updated: ["inventory", "fpo", "retailer"],
   escrow_updated: ["escrow", "deals", "farmer", "fpo", "retailer"],
   transaction_updated: ["transactions", "escrow", "deals"],

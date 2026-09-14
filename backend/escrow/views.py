@@ -31,7 +31,12 @@ logger = logging.getLogger(__name__)
 TX_HASH_RE = re.compile(r'^0x[a-fA-F0-9]{64}$')
 
 ESCROW_CONTRACT = os.environ.get('ESCROW_CONTRACT_ADDRESS', '').strip()
-DEFAULT_INR_PER_ETH = Decimal('250000')  # Centralized Demo Testnet Oracle Rate: 1 ETH = ₹250,000 INR
+# DEFAULT_INR_PER_ETH is used ONLY to compute the Sepolia testnet ETH value for the
+# on-chain depositEscrow() call (which requires msg.value == e.amount in wei).
+# It has NO bearing on the commercial INR crop price.
+# INR commercial values come exclusively from bid.bid_amount × quote.quantity.
+# NEVER use this to back-calculate or display a crop's commercial INR price.
+DEFAULT_INR_PER_ETH = Decimal('250000')
 
 
 def _validate_tx_hash(tx_hash: str) -> bool:
@@ -103,17 +108,25 @@ def create_escrow(request):
             status=status.HTTP_409_CONFLICT,
         )
 
-    # Calculate amount: support commercial INR pricing with Sepolia ETH settlement
+    # ── Commercial INR values (source of truth) ────────────────────
+    # These are set directly from the negotiated bid — never derived from ETH.
     unit_price = Decimal(str(bid.bid_amount))
-    quantity = Decimal(str(quote.quantity))
-    total_val = unit_price * quantity
+    quantity   = Decimal(str(quote.quantity))
 
-    # If unit_price >= 1, it represents INR commercial pricing: convert to ETH
-    # If unit_price < 1, support legacy testnet ETH values directly
+    inr_unit_price = unit_price if unit_price >= Decimal('1') else None
+    inr_total      = (inr_unit_price * quantity).quantize(Decimal('0.01')) if inr_unit_price else None
+
+    # ── Blockchain ETH value (testnet settlement only) ───────────────
+    # The Solidity depositEscrow() requires msg.value == e.amount exactly.
+    # We store a representative Sepolia testnet ETH value for MetaMask to use.
+    # This ETH amount has NO commercial meaning — it is NOT the crop's INR price.
+    # Legacy records with unit_price < 1 (old pure-ETH bids) are stored as-is.
     if unit_price >= Decimal('1'):
-        amount_eth = (total_val / DEFAULT_INR_PER_ETH).quantize(Decimal('0.000001'))
+        # INR bid → convert to testnet ETH for on-chain deposit only
+        amount_eth = (unit_price * quantity / DEFAULT_INR_PER_ETH).quantize(Decimal('0.000001'))
     else:
-        amount_eth = total_val
+        # Legacy testnet ETH bid (pre-INR era)
+        amount_eth = unit_price * quantity
 
     if amount_eth <= 0:
         return Response(
@@ -135,11 +148,16 @@ def create_escrow(request):
         contract_address=contract_address,
         amount_eth=amount_eth,
         status=EscrowTransaction.STATUS_CREATED,
+        # INR commercial fields — source of truth, set from bid directly
+        unit_price_inr=inr_unit_price,
+        total_amount_inr=inr_total,
+        agreed_price_inr=inr_total,   # agreed = total at creation
+        payment_status=EscrowTransaction.PAYMENT_STATUS_PENDING,
     )
 
     logger.info(
-        'Escrow created: id=%d, farmer=%s, fpo=%s, quote=%d, amount=%s ETH',
-        escrow.pk, farmer.name, fpo.name, quote.pk, amount_eth,
+        'Escrow created: id=%d, farmer=%s, fpo=%s, quote=%d, inr_total=%s, amount_eth=%s ETH',
+        escrow.pk, farmer.name, fpo.name, quote.pk, inr_total, amount_eth,
     )
 
     serializer = EscrowTransactionSerializer(escrow)
@@ -259,7 +277,9 @@ def escrow_funded(request, escrow_pk):
     escrow.status = EscrowTransaction.STATUS_FUNDED
     escrow.deposit_tx_hash = tx_hash
     escrow.funded_at = timezone.now()
-    fields_to_update = ['status', 'deposit_tx_hash', 'funded_at']
+    # Payment is now in-progress on-chain; mark commercial status accordingly
+    escrow.payment_status = EscrowTransaction.PAYMENT_STATUS_PROCESSING
+    fields_to_update = ['status', 'deposit_tx_hash', 'funded_at', 'payment_status']
     if req_escrow_id is not None:
         fields_to_update.append('escrow_id')
     escrow.save(update_fields=fields_to_update)
@@ -334,6 +354,16 @@ def escrow_released(request, escrow_pk):
     if escrow.fpo_id != fpo.pk:
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
+    # Idempotency: if already released, return existing state without double-releasing
+    if escrow.status == EscrowTransaction.STATUS_RELEASED:
+        tx_hash_in = request.data.get('tx_hash', '')
+        serializer = EscrowTransactionSerializer(escrow)
+        logger.info('Escrow already released (idempotent): id=%d', escrow.pk)
+        return Response(
+            {'message': 'Payment already released.', 'escrow': serializer.data},
+            status=status.HTTP_200_OK,
+        )
+
     if escrow.status != EscrowTransaction.STATUS_DELIVERY_CONFIRMED:
         return Response(
             {'error': f'Cannot release payment in "{escrow.status}" state.'},
@@ -350,16 +380,22 @@ def escrow_released(request, escrow_pk):
     escrow.status = EscrowTransaction.STATUS_RELEASED
     escrow.release_tx_hash = tx_hash
     escrow.released_at = timezone.now()
-    escrow.save(update_fields=['status', 'release_tx_hash', 'released_at'])
+    # Commercial payment is now complete
+    escrow.payment_status = EscrowTransaction.PAYMENT_STATUS_PAID
+    escrow.save(update_fields=['status', 'release_tx_hash', 'released_at', 'payment_status'])
 
-    # Ensure FPO Inventory Lot exists for FPO
+    # Create FPO Inventory Lot for the acquired crop.
+    # Bug fix: EscrowTransaction has no .bid field — use quote.accepted_bid instead.
     try:
         from fpo.services import create_fpo_inventory_lot_from_deal
-        create_fpo_inventory_lot_from_deal(quote=escrow.quote, bid=escrow.bid)
+        create_fpo_inventory_lot_from_deal(
+            quote=escrow.quote,
+            bid=escrow.quote.accepted_bid if escrow.quote else None,
+        )
     except Exception as exc:
         logger.error("Error creating FPOInventoryLot on escrow release: %s", exc)
 
-    logger.info('Payment released: escrow=%d, tx=%s', escrow.pk, tx_hash)
+    logger.info('Payment released: escrow=%d, tx=%s, payment_status=paid', escrow.pk, tx_hash)
 
     serializer = EscrowTransactionSerializer(escrow)
     emit_event("escrow_updated", {"escrow_id": escrow.pk, "type": "farmer_fpo"})
@@ -489,29 +525,37 @@ def create_retailer_escrow(request):
             status=status.HTTP_409_CONFLICT,
         )
 
-    # Calculate agreed amount: check if negotiation has locked agreed_price_per_unit
-    from negotiation.models import Negotiation
-    content_type_str = f"retailer.retailerbid"
+    # ── Resolve negotiated price (INR commercial values — source of truth) ──
+    # Check if a negotiation has locked a final agreed_price_per_unit.
+    # Price always comes from the negotiated deal or the original bid — never from ETH.
     try:
         from django.contrib.contenttypes.models import ContentType
+        from negotiation.models import Negotiation
         ct = ContentType.objects.get(app_label='retailer', model='retailerbid')
         neg = Negotiation.objects.filter(content_type=ct, object_id=bid.id, status='accepted').first()
     except Exception:
         neg = None
 
     price = neg.agreed_price_per_unit if (neg and neg.agreed_price_per_unit) else bid.bid_amount
-    qty = neg.agreed_quantity if (neg and neg.agreed_quantity) else quote.quantity
+    qty   = neg.agreed_quantity       if (neg and neg.agreed_quantity)       else quote.quantity
 
     price_dec = Decimal(str(price))
-    qty_dec = Decimal(str(qty))
-    total_val = price_dec * qty_dec
+    qty_dec   = Decimal(str(qty))
 
-    # If price_dec >= 1, treat as INR commercial pricing: convert to ETH
-    # If price_dec < 1, support legacy testnet ETH values directly
+    # INR commercial values — always set from the negotiated/bid price directly
+    inr_unit_price = price_dec if price_dec >= Decimal('1') else None
+    inr_total      = (inr_unit_price * qty_dec).quantize(Decimal('0.01')) if inr_unit_price else None
+
+    # ── Blockchain ETH value (testnet settlement only) ────────────────
+    # The Solidity depositEscrow() requires msg.value == e.amount exactly.
+    # We store a representative Sepolia testnet ETH value for MetaMask to use.
+    # This ETH amount has NO commercial meaning — it is NOT the crop's INR price.
     if price_dec >= Decimal('1'):
-        amount_eth = (total_val / DEFAULT_INR_PER_ETH).quantize(Decimal('0.000001'))
+        # INR bid → convert to testnet ETH for on-chain deposit only
+        amount_eth = (price_dec * qty_dec / DEFAULT_INR_PER_ETH).quantize(Decimal('0.000001'))
     else:
-        amount_eth = total_val
+        # Legacy testnet ETH bid (pre-INR era)
+        amount_eth = price_dec * qty_dec
 
     if amount_eth <= 0:
         return Response(
@@ -533,11 +577,16 @@ def create_retailer_escrow(request):
         contract_address=contract_address,
         amount_eth=amount_eth,
         status=RetailerEscrowTransaction.STATUS_CREATED,
+        # INR commercial fields — source of truth, set from negotiated deal directly
+        unit_price_inr=inr_unit_price,
+        total_amount_inr=inr_total,
+        agreed_price_inr=inr_total,   # agreed = total at creation
+        payment_status=RetailerEscrowTransaction.PAYMENT_STATUS_PENDING,
     )
 
     logger.info(
-        'Retailer escrow created: id=%d, fpo=%s, retailer=%s, quote=%d, amount=%s ETH',
-        escrow.pk, fpo.name, retailer.name, quote.pk, amount_eth,
+        'Retailer escrow created: id=%d, fpo=%s, retailer=%s, quote=%d, inr_total=%s, amount_eth=%s ETH',
+        escrow.pk, fpo.name, retailer.name, quote.pk, inr_total, amount_eth,
     )
 
     serializer = RetailerEscrowTransactionSerializer(escrow)
@@ -657,7 +706,9 @@ def retailer_escrow_funded(request, escrow_pk):
     escrow.status = RetailerEscrowTransaction.STATUS_FUNDED
     escrow.deposit_tx_hash = tx_hash
     escrow.funded_at = timezone.now()
-    fields_to_update = ['status', 'deposit_tx_hash', 'funded_at']
+    # Payment is now in-progress on-chain; mark commercial status accordingly
+    escrow.payment_status = RetailerEscrowTransaction.PAYMENT_STATUS_PROCESSING
+    fields_to_update = ['status', 'deposit_tx_hash', 'funded_at', 'payment_status']
     if req_escrow_id is not None:
         fields_to_update.append('escrow_id')
     escrow.save(update_fields=fields_to_update)
@@ -732,6 +783,15 @@ def retailer_escrow_released(request, escrow_pk):
     if escrow.retailer_id != retailer.pk:
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
+    # Idempotency: if already released, return existing state without double-releasing
+    if escrow.status == RetailerEscrowTransaction.STATUS_RELEASED:
+        serializer = RetailerEscrowTransactionSerializer(escrow)
+        logger.info('Retailer escrow already released (idempotent): id=%d', escrow.pk)
+        return Response(
+            {'message': 'Payment already released.', 'escrow': serializer.data},
+            status=status.HTTP_200_OK,
+        )
+
     if escrow.status != RetailerEscrowTransaction.STATUS_DELIVERY_CONFIRMED:
         return Response(
             {'error': f'Cannot release payment in "{escrow.status}" state.'},
@@ -748,31 +808,48 @@ def retailer_escrow_released(request, escrow_pk):
     escrow.status = RetailerEscrowTransaction.STATUS_RELEASED
     escrow.release_tx_hash = tx_hash
     escrow.released_at = timezone.now()
-    escrow.save(update_fields=['status', 'release_tx_hash', 'released_at'])
+    # Commercial payment is now complete
+    escrow.payment_status = RetailerEscrowTransaction.PAYMENT_STATUS_PAID
+    escrow.save(update_fields=['status', 'release_tx_hash', 'released_at', 'payment_status'])
 
-    # ── Move stock into RetailerInventoryLot with 100% Provenance ───────
+    # ── Move stock into RetailerInventoryLot with full provenance ────
     try:
         from retailer.models import RetailerInventoryLot
         import traceback
 
-        # Prevent duplicate inventory creation on repeated calls
+        # Idempotency: prevent duplicate inventory creation on repeated calls
         existing_lots = RetailerInventoryLot.objects.filter(escrow=escrow).count()
         if existing_lots > 0:
             logger.info('RetailerInventoryLot already exists for escrow #%d, skipping creation.', escrow.pk)
         else:
             quote = escrow.quote
             if quote and hasattr(quote, 'allocations'):
-                price = quote.price_per_unit or (
-                    escrow.amount_eth / quote.quantity if quote.quantity else Decimal('0')
-                )
+                # ── Commercial INR price for inventory records ──────────────
+                # Use the agreed INR price stored on the escrow — never ETH-derived values.
+                # Fallback chain: agreed_price_inr → unit_price_inr → quote.price_per_unit
+                if escrow.unit_price_inr:
+                    inr_price_per_unit = escrow.unit_price_inr
+                elif escrow.agreed_price_inr and quote.quantity:
+                    inr_price_per_unit = (escrow.agreed_price_inr / Decimal(str(quote.quantity))).quantize(Decimal('0.01'))
+                elif quote.price_per_unit and Decimal(str(quote.price_per_unit)) >= Decimal('1'):
+                    inr_price_per_unit = Decimal(str(quote.price_per_unit))
+                else:
+                    # No valid INR price found — log and use zero; inventory is still created
+                    # for provenance but financial value should be reviewed manually
+                    inr_price_per_unit = Decimal('0')
+                    logger.warning(
+                        'Escrow #%d: no INR price found; RetailerInventoryLot created with price=0.',
+                        escrow.pk,
+                    )
+
                 allocations = list(quote.allocations.select_related(
                     'inventory_lot', 'farmer', 'crop_passport'
                 ).all())
 
                 if allocations:
                     for alloc in allocations:
-                        # 1. Update FPO Inventory Lot — reduce available_quantity only
-                        #    (original_quantity is the historical record and must stay > 0)
+                        # 1. Reduce FPO Inventory Lot available_quantity only.
+                        #    original_quantity is the permanent historical record — never reduce it.
                         lot = alloc.inventory_lot
                         if lot:
                             qty = alloc.allocated_quantity
@@ -784,10 +861,12 @@ def retailer_escrow_released(request, escrow_pk):
                                 Decimal('0'),
                                 (lot.reserved_quantity or Decimal('0')) - qty
                             )
-                            # Status auto-updates via save() method
+                            # Status auto-updates via FPOInventoryLot.save() signal
                             lot.save()
 
-                        # 2. Create Retailer Inventory Lot
+                        # 2. Create Retailer Inventory Lot with INR commercial price.
+                        #    Each allocation is a separate lot to preserve per-farmer provenance.
+                        #    Never merge allocations from different farmers even for same crop name.
                         RetailerInventoryLot.objects.create(
                             retailer=escrow.retailer,
                             fpo=escrow.fpo,
@@ -799,17 +878,16 @@ def retailer_escrow_released(request, escrow_pk):
                             crop_category=quote.category,
                             quantity=alloc.allocated_quantity,
                             unit=quote.unit,
-                            purchase_price_per_unit=price,
-                            total_price=alloc.allocated_quantity * price,
+                            purchase_price_per_unit=inr_price_per_unit,
+                            total_price=(alloc.allocated_quantity * inr_price_per_unit).quantize(Decimal('0.01')),
                             status='in_stock',
                         )
                     logger.info(
-                        'Created %d RetailerInventoryLot(s) for escrow #%d from allocations.',
-                        len(allocations), escrow.pk,
+                        'Created %d RetailerInventoryLot(s) for escrow #%d (INR price=₹%s/unit).',
+                        len(allocations), escrow.pk, inr_price_per_unit,
                     )
                 else:
-                    # Fallback: quote has no allocations — this shouldn't happen in
-                    # normal flow but log a warning for investigation
+                    # No allocations on quote — log a warning; this is unexpected in normal flow
                     logger.warning(
                         'Escrow #%d released but quote #%d has no FPOQuoteAllocations. '
                         'RetailerInventoryLot not created — provenance data missing.',

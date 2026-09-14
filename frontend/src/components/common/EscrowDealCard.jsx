@@ -32,13 +32,25 @@ export default function EscrowDealCard({
     deliveryTag = { label: status === "disputed" ? "Under Arbitration" : "Cancelled", color: "bg-rose-50 text-rose-800 border-rose-200", icon: "⚠️" };
   }
 
-  // Calculate rate if available
+  // Phase 1: derive display values from stored INR fields (source of truth).
+  // Falls back to ETH×250000 only for legacy records pre-dating Phase 1.
   const qty = parseFloat(escrow.quantity);
   const amount = parseFloat(escrow.amount_eth);
-  const inrTotal = escrow.amount_inr ? formatInr(escrow.amount_inr) : formatInr(Math.round((amount || 0) * 250000));
-  const unitRateInr = qty > 0 && amount > 0 
-    ? (escrow.amount_inr ? formatInr(Math.round(escrow.amount_inr / qty)) : formatInr(Math.round((amount * 250000) / qty)))
+
+  const commercialInr =
+    escrow.agreed_price_inr != null ? parseFloat(escrow.agreed_price_inr)
+    : escrow.total_amount_inr != null ? parseFloat(escrow.total_amount_inr)
+    : escrow.amount_inr != null ? parseFloat(escrow.amount_inr)
+    : (amount || 0) * 250000;  // legacy fallback only
+
+  const inrTotal = formatInr(commercialInr);
+
+  const unitInr =
+    escrow.unit_price_inr != null ? parseFloat(escrow.unit_price_inr)
+    : qty > 0 && commercialInr > 0 ? commercialInr / qty
     : null;
+
+  const unitRateInr = unitInr != null ? formatInr(Math.round(unitInr)) : null;
 
   return (
     <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 min-w-0">

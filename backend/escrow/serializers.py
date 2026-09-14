@@ -1,5 +1,12 @@
 """
 Phase 2.5 — Escrow serializers.
+
+Phase 1 INR Update:
+  - amount_inr now returns agreed_price_inr (stored INR from the negotiated deal).
+  - unit_price_inr, total_amount_inr, agreed_price_inr, payment_status are exposed.
+  - conversion_rate is retained as a legacy/informational field (always 250000) so
+    existing frontend code that reads it does not break.
+  - The ETH×250000 conversion is NO LONGER used as the authoritative INR value.
 """
 
 from rest_framework import serializers
@@ -22,8 +29,11 @@ class EscrowTransactionSerializer(serializers.ModelSerializer):
     etherscan_deposit_url  = serializers.CharField(read_only=True)
     etherscan_release_url  = serializers.CharField(read_only=True)
     etherscan_contract_url = serializers.CharField(read_only=True)
-    amount_inr             = serializers.SerializerMethodField()
-    conversion_rate        = serializers.SerializerMethodField()
+
+    # Phase 1: amount_inr now sourced from stored INR fields, not ETH conversion.
+    amount_inr     = serializers.SerializerMethodField()
+    # Retained as legacy/informational — do not use as authoritative INR price.
+    conversion_rate = serializers.SerializerMethodField()
 
     class Meta:
         model = EscrowTransaction
@@ -33,6 +43,10 @@ class EscrowTransactionSerializer(serializers.ModelSerializer):
             'fpo_name', 'fpo_wallet',
             'product_name', 'quantity', 'unit',
             'escrow_id', 'contract_address', 'amount_eth',
+            # INR commercial fields (Phase 1 — source of truth)
+            'unit_price_inr', 'total_amount_inr', 'agreed_price_inr',
+            'payment_status',
+            # Legacy computed field — prefer agreed_price_inr instead
             'amount_inr', 'conversion_rate',
             'status',
             'create_tx_hash', 'deposit_tx_hash',
@@ -45,9 +59,21 @@ class EscrowTransactionSerializer(serializers.ModelSerializer):
         read_only_fields = fields  # fully read-only — writes go through custom views
 
     def get_conversion_rate(self, obj):
+        # Retained for backward compatibility. This is the Sepolia demo testnet rate
+        # used for blockchain settlement only — not the authoritative commercial INR price.
         return 250000
 
     def get_amount_inr(self, obj):
+        """
+        Returns the stored agreed INR value.
+        Phase 1: sourced from agreed_price_inr → total_amount_inr (both stored at creation).
+        Falls back to ETH conversion only for legacy records that pre-date Phase 1.
+        """
+        if obj.agreed_price_inr is not None:
+            return float(obj.agreed_price_inr)
+        if obj.total_amount_inr is not None:
+            return float(obj.total_amount_inr)
+        # Legacy fallback for pre-Phase-1 records that only have amount_eth
         if obj.amount_eth is not None:
             return round(float(obj.amount_eth) * 250000, 2)
         return None
@@ -70,7 +96,10 @@ class RetailerEscrowTransactionSerializer(serializers.ModelSerializer):
     etherscan_release_url  = serializers.CharField(read_only=True)
     etherscan_contract_url = serializers.CharField(read_only=True)
     allocations    = serializers.SerializerMethodField()
+
+    # Phase 1: amount_inr now sourced from stored INR fields, not ETH conversion.
     amount_inr     = serializers.SerializerMethodField()
+    # Retained as legacy/informational — do not use as authoritative INR price.
     conversion_rate = serializers.SerializerMethodField()
 
     class Meta:
@@ -81,6 +110,10 @@ class RetailerEscrowTransactionSerializer(serializers.ModelSerializer):
             'retailer_name', 'retailer_wallet',
             'product_name', 'quantity', 'unit',
             'escrow_id', 'contract_address', 'amount_eth',
+            # INR commercial fields (Phase 1 — source of truth)
+            'unit_price_inr', 'total_amount_inr', 'agreed_price_inr',
+            'payment_status',
+            # Legacy computed field — prefer agreed_price_inr instead
             'amount_inr', 'conversion_rate',
             'status',
             'create_tx_hash', 'deposit_tx_hash',
@@ -94,9 +127,20 @@ class RetailerEscrowTransactionSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_conversion_rate(self, obj):
+        # Retained for backward compatibility. Sepolia demo rate only.
         return 250000
 
     def get_amount_inr(self, obj):
+        """
+        Returns the stored agreed INR value.
+        Phase 1: sourced from agreed_price_inr → total_amount_inr (both stored at creation).
+        Falls back to ETH conversion only for legacy records that pre-date Phase 1.
+        """
+        if obj.agreed_price_inr is not None:
+            return float(obj.agreed_price_inr)
+        if obj.total_amount_inr is not None:
+            return float(obj.total_amount_inr)
+        # Legacy fallback for pre-Phase-1 records that only have amount_eth
         if obj.amount_eth is not None:
             return round(float(obj.amount_eth) * 250000, 2)
         return None

@@ -109,9 +109,16 @@ export default function EscrowPanel({ onEscrowUpdated }) {
       setTx(key, { loading: true, error: null, success: null });
 
       // Step 1: Create backend escrow record
+      const requestUrl = "/api/escrow/create/";
+      console.log("[EscrowPanel] Creating escrow request:", {
+        url: requestUrl,
+        quote_id: quote.id,
+        apiBaseUrl: axios.defaults.baseURL || "(using relative/proxy)",
+      });
+
       const res = await axios.post(
-        `/api/escrow/farmer/${quote.id}/create/`,
-        {},
+        requestUrl,
+        { quote_id: quote.id },
         { withCredentials: true }
       );
       const escrowData = res.data;
@@ -149,8 +156,9 @@ export default function EscrowPanel({ onEscrowUpdated }) {
       }
 
       // Step 3: Record on-chain tx & escrow_id in backend
+      const backendEscrowId = escrowData.id || escrowData.escrow?.id;
       await axios.post(
-        `/api/escrow/${escrowData.id}/created-onchain/`,
+        `/api/escrow/${backendEscrowId}/created-onchain/`,
         { tx_hash: receipt.transactionHash, escrow_id: onChainId, contract_address: ESCROW_CONTRACT },
         { withCredentials: true }
       );

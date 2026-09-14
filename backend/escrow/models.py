@@ -3,7 +3,12 @@ Phase 2.5 — Escrow Transaction Model.
 
 Tracks the lifecycle of a smart-contract escrow between Farmer and FPO.
 One escrow per accepted FarmerQuote (enforced by OneToOneField).
-Blockchain is the source of truth; this model is the application/indexing layer.
+
+Phase 1 INR Update:
+  INR is now the source of truth for commercial value.
+  - unit_price_inr / total_amount_inr / agreed_price_inr store the negotiated INR price.
+  - amount_eth is retained for Sepolia blockchain settlement (MetaMask).
+  - payment_status tracks INR payment state independently of blockchain status.
 """
 
 from django.db import models
@@ -60,10 +65,51 @@ class EscrowTransaction(models.Model):
         help_text='Deployed FarmerChainEscrow contract address',
     )
 
-    # ── Financial ──────────────────────────────────────────────────
+    # ── Financial (Blockchain / ETH) ───────────────────────────────
     amount_eth = models.DecimalField(
         max_digits=18, decimal_places=8,
-        help_text='Escrow amount in ETH',
+        help_text='Escrow amount in ETH — used for Sepolia blockchain settlement only',
+    )
+
+    # ── Financial (INR — Commercial Source of Truth) ────────────────
+    # Phase 1: store the actual negotiated INR price at transaction creation.
+    # These values come directly from the accepted bid/negotiation; they are
+    # never derived from amount_eth.
+    unit_price_inr = models.DecimalField(
+        max_digits=14, decimal_places=2,
+        null=True, blank=True,
+        help_text='Agreed price per unit in INR from the accepted bid',
+    )
+    total_amount_inr = models.DecimalField(
+        max_digits=14, decimal_places=2,
+        null=True, blank=True,
+        help_text='quantity × unit_price_inr — gross commercial value in INR',
+    )
+    agreed_price_inr = models.DecimalField(
+        max_digits=14, decimal_places=2,
+        null=True, blank=True,
+        help_text='Final agreed total INR amount (may differ if negotiated discount applied; '
+                  'defaults to total_amount_inr)',
+    )
+
+    # ── INR Payment Status ──────────────────────────────────────────
+    PAYMENT_STATUS_PENDING    = 'pending'
+    PAYMENT_STATUS_PROCESSING = 'processing'
+    PAYMENT_STATUS_PAID       = 'paid'
+    PAYMENT_STATUS_FAILED     = 'failed'
+
+    PAYMENT_STATUS_CHOICES = [
+        (PAYMENT_STATUS_PENDING,    'Pending'),
+        (PAYMENT_STATUS_PROCESSING, 'Processing'),
+        (PAYMENT_STATUS_PAID,       'Paid'),
+        (PAYMENT_STATUS_FAILED,     'Failed'),
+    ]
+
+    payment_status = models.CharField(
+        max_length=20,
+        choices=PAYMENT_STATUS_CHOICES,
+        default=PAYMENT_STATUS_PENDING,
+        help_text='INR commercial payment status — independent of blockchain escrow status',
     )
 
     # ── Status ─────────────────────────────────────────────────────
@@ -103,10 +149,11 @@ class EscrowTransaction(models.Model):
         verbose_name_plural = 'Escrow Transactions'
 
     def __str__(self):
+        inr_display = f"₹{self.agreed_price_inr}" if self.agreed_price_inr else f"{self.amount_eth} ETH"
         return (
             f"Escrow #{self.escrow_id or '?'} — "
             f"{self.farmer.name} ↔ {self.fpo.name} — "
-            f"{self.amount_eth} ETH [{self.status}]"
+            f"{inr_display} [{self.status}]"
         )
 
     @property
@@ -178,10 +225,51 @@ class RetailerEscrowTransaction(models.Model):
         help_text='Deployed FarmerChainEscrow contract address',
     )
 
-    # ── Financial ──────────────────────────────────────────────────
+    # ── Financial (Blockchain / ETH) ───────────────────────────────
     amount_eth = models.DecimalField(
         max_digits=18, decimal_places=8,
-        help_text='Escrow amount in ETH',
+        help_text='Escrow amount in ETH — used for Sepolia blockchain settlement only',
+    )
+
+    # ── Financial (INR — Commercial Source of Truth) ────────────────
+    # Phase 1: store the actual negotiated INR price at transaction creation.
+    # These values come directly from the accepted bid/negotiation; they are
+    # never derived from amount_eth.
+    unit_price_inr = models.DecimalField(
+        max_digits=14, decimal_places=2,
+        null=True, blank=True,
+        help_text='Agreed price per unit in INR from the accepted retailer bid',
+    )
+    total_amount_inr = models.DecimalField(
+        max_digits=14, decimal_places=2,
+        null=True, blank=True,
+        help_text='quantity × unit_price_inr — gross commercial value in INR',
+    )
+    agreed_price_inr = models.DecimalField(
+        max_digits=14, decimal_places=2,
+        null=True, blank=True,
+        help_text='Final agreed total INR amount (may differ if negotiated discount applied; '
+                  'defaults to total_amount_inr)',
+    )
+
+    # ── INR Payment Status ──────────────────────────────────────────
+    PAYMENT_STATUS_PENDING    = 'pending'
+    PAYMENT_STATUS_PROCESSING = 'processing'
+    PAYMENT_STATUS_PAID       = 'paid'
+    PAYMENT_STATUS_FAILED     = 'failed'
+
+    PAYMENT_STATUS_CHOICES = [
+        (PAYMENT_STATUS_PENDING,    'Pending'),
+        (PAYMENT_STATUS_PROCESSING, 'Processing'),
+        (PAYMENT_STATUS_PAID,       'Paid'),
+        (PAYMENT_STATUS_FAILED,     'Failed'),
+    ]
+
+    payment_status = models.CharField(
+        max_length=20,
+        choices=PAYMENT_STATUS_CHOICES,
+        default=PAYMENT_STATUS_PENDING,
+        help_text='INR commercial payment status — independent of blockchain escrow status',
     )
 
     # ── Status ─────────────────────────────────────────────────────
@@ -221,10 +309,11 @@ class RetailerEscrowTransaction(models.Model):
         verbose_name_plural = 'Retailer Escrow Transactions'
 
     def __str__(self):
+        inr_display = f"₹{self.agreed_price_inr}" if self.agreed_price_inr else f"{self.amount_eth} ETH"
         return (
             f"Retailer Escrow #{self.escrow_id or '?'} — "
             f"{self.fpo.name} ↔ {self.retailer.name} — "
-            f"{self.amount_eth} ETH [{self.status}]"
+            f"{inr_display} [{self.status}]"
         )
 
     @property
