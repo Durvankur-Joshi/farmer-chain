@@ -2,6 +2,7 @@ import React from "react";
 import BaseModal from "./BaseModal";
 import StatusBadge from "./StatusBadge";
 import AddressCopy from "./AddressCopy";
+import WorkflowStatusPanel from "./WorkflowStatusPanel";
 import { formatInr } from "../../utils/pricing";
 
 const ESCROW_STEPS = [
@@ -27,6 +28,15 @@ export default function EscrowDealModal({
   escrow,
   partnerLabel = "Partner",
   partnerName,
+  // Phase 3 workflow props
+  workflow,
+  mode,
+  onModeChange,
+  onPrimaryAction,
+  primaryActionLabel,
+  retryEndpoint,
+  retryData,
+  // Backward compatibility fallback
   actionButton,
   actionStatus,
 }) {
@@ -35,12 +45,12 @@ export default function EscrowDealModal({
   const currentIdx = getStepIndex(escrow.status);
   const isOnChain = Boolean(escrow.escrow_id);
 
-  // Phase 1: prefer stored INR fields (source of truth) over ETH conversion.
+  // Phase 1/2: prefer stored INR fields (source of truth). Show "—" if not set.
   const inrDisplay =
     escrow.agreed_price_inr != null ? formatInr(parseFloat(escrow.agreed_price_inr))
     : escrow.total_amount_inr != null ? formatInr(parseFloat(escrow.total_amount_inr))
     : escrow.amount_inr != null ? formatInr(parseFloat(escrow.amount_inr))
-    : formatInr(Math.round(parseFloat(escrow.amount_eth || 0) * 250000)); // legacy fallback
+    : "—";
 
   return (
     <BaseModal
@@ -125,8 +135,38 @@ export default function EscrowDealModal({
         </div>
       </div>
 
-      {/* ── Primary Action Area & Feedback Alerts ─────────────────────── */}
-      {actionButton && (
+      {/* ── Phase 3: Workflow Action & Status Area ─────────────────── */}
+      {workflow && (onPrimaryAction || workflow.phase !== "idle") && (
+        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
+          <WorkflowStatusPanel
+            workflow={workflow}
+            mode={mode}
+            onModeChange={onModeChange}
+            onPrimaryAction={onPrimaryAction}
+            primaryActionLabel={primaryActionLabel}
+            retryEndpoint={retryEndpoint}
+            retryData={retryData}
+            escrow={escrow}
+          />
+        </div>
+      )}
+
+      {/* Info message when no action is required from this party at current stage */}
+      {workflow && !onPrimaryAction && workflow.phase === "idle" && escrow.status !== "released" && (
+        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-500 flex items-center gap-2">
+          <span>⏳</span>
+          <span>
+            {escrow.status === "created"
+              ? "Awaiting partner to complete on-chain setup."
+              : escrow.status === "funded"
+              ? "Payment is secured in escrow. Awaiting delivery handover."
+              : "Awaiting next transaction step from partner."}
+          </span>
+        </div>
+      )}
+
+      {/* ── Legacy Action Button Area (fallback) ────────────────────── */}
+      {!workflow && actionButton && (
         <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="space-y-0.5">

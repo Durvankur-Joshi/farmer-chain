@@ -32,22 +32,20 @@ export default function EscrowDealCard({
     deliveryTag = { label: status === "disputed" ? "Under Arbitration" : "Cancelled", color: "bg-rose-50 text-rose-800 border-rose-200", icon: "⚠️" };
   }
 
-  // Phase 1: derive display values from stored INR fields (source of truth).
-  // Falls back to ETH×250000 only for legacy records pre-dating Phase 1.
+  // Phase 1/2: derive display values from stored INR fields (source of truth).
   const qty = parseFloat(escrow.quantity);
-  const amount = parseFloat(escrow.amount_eth);
 
   const commercialInr =
     escrow.agreed_price_inr != null ? parseFloat(escrow.agreed_price_inr)
     : escrow.total_amount_inr != null ? parseFloat(escrow.total_amount_inr)
     : escrow.amount_inr != null ? parseFloat(escrow.amount_inr)
-    : (amount || 0) * 250000;  // legacy fallback only
+    : null;
 
-  const inrTotal = formatInr(commercialInr);
+  const inrTotal = commercialInr != null ? formatInr(commercialInr) : "—";
 
   const unitInr =
     escrow.unit_price_inr != null ? parseFloat(escrow.unit_price_inr)
-    : qty > 0 && commercialInr > 0 ? commercialInr / qty
+    : qty > 0 && commercialInr != null ? commercialInr / qty
     : null;
 
   const unitRateInr = unitInr != null ? formatInr(Math.round(unitInr)) : null;

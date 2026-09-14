@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 #
 # gemini-3.5-flash on v1 — confirmed working via live probe.
 #
-GEMINI_MODEL   = "gemini-3.5-flash"
+GEMINI_MODEL   = "gemini-2.5-flash"
 GEMINI_API_URL = (
     f"https://generativelanguage.googleapis.com/v1/models/"
     f"{GEMINI_MODEL}:generateContent"
