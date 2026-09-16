@@ -20,7 +20,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
-import { AlertTriangle, AlertCircle, Info, Trash2, ExternalLink, QrCode } from "lucide-react";
+import {
+  Eye,
+  Image as ImageIcon,
+  Trash2,
+  ExternalLink,
+  QrCode,
+  AlertTriangle,
+  AlertCircle,
+  Info,
+  Sprout,
+  Folder,
+  Camera,
+  Link2,
+} from "lucide-react";
 
 export default function CropPassportCard({
   crop,
@@ -30,6 +43,7 @@ export default function CropPassportCard({
   onViewOffers,
   hasActiveOffers = false,
   activeOffersCount = 0,
+  viewMode = "grid",
 }) {
   const { refresh } = useRefresh();
   const isMinted = crop.status === "minted";
@@ -89,124 +103,109 @@ export default function CropPassportCard({
     }
   };
 
-  // Extract AI Grade if present
-  const aiGrade = crop.latest_ai_verification?.quality_grade || crop.ai_grade;
   const availQty = crop.available_quantity !== undefined ? crop.available_quantity : crop.quantity;
 
   return (
     <>
-      {/* ── Compact Crop Card ─────────────────────────────────────── */}
-      <Card
-        className={`p-3.5 sm:p-4 transition-all hover:border-emerald-300 hover:shadow-xs flex flex-col justify-between gap-3 min-w-0 ${
-          isMinted ? "border-purple-200/90" : "border-slate-200/80"
-        }`}
-      >
-        <div className="flex items-start gap-3 min-w-0">
-          {/* Crop Image or Icon Fallback */}
-          <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-xl overflow-hidden bg-slate-100 border border-slate-200/80 shrink-0 relative flex items-center justify-center">
+      {/* ── Minimalist Crop Card: GRID VIEW ───────────────────────── */}
+      {viewMode === "grid" ? (
+        <Card className="overflow-hidden border-slate-200/80 hover:border-emerald-300 hover:shadow-xs transition-all flex flex-col justify-between group">
+          {/* 1. Crop Image */}
+          <div className="w-full aspect-[4/3] sm:h-44 bg-slate-100 relative overflow-hidden flex items-center justify-center">
             {crop.primary_image_url ? (
               <img
                 src={crop.primary_image_url}
                 alt={crop.crop_name}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
               />
             ) : (
-              <span className="text-2xl sm:text-3xl">🌾</span>
-            )}
-            {aiGrade && (
-              <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-emerald-600 text-white font-extrabold text-[9px] shadow-2xs">
-                Grade {aiGrade}
-              </span>
+              <div className="flex flex-col items-center justify-center text-slate-400 gap-1.5 p-4">
+                <ImageIcon className="h-8 w-8 stroke-[1.5]" />
+                <span className="text-[11px] font-medium text-slate-400">No photo</span>
+              </div>
             )}
           </div>
 
-          {/* Core Info */}
-          <div className="space-y-1 min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <h4 className="text-sm font-bold text-slate-900 tracking-tight truncate">
+          {/* 2. Quantity & Crop Name */}
+          <div className="p-3.5 space-y-3">
+            <div className="space-y-0.5 min-w-0">
+              <h4
+                className="text-xs font-semibold text-slate-600 truncate"
+                title={crop.crop_name}
+              >
                 {crop.crop_name}
               </h4>
-              <Badge variant="outline" className="text-[10px] py-0 px-1.5">
-                {crop.crop_category}
-              </Badge>
+              <p className="text-lg sm:text-xl font-bold font-mono text-slate-900 tracking-tight">
+                {availQty} {crop.unit}
+              </p>
             </div>
 
-            <p className="text-xs text-slate-600 font-semibold font-mono">
-              {availQty} / {crop.quantity} {crop.unit}
-            </p>
-
-            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-              <StatusBadge status={crop.status} />
-
-              {crop.latest_ai_verification?.verification_status === "verified" ? (
-                <Badge variant="success" className="text-[10px] py-0 px-1.5">
-                  ✓ AI Verified
-                </Badge>
-              ) : crop.latest_ai_verification?.verification_status === "failed" ? (
-                <Badge variant="destructive" className="text-[10px] py-0 px-1.5">
-                  ⚠️ Review
-                </Badge>
-              ) : null}
-
-              {isMinted ? (
-                <Badge variant="purple" className="text-[10px] py-0 px-1.5">
-                  📜 #{crop.nft_token_id}
-                </Badge>
-              ) : (
-                <Badge variant="secondary" className="text-[10px] py-0 px-1.5">
-                  #{crop.id}
-                </Badge>
-              )}
-
-              {hasActiveOffers && (
-                <Badge variant="amber" className="text-[10px] py-0 px-1.5">
-                  🤝 {activeOffersCount > 0 ? `${activeOffersCount} Offer(s)` : "Active"}
-                </Badge>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Card Footer Actions */}
-        <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
-          <span className="text-[11px] text-slate-400 font-medium truncate">
-            📍 {crop.location || "Farm Field"}
-          </span>
-
-          <div className="flex items-center gap-1.5 shrink-0">
-            {onViewOffers && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => onViewOffers(crop)}
-                className="h-7 px-2.5 text-xs text-emerald-800 border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
-              >
-                <span>🤝</span>
-                <span>Offers</span>
-              </Button>
-            )}
-
+            {/* 3. View Details Button */}
             <Button
               type="button"
               size="sm"
+              variant="outline"
               onClick={() => setShowDetailsModal(true)}
-              className="h-7 px-2.5 text-xs bg-slate-900 hover:bg-slate-800 text-white"
+              className="w-full gap-1.5 text-xs font-semibold hover:bg-slate-50 border-slate-200"
             >
-              <span>🔍</span>
-              <span>Details</span>
+              <Eye className="h-3.5 w-3.5 text-slate-600" />
+              <span>View Details</span>
             </Button>
           </div>
-        </div>
-      </Card>
+        </Card>
+      ) : (
+        /* ── Minimalist Crop Card: LIST VIEW ────────────────────────── */
+        <Card className="p-3 border-slate-200/80 hover:border-emerald-300 hover:shadow-xs transition-all">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3.5 min-w-0">
+              {/* 1. Thumbnail Image */}
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-slate-100 overflow-hidden shrink-0 flex items-center justify-center border border-slate-200/80">
+                {crop.primary_image_url ? (
+                  <img
+                    src={crop.primary_image_url}
+                    alt={crop.crop_name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <ImageIcon className="h-6 w-6 text-slate-400 stroke-[1.5]" />
+                )}
+              </div>
 
-      {/* ── View Crop Details Dialog (shadcn Dialog) ─────────────── */}
+              {/* 2. Crop Identity & Quantity */}
+              <div className="space-y-0.5 min-w-0">
+                <h4 className="text-xs font-semibold text-slate-600 truncate">
+                  {crop.crop_name}
+                </h4>
+                <p className="text-base sm:text-lg font-bold font-mono text-slate-900 tracking-tight">
+                  {availQty} {crop.unit}
+                </p>
+              </div>
+            </div>
+
+            {/* 3. View Details Button */}
+            <div className="flex items-center justify-end sm:shrink-0 pt-1 sm:pt-0">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setShowDetailsModal(true)}
+                className="w-full sm:w-auto gap-1.5 text-xs font-semibold hover:bg-slate-50 border-slate-200"
+              >
+                <Eye className="h-3.5 w-3.5 text-slate-600" />
+                <span>View Details</span>
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* ── View Crop Details Dialog (shadcn Dialog with all full metadata) ── */}
       <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <div className="flex items-center justify-between gap-2 flex-wrap pr-6">
               <div className="flex items-center gap-2">
-                <span className="text-lg">🌾</span>
+                <Sprout className="h-5 w-5 text-emerald-600" />
                 <DialogTitle>{crop.crop_name}</DialogTitle>
                 <Badge variant="outline" className="text-[11px]">
                   {crop.crop_category}
@@ -271,8 +270,9 @@ export default function CropPassportCard({
                   className="w-full sm:w-28 h-24 object-cover rounded-lg border border-emerald-200 shrink-0"
                 />
                 <div className="space-y-1 min-w-0 flex-1">
-                  <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
-                    📸 Verified Harvest Photo
+                  <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1">
+                    <Camera className="h-3 w-3" />
+                    <span>Verified Harvest Photo</span>
                   </span>
                   <p className="font-bold text-slate-900">{crop.crop_name}</p>
                   {crop.latest_ai_verification && (
@@ -309,7 +309,7 @@ export default function CropPassportCard({
             <div className="border border-slate-200/80 rounded-xl p-3.5 space-y-2.5 bg-white">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
-                  <span>📁</span>
+                  <Folder className="h-4 w-4 text-slate-600" />
                   <h5 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                     Decentralized IPFS Evidence
                   </h5>
@@ -321,7 +321,7 @@ export default function CropPassportCard({
                   onClick={() => setShowUploader((v) => !v)}
                   className="h-7 text-xs"
                 >
-                  {showUploader ? "✕ Cancel" : "📤 Upload File"}
+                  {showUploader ? "Cancel" : "Upload File"}
                 </Button>
               </div>
 
@@ -341,7 +341,7 @@ export default function CropPassportCard({
             <details className="group border border-purple-200/80 rounded-xl p-3.5 bg-purple-50/20 text-xs">
               <summary className="font-bold text-purple-950 cursor-pointer flex items-center justify-between select-none list-none">
                 <div className="flex items-center gap-2">
-                  <span>⛓️</span>
+                  <Link2 className="h-4 w-4 text-purple-700" />
                   <span className="font-bold text-purple-900">
                     Blockchain & Verification Proof
                   </span>
@@ -421,7 +421,7 @@ export default function CropPassportCard({
                           onClick={downloadQR}
                           className="h-7 text-xs bg-emerald-600 hover:bg-emerald-500"
                         >
-                          ⬇ Download QR Code
+                          Download QR Code
                         </Button>
                       </div>
                     )}
@@ -468,7 +468,7 @@ export default function CropPassportCard({
         </DialogContent>
       </Dialog>
 
-      {/* ── Delete Confirmation Dialog (shadcn Dialog) ───────────── */}
+      {/* ── Delete Confirmation Dialog ───────────────────────────── */}
       <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
         <DialogContent className="max-w-md">
           <DialogHeader>

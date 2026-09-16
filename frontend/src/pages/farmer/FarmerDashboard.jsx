@@ -30,6 +30,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Lucide icons
 import {
@@ -40,6 +42,11 @@ import {
   Plus,
   ArrowRight,
   Sparkles,
+  LayoutGrid,
+  List,
+  LayoutDashboard,
+  Coins,
+  BadgeCheck,
 } from "lucide-react";
 
 // activeNav values: "dashboard" | "crops" | "deals" | "transactions" | "identity"
@@ -60,6 +67,9 @@ export default function FarmerDashboard() {
 
   // Sub-view within Deals: "history" | "bids"
   const [dealViewMode, setDealViewMode] = useState("history");
+
+  // Crop display mode: "grid" | "list"
+  const [cropDisplayMode, setCropDisplayMode] = useState("grid");
 
   // shadcn Dialog state
   const [isAddCropOpen, setIsAddCropOpen] = useState(false);
@@ -171,26 +181,26 @@ export default function FarmerDashboard() {
   };
 
   const navItems = [
-    { key: "dashboard", label: "Dashboard", icon: "🏠" },
+    { key: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
     {
       key: "crops",
       label: "My Crops",
-      icon: "🌱",
+      icon: <Sprout className="h-4 w-4" />,
       badge: crops.length > 0 ? crops.length : null,
     },
     {
       key: "deals",
       label: "Deals",
-      icon: "🤝",
+      icon: <Handshake className="h-4 w-4" />,
       badge: history.length > 0 ? history.length : null,
     },
     {
       key: "transactions",
       label: "Transactions",
-      icon: "💰",
+      icon: <Coins className="h-4 w-4" />,
       badge: escrowsCount > 0 ? escrowsCount : null,
     },
-    { key: "identity", label: "Identity", icon: "🪪" },
+    { key: "identity", label: "Identity", icon: <BadgeCheck className="h-4 w-4" /> },
   ];
 
   return (
@@ -235,7 +245,7 @@ export default function FarmerDashboard() {
                   }`}
                 >
                   <div className="flex items-center gap-2.5 truncate">
-                    <span className="text-base">{item.icon}</span>
+                    <span className="shrink-0">{item.icon}</span>
                     <span className="truncate">{item.label}</span>
                   </div>
                   {item.badge !== null && (
@@ -281,7 +291,7 @@ export default function FarmerDashboard() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                   <div className="flex items-center gap-2">
-                    <span className="text-xl">🌾</span>
+                    <Sprout className="h-5 w-5 text-emerald-600" />
                     <span className="font-extrabold text-sm text-slate-900">Farm Workspace</span>
                   </div>
                   <button
@@ -312,7 +322,7 @@ export default function FarmerDashboard() {
                         }`}
                       >
                         <div className="flex items-center gap-2.5 truncate">
-                          <span className="text-base">{item.icon}</span>
+                          <span className="shrink-0">{item.icon}</span>
                           <span>{item.label}</span>
                         </div>
                         {item.badge !== null && (
@@ -369,7 +379,7 @@ export default function FarmerDashboard() {
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                   }`}
                 >
-                  <span>{item.icon}</span>
+                  <span className="shrink-0">{item.icon}</span>
                   <span>{item.label}</span>
                 </button>
               );
@@ -533,13 +543,24 @@ export default function FarmerDashboard() {
 
                 <CardContent className="pt-4">
                   {cropsLoading ? (
-                    <div className="py-12 text-center text-xs text-slate-400 animate-pulse">
-                      Loading your crop records…
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="border border-slate-200/80 rounded-2xl p-3 space-y-3">
+                          <Skeleton className="w-full aspect-[4/3] rounded-xl" />
+                          <div className="space-y-1.5">
+                            <Skeleton className="h-4 w-3/4" />
+                            <Skeleton className="h-6 w-1/2" />
+                          </div>
+                          <Skeleton className="h-8 w-full rounded-lg" />
+                        </div>
+                      ))}
                     </div>
                   ) : crops.length === 0 ? (
                     <div className="py-12 text-center bg-slate-50/60 rounded-xl border border-dashed border-slate-200 space-y-3 p-6">
-                      <span className="text-4xl block">🌾</span>
-                      <h4 className="text-sm font-bold text-slate-800">No Crops Registered Yet</h4>
+                      <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                        <Sprout className="h-6 w-6" />
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-800">No crops yet</h4>
                       <p className="text-xs text-slate-500 max-w-sm mx-auto">
                         Add your first crop to create a secure digital record and start receiving offers from verified FPOs.
                       </p>
@@ -554,7 +575,7 @@ export default function FarmerDashboard() {
                       </Button>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
                       {crops.slice(0, 6).map((crop) => {
                         const matchingQuote = history.find(
                           (q) => q.crop_passport === crop.id || q.crop_passport_details?.id === crop.id
@@ -565,6 +586,7 @@ export default function FarmerDashboard() {
                           <CropPassportCard
                             key={crop.id}
                             crop={crop}
+                            viewMode="grid"
                             hasActiveOffers={bidsCount > 0}
                             activeOffersCount={bidsCount}
                             onViewOffers={handleViewOffersForCrop}
@@ -677,15 +699,47 @@ export default function FarmerDashboard() {
                   </CardDescription>
                 </div>
 
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => setIsAddCropOpen(true)}
-                  className="gap-1.5"
-                >
-                  <Sprout className="h-4 w-4" />
-                  <span>+ Add New Crop</span>
-                </Button>
+                <div className="flex items-center gap-2">
+                  {/* View Switcher: Grid vs List */}
+                  <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200/80">
+                    <button
+                      type="button"
+                      onClick={() => setCropDisplayMode("grid")}
+                      className={`p-1.5 rounded-md transition-all cursor-pointer ${
+                        cropDisplayMode === "grid"
+                          ? "bg-white text-emerald-700 shadow-2xs"
+                          : "text-slate-500 hover:text-slate-900"
+                      }`}
+                      title="Grid View"
+                      aria-label="Grid View"
+                    >
+                      <LayoutGrid className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCropDisplayMode("list")}
+                      className={`p-1.5 rounded-md transition-all cursor-pointer ${
+                        cropDisplayMode === "list"
+                          ? "bg-white text-emerald-700 shadow-2xs"
+                          : "text-slate-500 hover:text-slate-900"
+                      }`}
+                      title="List View"
+                      aria-label="List View"
+                    >
+                      <List className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setIsAddCropOpen(true)}
+                    className="gap-1.5"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Add New Crop</span>
+                  </Button>
+                </div>
               </CardHeader>
 
               <CardContent className="pt-4 space-y-4">
@@ -697,7 +751,7 @@ export default function FarmerDashboard() {
                         key={cat}
                         type="button"
                         onClick={() => setSelectedCropCategory(cat)}
-                        className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                        className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer shrink-0 ${
                           selectedCropCategory === cat
                             ? "bg-emerald-600 text-white shadow-2xs"
                             : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -709,57 +763,115 @@ export default function FarmerDashboard() {
                   </div>
                 )}
 
-                {cropsLoading ? (
-                  <div className="py-12 text-center text-xs text-slate-400 animate-pulse">
-                    Loading crop records…
-                  </div>
-                ) : filteredCrops.length === 0 ? (
-                  <div className="py-12 text-center bg-slate-50/60 rounded-xl border border-dashed border-slate-200 space-y-3 p-6">
-                    <span className="text-4xl block">🌾</span>
-                    <h4 className="text-sm font-bold text-slate-800">No Crops Found</h4>
-                    <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                      {selectedCropCategory !== "All"
-                        ? `No crops found in category "${selectedCropCategory}".`
-                        : "Create your first crop record to assess quality with AI and attract FPO buyers."}
-                    </p>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedCropCategory("All");
-                        setIsAddCropOpen(true);
-                      }}
-                      className="gap-1.5 mt-2"
-                    >
-                      <Sprout className="h-4 w-4" />
-                      <span>Add New Crop</span>
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
-                    {filteredCrops.map((crop) => (
-                      <CropPassportCard
-                        key={crop.id}
-                        crop={crop}
-                        onViewOffers={handleViewOffersForCrop}
-                        onMintSuccess={() => {
-                          fetchCrops();
-                          fetchHistory();
-                          fetchDid();
+                {/* Scrollable Crop Results Area */}
+                <ScrollArea className="h-[580px] max-h-[70vh] w-full pr-3">
+                  {cropsLoading ? (
+                    /* Loading Skeletons */
+                    cropDisplayMode === "grid" ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+                        {[1, 2, 3, 4, 5, 6].map((i) => (
+                          <div key={i} className="border border-slate-200/80 rounded-2xl p-3 space-y-3">
+                            <Skeleton className="w-full aspect-[4/3] rounded-xl" />
+                            <div className="space-y-1.5">
+                              <Skeleton className="h-4 w-3/4" />
+                              <Skeleton className="h-6 w-1/2" />
+                            </div>
+                            <Skeleton className="h-8 w-full rounded-lg" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2.5">
+                        {[1, 2, 3, 4].map((i) => (
+                          <div key={i} className="border border-slate-200/80 rounded-2xl p-3 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <Skeleton className="w-14 h-14 rounded-xl" />
+                              <div className="space-y-1.5">
+                                <Skeleton className="h-4 w-32" />
+                                <Skeleton className="h-6 w-24" />
+                              </div>
+                            </div>
+                            <Skeleton className="h-8 w-24 rounded-lg" />
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  ) : filteredCrops.length === 0 ? (
+                    <div className="py-16 text-center bg-slate-50/60 rounded-xl border border-dashed border-slate-200 space-y-3 p-6">
+                      <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                        <Sprout className="h-6 w-6" />
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-800">No crops yet</h4>
+                      <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                        {selectedCropCategory !== "All"
+                          ? `No crops found in category "${selectedCropCategory}".`
+                          : "Add your first crop to create a digital crop passport."}
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedCropCategory("All");
+                          setIsAddCropOpen(true);
                         }}
-                        onDeleteSuccess={() => {
-                          fetchCrops();
-                          fetchHistory();
-                          fetchDid();
-                        }}
-                        onPassportUpdated={() => {
-                          fetchCrops();
-                          fetchDid();
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
+                        className="gap-1.5 mt-2"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span>Add New Crop</span>
+                      </Button>
+                    </div>
+                  ) : cropDisplayMode === "grid" ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+                      {filteredCrops.map((crop) => (
+                        <CropPassportCard
+                          key={crop.id}
+                          crop={crop}
+                          viewMode="grid"
+                          onViewOffers={handleViewOffersForCrop}
+                          onMintSuccess={() => {
+                            fetchCrops();
+                            fetchHistory();
+                            fetchDid();
+                          }}
+                          onDeleteSuccess={() => {
+                            fetchCrops();
+                            fetchHistory();
+                            fetchDid();
+                          }}
+                          onPassportUpdated={() => {
+                            fetchCrops();
+                            fetchDid();
+                          }}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2.5">
+                      {filteredCrops.map((crop) => (
+                        <CropPassportCard
+                          key={crop.id}
+                          crop={crop}
+                          viewMode="list"
+                          onViewOffers={handleViewOffersForCrop}
+                          onMintSuccess={() => {
+                            fetchCrops();
+                            fetchHistory();
+                            fetchDid();
+                          }}
+                          onDeleteSuccess={() => {
+                            fetchCrops();
+                            fetchHistory();
+                            fetchDid();
+                          }}
+                          onPassportUpdated={() => {
+                            fetchCrops();
+                            fetchDid();
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
               </CardContent>
             </Card>
           )}
