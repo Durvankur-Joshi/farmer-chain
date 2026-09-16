@@ -9,6 +9,8 @@ Directory structure:
     │   ├── requirements.txt
     │   ├── socketio_server.js
     │   ├── test.py
+    │   ├── tests_phase4.py
+    │   ├── tests_phase5.py
     │   ├── .env_sample
     │   ├── admin_app/
     │   │   ├── __init__.py
@@ -174,6 +176,7 @@ Directory structure:
             │   ├── common/
             │   │   ├── AddressCopy.jsx
             │   │   ├── BaseModal.jsx
+            │   │   ├── BlockchainDetailsCollapse.jsx
             │   │   ├── DashboardNavbar.jsx
             │   │   ├── DidIdentityCard.jsx
             │   │   ├── EscrowDealCard.jsx
@@ -182,7 +185,9 @@ Directory structure:
             │   │   ├── NegotiationModal.jsx
             │   │   ├── ProvenanceCard.jsx
             │   │   ├── StatusBadge.jsx
-            │   │   └── TrustReputationCard.jsx
+            │   │   ├── TransactionHistoryTable.jsx
+            │   │   ├── TrustReputationCard.jsx
+            │   │   └── WorkflowStatusPanel.jsx
             │   ├── farmer/
             │   │   ├── AIVerification.jsx
             │   │   ├── CropPassportCard.jsx
@@ -216,6 +221,8 @@ Directory structure:
             │   └── useSocket.js
             ├── contract/
             │   └── Contract.jsx
+            ├── hooks/
+            │   └── useEscrowWorkflow.js
             ├── pages/
             │   ├── AuthForm.jsx
             │   ├── CropPassportPage.jsx
@@ -801,6 +808,688 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+================================================
+FILE: backend/tests_phase4.py
+================================================
+import os
+import django
+from decimal import Decimal
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'farmerChain.settings')
+django.setup()
+
+from django.test import TestCase, Client
+from django.utils import timezone
+from farmer.models import Farmer, FarmerQuote, CropPassport
+from fpo.models import FPO, FPOBid, FPOInventoryLot
+from escrow.models import EscrowTransaction
+
+
+class FarmerFpoINRFlowTest(TestCase):
+    def setUp(self):
+        self.client = Client()
+        
+        # Create test Farmer
+        self.farmer = Farmer.objects.create(
+            name="Ramesh Kumar",
+            email="ramesh@example.com",
+            aadhaar_number="123456789012",
+            city="Pune",
+            state="Maharashtra",
+            wallet_address="0x1111111111111111111111111111111111111111",
+            approval_status="approved",
+        )
+        self.farmer.set_password("farmerpass123")
+        self.farmer.save()
+
+        # Create test FPO
+        self.fpo = FPO.objects.create(
+            name="Sahyadri Farmers Producer Co",
+            email="sahyadri@example.com",
+            corporate_identification_number="U01409MH2020PTC123456",
+            wallet_address="0x2222222222222222222222222222222222222222",
+            city="Nashik",
+            state="Maharashtra",
+            approval_status="approved",
+        )
+        self.fpo.set_password("fpopass123")
+        self.fpo.save()
+
+        # Create CropPassport
+        self.passport = CropPassport.objects.create(
+            farmer=self.farmer,
+            crop_name="Organic Sharbati Wheat",
+            crop_category="Grain",
+            quantity=Decimal("100.00"),
+            available_quantity=Decimal("100.00"),
+            sold_quantity=Decimal("0.00"),
+            unit="kg",
+            cultivation_date=timezone.now().date(),
+            harvest_date=timezone.now().date(),
+            location="Pune, Maharashtra",
+            status="registered",
+        )
+
+        # Create Quote
+        self.quote = FarmerQuote.objects.create(
+            farmer=self.farmer,
+            crop_passport=self.passport,
+            product_name="Organic Sharbati Wheat",
+            category="Grain",
+            quantity=Decimal("100.00"),
+            unit="kg",
+            price_per_unit=Decimal("50.00"),
+            status="open",
+            deadline=timezone.now().date() + timezone.timedelta(days=30),
+        )
+
+        # Create FPO Bid: â‚¹50/kg
+        self.bid = FPOBid.objects.create(
+            fpo=self.fpo,
+            quote=self.quote,
+            bid_amount=Decimal("50.00"),
+            delivery_time_days=5,
+            status="submitted",
+        )
+
+    def _login_as_farmer(self):
+        from rest_framework_simplejwt.tokens import RefreshToken
+        refresh = RefreshToken()
+        refresh['user_id'] = self.farmer.id
+        refresh['role'] = 'farmer'
+        token = str(refresh.access_token)
+        return {'HTTP_AUTHORIZATION': f'Bearer {token}'}
+
+    def _login_as_fpo(self):
+        from rest_framework_simplejwt.tokens import RefreshToken
+        refresh = RefreshToken()
+        refresh['user_id'] = self.fpo.id
+        refresh['role'] = 'fpo'
+        token = str(refresh.access_token)
+        return {'HTTP_AUTHORIZATION': f'Bearer {token}'}
+
+    def test_complete_inr_transaction_flow(self):
+        farmer_auth = self._login_as_farmer()
+        fpo_auth = self._login_as_fpo()
+
+        # â”€â”€ Step 1: Farmer Accepts FPO Bid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        accept_res = self.client.post(
+            f'/api/farmer/bids/fpo/{self.bid.id}/accept/',
+            content_type='application/json',
+            **farmer_auth,
+        )
+        self.assertEqual(accept_res.status_code, 200, accept_res.data)
+        data = accept_res.json()
+        
+        # Verify commercial INR values
+        self.assertEqual(data['unit_price_inr'], '50.00')
+        self.assertEqual(data['total_amount_inr'], '5000.00')
+        self.assertEqual(data['agreed_price_inr'], '5000.00')
+        
+        # Verify DB records
+        self.quote.refresh_from_db()
+        self.bid.refresh_from_db()
+        self.assertEqual(self.quote.status, 'accepted')
+        self.assertEqual(self.bid.status, 'accepted')
+        self.assertEqual(self.quote.accepted_bid, self.bid)
+        self.assertEqual(self.quote.price_per_unit, Decimal('50.00'))
+
+        # Verify pre-initialized EscrowTransaction
+        escrow = EscrowTransaction.objects.get(quote=self.quote)
+        self.assertEqual(escrow.unit_price_inr, Decimal('50.00'))
+        self.assertEqual(escrow.total_amount_inr, Decimal('5000.00'))
+        self.assertEqual(escrow.agreed_price_inr, Decimal('5000.00'))
+        self.assertEqual(escrow.payment_status, EscrowTransaction.PAYMENT_STATUS_PENDING)
+        self.assertEqual(escrow.status, EscrowTransaction.STATUS_CREATED)
+        self.assertIsNone(escrow.escrow_id)
+
+        # â”€â”€ Step 2: Escrow Create Endpoint (Idempotent) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        create_res = self.client.post(
+            '/api/escrow/create/',
+            data={'quote_id': self.quote.id},
+            content_type='application/json',
+            **farmer_auth,
+        )
+        self.assertEqual(create_res.status_code, 200)
+        cdata = create_res.json()
+        self.assertEqual(cdata['id'], escrow.id)
+        self.assertEqual(cdata['farmer_wallet'], self.farmer.wallet_address)
+        self.assertEqual(cdata['fpo_wallet'], self.fpo.wallet_address)
+
+        # â”€â”€ Step 3: On-Chain Escrow Recorded â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        onchain_res = self.client.post(
+            f'/api/escrow/{escrow.id}/created-onchain/',
+            data={
+                'tx_hash': '0x' + 'a' * 64,
+                'escrow_id': 42,
+                'contract_address': '0x' + 'c' * 40,
+            },
+            content_type='application/json',
+            **farmer_auth,
+        )
+        self.assertEqual(onchain_res.status_code, 200)
+        escrow.refresh_from_db()
+        self.quote.refresh_from_db()
+        self.assertEqual(escrow.escrow_id, 42)
+        self.assertEqual(self.quote.status, 'contract_created')
+
+        # â”€â”€ Step 4: FPO Funds Escrow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        fund_res = self.client.post(
+            f'/api/escrow/{escrow.id}/funded/',
+            data={'tx_hash': '0x' + 'b' * 64},
+            content_type='application/json',
+            **fpo_auth,
+        )
+        self.assertEqual(fund_res.status_code, 200)
+        escrow.refresh_from_db()
+        self.assertEqual(escrow.status, EscrowTransaction.STATUS_FUNDED)
+        self.assertEqual(escrow.payment_status, EscrowTransaction.PAYMENT_STATUS_PROCESSING)
+
+        # Test funding idempotency
+        fund_dup = self.client.post(
+            f'/api/escrow/{escrow.id}/funded/',
+            data={'tx_hash': '0x' + 'b' * 64},
+            content_type='application/json',
+            **fpo_auth,
+        )
+        self.assertEqual(fund_dup.status_code, 200)
+        self.assertEqual(fund_dup.json()['message'], 'Escrow already funded.')
+
+        # â”€â”€ Step 5: Farmer Confirms Delivery â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        delivery_res = self.client.post(
+            f'/api/escrow/{escrow.id}/delivery-confirm/',
+            data={'tx_hash': '0x' + 'd' * 64},
+            content_type='application/json',
+            **farmer_auth,
+        )
+        self.assertEqual(delivery_res.status_code, 200)
+        escrow.refresh_from_db()
+        self.assertEqual(escrow.status, EscrowTransaction.STATUS_DELIVERY_CONFIRMED)
+
+        # Test delivery confirmation idempotency
+        delivery_dup = self.client.post(
+            f'/api/escrow/{escrow.id}/delivery-confirm/',
+            data={'tx_hash': '0x' + 'd' * 64},
+            content_type='application/json',
+            **farmer_auth,
+        )
+        self.assertEqual(delivery_dup.status_code, 200)
+
+        # â”€â”€ Step 6: FPO Releases Payment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        release_res = self.client.post(
+            f'/api/escrow/{escrow.id}/released/',
+            data={'tx_hash': '0x' + 'e' * 64},
+            content_type='application/json',
+            **fpo_auth,
+        )
+        self.assertEqual(release_res.status_code, 200)
+        escrow.refresh_from_db()
+        self.quote.refresh_from_db()
+
+        # Verify completed state
+        self.assertEqual(escrow.status, EscrowTransaction.STATUS_RELEASED)
+        self.assertEqual(escrow.payment_status, EscrowTransaction.PAYMENT_STATUS_PAID)
+        self.assertEqual(self.quote.status, 'closed')
+
+        # Verify FPO Inventory Lot created with full provenance
+        inv_lot = FPOInventoryLot.objects.get(quote=self.quote)
+        self.assertEqual(inv_lot.fpo, self.fpo)
+        self.assertEqual(inv_lot.farmer, self.farmer)
+        self.assertEqual(inv_lot.crop_passport, self.passport)
+        self.assertEqual(inv_lot.original_quantity, Decimal('100.00'))
+        self.assertEqual(inv_lot.available_quantity, Decimal('100.00'))
+        self.assertEqual(inv_lot.acquisition_price, Decimal('50.00'))
+        self.assertEqual(inv_lot.status, 'available')
+
+        # Test release idempotency & duplicate prevention
+        release_dup = self.client.post(
+            f'/api/escrow/{escrow.id}/released/',
+            data={'tx_hash': '0x' + 'e' * 64},
+            content_type='application/json',
+            **fpo_auth,
+        )
+        self.assertEqual(release_dup.status_code, 200)
+        self.assertEqual(release_dup.json()['message'], 'Payment already released.')
+        
+        # Verify no duplicate inventory lots created
+        self.assertEqual(FPOInventoryLot.objects.filter(quote=self.quote).count(), 1)
+
+        # Verify INR values remained untouched throughout the entire flow
+        self.assertEqual(escrow.unit_price_inr, Decimal('50.00'))
+        self.assertEqual(escrow.total_amount_inr, Decimal('5000.00'))
+        self.assertEqual(escrow.agreed_price_inr, Decimal('5000.00'))
+
+    def test_validation_and_rejection_edge_cases(self):
+        farmer_auth = self._login_as_farmer()
+
+        # Another farmer trying to accept
+        other_farmer = Farmer.objects.create(
+            name="Suresh Patel",
+            email="suresh@example.com",
+            aadhaar_number="999988887777",
+            city="Nagpur",
+            state="Maharashtra",
+            wallet_address="0x3333333333333333333333333333333333333333",
+            approval_status="approved",
+        )
+        from rest_framework_simplejwt.tokens import RefreshToken
+        rf = RefreshToken()
+        rf['user_id'] = other_farmer.id
+        rf['role'] = 'farmer'
+        other_auth = {'HTTP_AUTHORIZATION': f'Bearer {rf.access_token}'}
+
+        res = self.client.post(
+            f'/api/farmer/bids/fpo/{self.bid.id}/accept/',
+            content_type='application/json',
+            **other_auth,
+        )
+        self.assertEqual(res.status_code, 403)
+
+        # Invalid bid status
+        self.bid.status = 'rejected'
+        self.bid.save()
+        res = self.client.post(
+            f'/api/farmer/bids/fpo/{self.bid.id}/accept/',
+            content_type='application/json',
+            **farmer_auth,
+        )
+        self.assertEqual(res.status_code, 400)
+
+        # Reset bid and test invalid quantity
+        self.bid.status = 'submitted'
+        self.bid.save()
+        self.quote.quantity = Decimal('0.00')
+        self.quote.save()
+        res = self.client.post(
+            f'/api/farmer/bids/fpo/{self.bid.id}/accept/',
+            content_type='application/json',
+            **farmer_auth,
+        )
+        self.assertEqual(res.status_code, 400)
+
+        # Reset quantity and test invalid bid amount
+        self.quote.quantity = Decimal('100.00')
+        self.quote.save()
+        self.bid.bid_amount = Decimal('0.00')
+        self.bid.save()
+        res = self.client.post(
+            f'/api/farmer/bids/fpo/{self.bid.id}/accept/',
+            content_type='application/json',
+            **farmer_auth,
+        )
+        self.assertEqual(res.status_code, 400)
+
+
+
+
+================================================
+FILE: backend/tests_phase5.py
+================================================
+import os
+import django
+from decimal import Decimal
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'farmerChain.settings')
+django.setup()
+
+from django.test import TestCase, Client
+from django.utils import timezone
+from farmer.models import Farmer, CropPassport
+from fpo.models import FPO, FPOQuote, FPOQuoteAllocation, FPOInventoryLot
+from retailer.models import Retailer, RetailerBid, RetailerInventoryLot
+from escrow.models import RetailerEscrowTransaction
+
+
+class FPOTailerINRFlowTest(TestCase):
+    def setUp(self):
+        self.client = Client()
+
+        # 1. Create test Farmer (source of provenance)
+        self.farmer = Farmer.objects.create(
+            name="Ramesh Kumar",
+            email="ramesh@example.com",
+            aadhaar_number="123456789012",
+            city="Pune",
+            state="Maharashtra",
+            wallet_address="0x1111111111111111111111111111111111111111",
+            approval_status="approved",
+        )
+        self.farmer.set_password("farmerpass123")
+        self.farmer.save()
+
+        # 2. Create CropPassport
+        self.passport = CropPassport.objects.create(
+            farmer=self.farmer,
+            crop_name="Organic Wheat",
+            crop_category="Grain",
+            quantity=Decimal("100.00"),
+            available_quantity=Decimal("100.00"),
+            sold_quantity=Decimal("0.00"),
+            unit="kg",
+            cultivation_date=timezone.now().date(),
+            harvest_date=timezone.now().date(),
+            location="Pune, Maharashtra",
+            status="registered",
+        )
+
+        # 3. Create test FPO (Seller)
+        self.fpo = FPO.objects.create(
+            name="Sahyadri Farmers Producer Co",
+            email="sahyadri@example.com",
+            corporate_identification_number="U01409MH2020PTC123456",
+            wallet_address="0x2222222222222222222222222222222222222222",
+            city="Nashik",
+            state="Maharashtra",
+            approval_status="approved",
+        )
+        self.fpo.set_password("fpopass123")
+        self.fpo.save()
+
+        # 4. Create test Retailers (Buyer)
+        self.retailer = Retailer.objects.create(
+            name="Metro Agro Mart",
+            email="metro@example.com",
+            gstin="27ABCDE1234F1Z5",
+            wallet_address="0x3333333333333333333333333333333333333333",
+            city="Mumbai",
+            state="Maharashtra",
+            approval_status="approved",
+        )
+        self.retailer.set_password("retailerpass123")
+        self.retailer.save()
+
+        self.competing_retailer = Retailer.objects.create(
+            name="Fresh Retail Co",
+            email="fresh@example.com",
+            gstin="27XYZAB5678C1Z9",
+            wallet_address="0x4444444444444444444444444444444444444444",
+            city="Pune",
+            state="Maharashtra",
+            approval_status="approved",
+        )
+        self.competing_retailer.set_password("retailerpass456")
+        self.competing_retailer.save()
+
+        # 5. Create FPO Inventory Lot: 100 kg Wheat, 60 available, 40 reserved for quote
+        self.fpo_lot = FPOInventoryLot.objects.create(
+            fpo=self.fpo,
+            farmer=self.farmer,
+            crop_passport=self.passport,
+            product_name="Organic Wheat",
+            crop_category="Grain",
+            original_quantity=Decimal("100.00"),
+            available_quantity=Decimal("60.00"),
+            reserved_quantity=Decimal("40.00"),
+            unit="kg",
+            acquisition_price=Decimal("0.02"),
+            status="available",
+        )
+
+        # 6. Create FPOQuote for 40 kg Wheat at â‚¹60/kg
+        self.quote = FPOQuote.objects.create(
+            fpo=self.fpo,
+            product_name="Organic Wheat",
+            category="Grain",
+            quantity=Decimal("40.00"),
+            unit="kg",
+            price_per_unit=Decimal("60.00"),
+            status="open",
+            deadline=timezone.now().date() + timezone.timedelta(days=14),
+        )
+
+        # 7. Create FPOQuoteAllocation linking quote to source lot & provenance
+        self.allocation = FPOQuoteAllocation.objects.create(
+            quote=self.quote,
+            inventory_lot=self.fpo_lot,
+            farmer=self.farmer,
+            crop_passport=self.passport,
+            allocated_quantity=Decimal("40.00"),
+        )
+
+        # 8. Create Retailer Bids: Winning bid = â‚¹60/kg, Competing bid = â‚¹55/kg
+        self.winning_bid = RetailerBid.objects.create(
+            retailer=self.retailer,
+            quote=self.quote,
+            bid_amount=Decimal("60.00"),
+            delivery_time_days=3,
+            status="submitted",
+        )
+
+        self.competing_bid = RetailerBid.objects.create(
+            retailer=self.competing_retailer,
+            quote=self.quote,
+            bid_amount=Decimal("55.00"),
+            delivery_time_days=5,
+            status="submitted",
+        )
+
+    def _login_as_fpo(self):
+        from rest_framework_simplejwt.tokens import RefreshToken
+        refresh = RefreshToken()
+        refresh['user_id'] = self.fpo.id
+        refresh['role'] = 'fpo'
+        token = str(refresh.access_token)
+        return {'HTTP_AUTHORIZATION': f'Bearer {token}'}
+
+    def _login_as_retailer(self):
+        from rest_framework_simplejwt.tokens import RefreshToken
+        refresh = RefreshToken()
+        refresh['user_id'] = self.retailer.id
+        refresh['role'] = 'retailer'
+        token = str(refresh.access_token)
+        return {'HTTP_AUTHORIZATION': f'Bearer {token}'}
+
+    def test_complete_fpo_retailer_inr_transaction_flow(self):
+        """
+        Tests the complete Phase 5 lifecycle:
+          1. FPO accepts Retailer bid (40 kg @ â‚¹60/kg = â‚¹2,400)
+          2. Off-chain RetailerEscrowTransaction initialized with authoritative INR values
+          3. Escrow create endpoint returns draft idempotently
+          4. On-chain escrow ID recorded
+          5. Retailer funds escrow
+          6. FPO confirms delivery
+          7. Retailer releases payment
+          8. Final verification:
+             - FPO retains 60 kg available stock (0 reserved)
+             - Retailer receives 40 kg stock with full multi-step provenance
+             - Commercial INR value = â‚¹2,400 throughout
+             - Repeated calls are strictly idempotent (no double release or duplicate inventory)
+        """
+        fpo_auth = self._login_as_fpo()
+        retailer_auth = self._login_as_retailer()
+
+        # â”€â”€ Step 1: FPO Accepts Retailer Bid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        accept_res = self.client.post(
+            f'/api/fpo/bids/retailer/{self.winning_bid.id}/accept/',
+            content_type='application/json',
+            **fpo_auth,
+        )
+        self.assertEqual(accept_res.status_code, 200, accept_res.data)
+        data = accept_res.json()
+
+        # Authoritative commercial INR validation
+        self.assertEqual(data['unit_price_inr'], '60.00')
+        self.assertEqual(data['total_amount_inr'], '2400.00')
+        self.assertEqual(data['agreed_price_inr'], '2400.00')
+
+        # Database state verification
+        self.quote.refresh_from_db()
+        self.winning_bid.refresh_from_db()
+        self.competing_bid.refresh_from_db()
+        self.assertEqual(self.quote.status, 'awarded')
+        self.assertEqual(self.winning_bid.status, 'accepted')
+        self.assertEqual(self.competing_bid.status, 'rejected')
+        self.assertEqual(self.quote.accepted_bid, self.winning_bid)
+        self.assertEqual(self.quote.price_per_unit, Decimal('60.00'))
+
+        # Pre-initialized RetailerEscrowTransaction record
+        escrow = RetailerEscrowTransaction.objects.get(quote=self.quote)
+        self.assertEqual(escrow.unit_price_inr, Decimal('60.00'))
+        self.assertEqual(escrow.total_amount_inr, Decimal('2400.00'))
+        self.assertEqual(escrow.agreed_price_inr, Decimal('2400.00'))
+        self.assertEqual(escrow.payment_status, RetailerEscrowTransaction.PAYMENT_STATUS_PENDING)
+        self.assertEqual(escrow.status, RetailerEscrowTransaction.STATUS_CREATED)
+        self.assertIsNone(escrow.escrow_id)
+
+        # â”€â”€ Step 2: Escrow Create Endpoint (Idempotent Draft Return) â”€â”€â”€â”€â”€
+        create_res = self.client.post(
+            f'/api/escrow/retailer/{self.quote.id}/create/',
+            content_type='application/json',
+            **fpo_auth,
+        )
+        self.assertEqual(create_res.status_code, 200)
+        cdata = create_res.json()
+        self.assertEqual(cdata['id'], escrow.id)
+        self.assertEqual(cdata['fpo_wallet'], self.fpo.wallet_address)
+        self.assertEqual(cdata['retailer_wallet'], self.retailer.wallet_address)
+
+        # â”€â”€ Step 3: On-Chain Escrow Recorded â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        onchain_res = self.client.post(
+            f'/api/escrow/retailer/{escrow.id}/created-onchain/',
+            data={
+                'tx_hash': '0x' + 'a' * 64,
+                'escrow_id': 77,
+                'contract_address': '0x' + 'c' * 40,
+            },
+            content_type='application/json',
+            **fpo_auth,
+        )
+        self.assertEqual(onchain_res.status_code, 200)
+        escrow.refresh_from_db()
+        self.assertEqual(escrow.escrow_id, 77)
+
+        # Test on-chain idempotency
+        onchain_dup = self.client.post(
+            f'/api/escrow/retailer/{escrow.id}/created-onchain/',
+            data={
+                'tx_hash': '0x' + 'a' * 64,
+                'escrow_id': 77,
+            },
+            content_type='application/json',
+            **fpo_auth,
+        )
+        self.assertEqual(onchain_dup.status_code, 200)
+
+        # â”€â”€ Step 4: Retailer Funds Escrow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        fund_res = self.client.post(
+            f'/api/escrow/retailer/{escrow.id}/funded/',
+            data={'tx_hash': '0x' + 'b' * 64},
+            content_type='application/json',
+            **retailer_auth,
+        )
+        self.assertEqual(fund_res.status_code, 200)
+        escrow.refresh_from_db()
+        self.assertEqual(escrow.status, RetailerEscrowTransaction.STATUS_FUNDED)
+        self.assertEqual(escrow.payment_status, RetailerEscrowTransaction.PAYMENT_STATUS_PROCESSING)
+
+        # Test funding idempotency
+        fund_dup = self.client.post(
+            f'/api/escrow/retailer/{escrow.id}/funded/',
+            data={'tx_hash': '0x' + 'b' * 64},
+            content_type='application/json',
+            **retailer_auth,
+        )
+        self.assertEqual(fund_dup.status_code, 200)
+        self.assertEqual(fund_dup.json()['message'], 'Escrow already funded.')
+
+        # â”€â”€ Step 5: FPO Confirms Delivery â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        delivery_res = self.client.post(
+            f'/api/escrow/retailer/{escrow.id}/delivery-confirm/',
+            data={'tx_hash': '0x' + 'd' * 64},
+            content_type='application/json',
+            **fpo_auth,
+        )
+        self.assertEqual(delivery_res.status_code, 200)
+        escrow.refresh_from_db()
+        self.assertEqual(escrow.status, RetailerEscrowTransaction.STATUS_DELIVERY_CONFIRMED)
+
+        # Test delivery confirmation idempotency
+        delivery_dup = self.client.post(
+            f'/api/escrow/retailer/{escrow.id}/delivery-confirm/',
+            data={'tx_hash': '0x' + 'd' * 64},
+            content_type='application/json',
+            **fpo_auth,
+        )
+        self.assertEqual(delivery_dup.status_code, 200)
+
+        # â”€â”€ Step 6: Retailer Releases Payment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        release_res = self.client.post(
+            f'/api/escrow/retailer/{escrow.id}/released/',
+            data={'tx_hash': '0x' + 'e' * 64},
+            content_type='application/json',
+            **retailer_auth,
+        )
+        self.assertEqual(release_res.status_code, 200)
+        escrow.refresh_from_db()
+        self.quote.refresh_from_db()
+
+        # Verify completed escrow state
+        self.assertEqual(escrow.status, RetailerEscrowTransaction.STATUS_RELEASED)
+        self.assertEqual(escrow.payment_status, RetailerEscrowTransaction.PAYMENT_STATUS_PAID)
+        self.assertEqual(self.quote.status, 'closed')
+
+        # â”€â”€ Step 7: Inventory Settlement & Conservation of Stock â”€â”€â”€â”€â”€â”€â”€â”€
+        self.fpo_lot.refresh_from_db()
+        # FPO had 100 kg initial (60 available, 40 reserved for quote)
+        # After 40 kg sold, FPO retains exactly 60 kg available and 0 reserved!
+        self.assertEqual(self.fpo_lot.available_quantity, Decimal("60.00"))
+        self.assertEqual(self.fpo_lot.reserved_quantity, Decimal("0.00"))
+        self.assertEqual(self.fpo_lot.original_quantity, Decimal("100.00"))
+
+        # Retailer Inventory Lot created with 40 kg
+        retailer_lots = RetailerInventoryLot.objects.filter(escrow=escrow)
+        self.assertEqual(retailer_lots.count(), 1)
+        rlot = retailer_lots.first()
+        self.assertEqual(rlot.retailer, self.retailer)
+        self.assertEqual(rlot.fpo, self.fpo)
+        self.assertEqual(rlot.farmer, self.farmer)
+        self.assertEqual(rlot.crop_passport, self.passport)
+        self.assertEqual(rlot.inventory_lot, self.fpo_lot)
+        self.assertEqual(rlot.product_name, "Organic Wheat")
+        self.assertEqual(rlot.quantity, Decimal("40.00"))
+        self.assertEqual(rlot.unit, "kg")
+        self.assertEqual(rlot.purchase_price_per_unit, Decimal("60.00"))
+        self.assertEqual(rlot.total_price, Decimal("2400.00"))
+        self.assertEqual(rlot.status, "in_stock")
+
+        # â”€â”€ Step 8: Test Payment Release & Inventory Idempotency â”€â”€â”€â”€â”€â”€â”€â”€
+        release_dup = self.client.post(
+            f'/api/escrow/retailer/{escrow.id}/released/',
+            data={'tx_hash': '0x' + 'e' * 64},
+            content_type='application/json',
+            **retailer_auth,
+        )
+        self.assertEqual(release_dup.status_code, 200)
+
+        # Verify NO duplicate inventory lots created and NO double stock deduction
+        self.assertEqual(RetailerInventoryLot.objects.filter(escrow=escrow).count(), 1)
+        self.fpo_lot.refresh_from_db()
+        self.assertEqual(self.fpo_lot.available_quantity, Decimal("60.00"))
+        self.assertEqual(self.fpo_lot.reserved_quantity, Decimal("0.00"))
+
+    def test_overselling_prevention(self):
+        """
+        Test Part C: Retailer deals MUST only be created from available FPO inventory.
+        If FPO tries to accept a bid for a quote that exceeds available + reserved stock,
+        the operation is rejected.
+        """
+        fpo_auth = self._login_as_fpo()
+
+        # Artificially alter lot available + reserved to be less than the quote allocation
+        self.fpo_lot.available_quantity = Decimal("10.00")
+        self.fpo_lot.reserved_quantity = Decimal("10.00")
+        self.fpo_lot.save()
+
+        accept_res = self.client.post(
+            f'/api/fpo/bids/retailer/{self.winning_bid.id}/accept/',
+            content_type='application/json',
+            **fpo_auth,
+        )
+        self.assertEqual(accept_res.status_code, 400)
+        self.assertIn("Insufficient stock", accept_res.json()['error'])
+
 
 
 ================================================
@@ -2103,6 +2792,7 @@ urlpatterns = [
 
     # FPO â†” Retailer Escrow
     path('retailer/create/',                         create_retailer_escrow,          name='retailer-escrow-create'),
+    path('retailer/<int:quote_pk>/create/',          create_retailer_escrow,          name='retailer-escrow-create-with-id'),
     path('retailer/<int:escrow_pk>/created-onchain/', retailer_escrow_created_onchain, name='retailer-escrow-created-onchain'),
     path('retailer/<int:escrow_pk>/funded/',          retailer_escrow_funded,          name='retailer-escrow-funded'),
     path('retailer/<int:escrow_pk>/delivery-confirm/', retailer_escrow_delivery_confirm, name='retailer-escrow-delivery-confirm'),
@@ -2149,8 +2839,11 @@ logger = logging.getLogger(__name__)
 TX_HASH_RE = re.compile(r'^0x[a-fA-F0-9]{64}$')
 
 ESCROW_CONTRACT = os.environ.get('ESCROW_CONTRACT_ADDRESS', '').strip()
-# Sepolia demo testnet rate â€” used for blockchain ETH settlement only.
-# Do NOT use this to derive commercial INR prices (Phase 1).
+# DEFAULT_INR_PER_ETH is used ONLY to compute the Sepolia testnet ETH value for the
+# on-chain depositEscrow() call (which requires msg.value == e.amount in wei).
+# It has NO bearing on the commercial INR crop price.
+# INR commercial values come exclusively from bid.bid_amount Ã— quote.quantity.
+# NEVER use this to back-calculate or display a crop's commercial INR price.
 DEFAULT_INR_PER_ETH = Decimal('250000')
 
 
@@ -2212,8 +2905,28 @@ def create_escrow(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Prevent duplicate escrow
+    # Prevent duplicate escrow â€” or return existing pre-initialized draft idempotently
     if hasattr(quote, 'escrow'):
+        escrow = quote.escrow
+        if escrow.status == EscrowTransaction.STATUS_CREATED and escrow.escrow_id is None:
+            contract_address = request.data.get('contract_address') or escrow.contract_address or ESCROW_CONTRACT or os.environ.get('ESCROW_CONTRACT_ADDRESS', '').strip()
+            if contract_address and escrow.contract_address != contract_address:
+                escrow.contract_address = contract_address
+                escrow.save(update_fields=['contract_address'])
+            serializer = EscrowTransactionSerializer(escrow)
+            return Response(
+                {
+                    'message': 'Escrow ready. Proceed to create on-chain escrow via MetaMask.',
+                    'escrow': serializer.data,
+                    'id': escrow.pk,
+                    'contract_address': escrow.contract_address,
+                    'farmer_wallet': farmer.wallet_address,
+                    'fpo_wallet': fpo.wallet_address,
+                    'amount_eth': str(escrow.amount_eth),
+                    'quote_id': quote.pk,
+                },
+                status=status.HTTP_200_OK,
+            )
         existing = EscrowTransactionSerializer(quote.escrow).data
         return Response(
             {
@@ -2223,17 +2936,25 @@ def create_escrow(request):
             status=status.HTTP_409_CONFLICT,
         )
 
-    # Calculate amount: support commercial INR pricing with Sepolia ETH settlement
+    # â”€â”€ Commercial INR values (source of truth) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # These are set directly from the negotiated bid â€” never derived from ETH.
     unit_price = Decimal(str(bid.bid_amount))
-    quantity = Decimal(str(quote.quantity))
-    total_val = unit_price * quantity
+    quantity   = Decimal(str(quote.quantity))
 
-    # If unit_price >= 1, it represents INR commercial pricing: convert to ETH
-    # If unit_price < 1, support legacy testnet ETH values directly
+    inr_unit_price = unit_price if unit_price >= Decimal('1') else None
+    inr_total      = (inr_unit_price * quantity).quantize(Decimal('0.01')) if inr_unit_price else None
+
+    # â”€â”€ Blockchain ETH value (testnet settlement only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # The Solidity depositEscrow() requires msg.value == e.amount exactly.
+    # We store a representative Sepolia testnet ETH value for MetaMask to use.
+    # This ETH amount has NO commercial meaning â€” it is NOT the crop's INR price.
+    # Legacy records with unit_price < 1 (old pure-ETH bids) are stored as-is.
     if unit_price >= Decimal('1'):
-        amount_eth = (total_val / DEFAULT_INR_PER_ETH).quantize(Decimal('0.000001'))
+        # INR bid â†’ convert to testnet ETH for on-chain deposit only
+        amount_eth = (unit_price * quantity / DEFAULT_INR_PER_ETH).quantize(Decimal('0.000001'))
     else:
-        amount_eth = total_val
+        # Legacy testnet ETH bid (pre-INR era)
+        amount_eth = unit_price * quantity
 
     if amount_eth <= 0:
         return Response(
@@ -2248,11 +2969,6 @@ def create_escrow(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # â”€â”€ INR commercial values (Phase 1 â€” source of truth) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    # Store negotiated INR price directly. Never derive from amount_eth.
-    inr_unit_price  = unit_price if unit_price >= Decimal('1') else None
-    inr_total       = (inr_unit_price * quantity).quantize(Decimal('0.01')) if inr_unit_price else None
-
     escrow = EscrowTransaction.objects.create(
         farmer=farmer,
         fpo=fpo,
@@ -2260,10 +2976,10 @@ def create_escrow(request):
         contract_address=contract_address,
         amount_eth=amount_eth,
         status=EscrowTransaction.STATUS_CREATED,
-        # Phase 1 INR fields
+        # INR commercial fields â€” source of truth, set from bid directly
         unit_price_inr=inr_unit_price,
         total_amount_inr=inr_total,
-        agreed_price_inr=inr_total,   # agreed = total at creation; may be updated in Phase 2
+        agreed_price_inr=inr_total,   # agreed = total at creation
         payment_status=EscrowTransaction.PAYMENT_STATUS_PENDING,
     )
 
@@ -2338,6 +3054,16 @@ def escrow_created_onchain(request, escrow_pk):
         update_fields.append('contract_address')
     escrow.save(update_fields=update_fields)
 
+    # Sync quote status & contract address
+    if escrow.quote:
+        quote = escrow.quote
+        quote.contract_address = escrow.contract_address
+        quote.status = 'contract_created'
+        quote.contract_created_at = timezone.now()
+        quote.save(update_fields=['contract_address', 'status', 'contract_created_at'])
+        emit_event("quote_updated", {"quote_id": quote.id})
+        emit_event("deal_updated", {"quote_id": quote.id})
+
     logger.info(
         'Escrow on-chain created: db_id=%d, chain_id=%d, tx=%s',
         escrow.pk, escrow.escrow_id, tx_hash,
@@ -2362,6 +3088,13 @@ def escrow_funded(request, escrow_pk):
 
     if escrow.fpo_id != fpo.pk:
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+    # Idempotency check: if already funded, return existing state
+    if escrow.status == EscrowTransaction.STATUS_FUNDED:
+        return Response(
+            {'message': 'Escrow already funded.', 'escrow': EscrowTransactionSerializer(escrow).data},
+            status=status.HTTP_200_OK,
+        )
 
     if escrow.status != EscrowTransaction.STATUS_CREATED:
         return Response(
@@ -2389,7 +3122,9 @@ def escrow_funded(request, escrow_pk):
     escrow.status = EscrowTransaction.STATUS_FUNDED
     escrow.deposit_tx_hash = tx_hash
     escrow.funded_at = timezone.now()
-    fields_to_update = ['status', 'deposit_tx_hash', 'funded_at']
+    # Payment is now in-progress on-chain; mark commercial status accordingly
+    escrow.payment_status = EscrowTransaction.PAYMENT_STATUS_PROCESSING
+    fields_to_update = ['status', 'deposit_tx_hash', 'funded_at', 'payment_status']
     if req_escrow_id is not None:
         fields_to_update.append('escrow_id')
     escrow.save(update_fields=fields_to_update)
@@ -2399,6 +3134,7 @@ def escrow_funded(request, escrow_pk):
     serializer = EscrowTransactionSerializer(escrow)
     emit_event("escrow_updated", {"escrow_id": escrow.pk, "type": "farmer_fpo"})
     emit_event("transaction_updated", {"escrow_id": escrow.pk, "type": "farmer_fpo"})
+    emit_event("deal_updated", {"quote_id": escrow.quote.id if escrow.quote else None})
     return Response({'message': 'Escrow funded successfully.', 'escrow': serializer.data})
 
 
@@ -2464,6 +3200,16 @@ def escrow_released(request, escrow_pk):
     if escrow.fpo_id != fpo.pk:
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
+    # Idempotency: if already released, return existing state without double-releasing
+    if escrow.status == EscrowTransaction.STATUS_RELEASED:
+        tx_hash_in = request.data.get('tx_hash', '')
+        serializer = EscrowTransactionSerializer(escrow)
+        logger.info('Escrow already released (idempotent): id=%d', escrow.pk)
+        return Response(
+            {'message': 'Payment already released.', 'escrow': serializer.data},
+            status=status.HTTP_200_OK,
+        )
+
     if escrow.status != EscrowTransaction.STATUS_DELIVERY_CONFIRMED:
         return Response(
             {'error': f'Cannot release payment in "{escrow.status}" state.'},
@@ -2480,16 +3226,30 @@ def escrow_released(request, escrow_pk):
     escrow.status = EscrowTransaction.STATUS_RELEASED
     escrow.release_tx_hash = tx_hash
     escrow.released_at = timezone.now()
-    escrow.save(update_fields=['status', 'release_tx_hash', 'released_at'])
+    # Commercial payment is now complete
+    escrow.payment_status = EscrowTransaction.PAYMENT_STATUS_PAID
+    escrow.save(update_fields=['status', 'release_tx_hash', 'released_at', 'payment_status'])
 
-    # Ensure FPO Inventory Lot exists for FPO
+    # Close quote and sync
+    if escrow.quote:
+        quote = escrow.quote
+        quote.status = 'closed'
+        quote.save(update_fields=['status'])
+        emit_event("quote_updated", {"quote_id": quote.id})
+        emit_event("deal_updated", {"quote_id": quote.id})
+
+    # Create FPO Inventory Lot for the acquired crop.
+    # Bug fix: EscrowTransaction has no .bid field â€” use quote.accepted_bid instead.
     try:
         from fpo.services import create_fpo_inventory_lot_from_deal
-        create_fpo_inventory_lot_from_deal(quote=escrow.quote, bid=escrow.bid)
+        create_fpo_inventory_lot_from_deal(
+            quote=escrow.quote,
+            bid=escrow.quote.accepted_bid if escrow.quote else None,
+        )
     except Exception as exc:
         logger.error("Error creating FPOInventoryLot on escrow release: %s", exc)
 
-    logger.info('Payment released: escrow=%d, tx=%s', escrow.pk, tx_hash)
+    logger.info('Payment released: escrow=%d, tx=%s, payment_status=paid', escrow.pk, tx_hash)
 
     serializer = EscrowTransactionSerializer(escrow)
     emit_event("escrow_updated", {"escrow_id": escrow.pk, "type": "farmer_fpo"})
@@ -2551,14 +3311,14 @@ def escrow_my_list(request):
 # â”€â”€ POST /api/escrow/retailer/create/ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def create_retailer_escrow(request):
+def create_retailer_escrow(request, quote_pk=None):
     """
     Create an escrow record for an accepted FPO quote (FPO is Seller, Retailer is Buyer).
 
-    Body: { "quote_id": <int> }
+    Body: { "quote_id": <int> } or URL path <int:quote_pk>
     """
     user_obj = request.user.user_obj
-    quote_id = request.data.get('quote_id')
+    quote_id = quote_pk or request.data.get('quote_id')
     bid_id = request.data.get('bid_id')
 
     if not quote_id and bid_id:
@@ -2608,8 +3368,28 @@ def create_retailer_escrow(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Prevent duplicate escrow
+    # Prevent duplicate escrow â€” or return existing pre-initialized draft idempotently
     if hasattr(quote, 'escrow'):
+        escrow = quote.escrow
+        if escrow.status == RetailerEscrowTransaction.STATUS_CREATED and escrow.escrow_id is None:
+            contract_address = request.data.get('contract_address') or escrow.contract_address or ESCROW_CONTRACT or os.environ.get('ESCROW_CONTRACT_ADDRESS', '').strip()
+            if contract_address and escrow.contract_address != contract_address:
+                escrow.contract_address = contract_address
+                escrow.save(update_fields=['contract_address'])
+            serializer = RetailerEscrowTransactionSerializer(escrow)
+            return Response(
+                {
+                    'message': 'Retailer escrow draft already initialized.',
+                    'escrow': serializer.data,
+                    'id': escrow.pk,
+                    'contract_address': escrow.contract_address,
+                    'fpo_wallet': fpo.wallet_address,
+                    'retailer_wallet': retailer.wallet_address,
+                    'amount_eth': str(escrow.amount_eth),
+                    'quote_id': quote.pk,
+                },
+                status=status.HTTP_200_OK,
+            )
         existing = RetailerEscrowTransactionSerializer(quote.escrow).data
         return Response(
             {
@@ -2619,29 +3399,37 @@ def create_retailer_escrow(request):
             status=status.HTTP_409_CONFLICT,
         )
 
-    # Calculate agreed amount: check if negotiation has locked agreed_price_per_unit
-    from negotiation.models import Negotiation
-    content_type_str = f"retailer.retailerbid"
+    # â”€â”€ Resolve negotiated price (INR commercial values â€” source of truth) â”€â”€
+    # Check if a negotiation has locked a final agreed_price_per_unit.
+    # Price always comes from the negotiated deal or the original bid â€” never from ETH.
     try:
         from django.contrib.contenttypes.models import ContentType
+        from negotiation.models import Negotiation
         ct = ContentType.objects.get(app_label='retailer', model='retailerbid')
         neg = Negotiation.objects.filter(content_type=ct, object_id=bid.id, status='accepted').first()
     except Exception:
         neg = None
 
     price = neg.agreed_price_per_unit if (neg and neg.agreed_price_per_unit) else bid.bid_amount
-    qty = neg.agreed_quantity if (neg and neg.agreed_quantity) else quote.quantity
+    qty   = neg.agreed_quantity       if (neg and neg.agreed_quantity)       else quote.quantity
 
     price_dec = Decimal(str(price))
-    qty_dec = Decimal(str(qty))
-    total_val = price_dec * qty_dec
+    qty_dec   = Decimal(str(qty))
 
-    # If price_dec >= 1, treat as INR commercial pricing: convert to ETH
-    # If price_dec < 1, support legacy testnet ETH values directly
+    # INR commercial values â€” always set from the negotiated/bid price directly
+    inr_unit_price = price_dec if price_dec >= Decimal('1') else None
+    inr_total      = (inr_unit_price * qty_dec).quantize(Decimal('0.01')) if inr_unit_price else None
+
+    # â”€â”€ Blockchain ETH value (testnet settlement only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # The Solidity depositEscrow() requires msg.value == e.amount exactly.
+    # We store a representative Sepolia testnet ETH value for MetaMask to use.
+    # This ETH amount has NO commercial meaning â€” it is NOT the crop's INR price.
     if price_dec >= Decimal('1'):
-        amount_eth = (total_val / DEFAULT_INR_PER_ETH).quantize(Decimal('0.000001'))
+        # INR bid â†’ convert to testnet ETH for on-chain deposit only
+        amount_eth = (price_dec * qty_dec / DEFAULT_INR_PER_ETH).quantize(Decimal('0.000001'))
     else:
-        amount_eth = total_val
+        # Legacy testnet ETH bid (pre-INR era)
+        amount_eth = price_dec * qty_dec
 
     if amount_eth <= 0:
         return Response(
@@ -2656,11 +3444,6 @@ def create_retailer_escrow(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # â”€â”€ INR commercial values (Phase 1 â€” source of truth) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    # Store negotiated INR price directly. Never derive from amount_eth.
-    inr_unit_price = price_dec if price_dec >= Decimal('1') else None
-    inr_total      = (inr_unit_price * qty_dec).quantize(Decimal('0.01')) if inr_unit_price else None
-
     escrow = RetailerEscrowTransaction.objects.create(
         fpo=fpo,
         retailer=retailer,
@@ -2668,10 +3451,10 @@ def create_retailer_escrow(request):
         contract_address=contract_address,
         amount_eth=amount_eth,
         status=RetailerEscrowTransaction.STATUS_CREATED,
-        # Phase 1 INR fields
+        # INR commercial fields â€” source of truth, set from negotiated deal directly
         unit_price_inr=inr_unit_price,
         total_amount_inr=inr_total,
-        agreed_price_inr=inr_total,   # agreed = total at creation; may be updated in Phase 2
+        agreed_price_inr=inr_total,   # agreed = total at creation
         payment_status=RetailerEscrowTransaction.PAYMENT_STATUS_PENDING,
     )
 
@@ -2686,6 +3469,7 @@ def create_retailer_escrow(request):
         {
             'message': 'Retailer escrow created. Proceed to create/fund on-chain escrow via MetaMask.',
             'escrow': serializer.data,
+            'id': escrow.pk,
             'contract_address': contract_address,
             'fpo_wallet': fpo.wallet_address,
             'retailer_wallet': retailer.wallet_address,
@@ -2771,6 +3555,12 @@ def retailer_escrow_funded(request, escrow_pk):
     if escrow.retailer_id != retailer.pk:
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
+    if escrow.status == RetailerEscrowTransaction.STATUS_FUNDED:
+        return Response(
+            {'message': 'Escrow already funded.', 'escrow': RetailerEscrowTransactionSerializer(escrow).data},
+            status=status.HTTP_200_OK,
+        )
+
     if escrow.status != RetailerEscrowTransaction.STATUS_CREATED:
         return Response(
             {'error': f'Cannot fund escrow in "{escrow.status}" state.'},
@@ -2797,7 +3587,9 @@ def retailer_escrow_funded(request, escrow_pk):
     escrow.status = RetailerEscrowTransaction.STATUS_FUNDED
     escrow.deposit_tx_hash = tx_hash
     escrow.funded_at = timezone.now()
-    fields_to_update = ['status', 'deposit_tx_hash', 'funded_at']
+    # Payment is now in-progress on-chain; mark commercial status accordingly
+    escrow.payment_status = RetailerEscrowTransaction.PAYMENT_STATUS_PROCESSING
+    fields_to_update = ['status', 'deposit_tx_hash', 'funded_at', 'payment_status']
     if req_escrow_id is not None:
         fields_to_update.append('escrow_id')
     escrow.save(update_fields=fields_to_update)
@@ -2872,6 +3664,15 @@ def retailer_escrow_released(request, escrow_pk):
     if escrow.retailer_id != retailer.pk:
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
+    # Idempotency: if already released, return existing state without double-releasing
+    if escrow.status == RetailerEscrowTransaction.STATUS_RELEASED:
+        serializer = RetailerEscrowTransactionSerializer(escrow)
+        logger.info('Retailer escrow already released (idempotent): id=%d', escrow.pk)
+        return Response(
+            {'message': 'Payment already released.', 'escrow': serializer.data},
+            status=status.HTTP_200_OK,
+        )
+
     if escrow.status != RetailerEscrowTransaction.STATUS_DELIVERY_CONFIRMED:
         return Response(
             {'error': f'Cannot release payment in "{escrow.status}" state.'},
@@ -2888,46 +3689,65 @@ def retailer_escrow_released(request, escrow_pk):
     escrow.status = RetailerEscrowTransaction.STATUS_RELEASED
     escrow.release_tx_hash = tx_hash
     escrow.released_at = timezone.now()
-    escrow.save(update_fields=['status', 'release_tx_hash', 'released_at'])
+    # Commercial payment is now complete
+    escrow.payment_status = RetailerEscrowTransaction.PAYMENT_STATUS_PAID
+    escrow.save(update_fields=['status', 'release_tx_hash', 'released_at', 'payment_status'])
 
-    # â”€â”€ Move stock into RetailerInventoryLot with 100% Provenance â”€â”€â”€â”€â”€â”€â”€
+    # â”€â”€ Close Quote status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    quote = escrow.quote
+    if quote:
+        quote.status = 'closed'
+        quote.save(update_fields=['status'])
+        emit_event("quote_updated", {"quote_id": quote.pk, "status": "closed"})
+
+    # â”€â”€ Move stock into RetailerInventoryLot with full provenance â”€â”€â”€â”€
     try:
-        from retailer.models import RetailerInventoryLot
+        from retailer.models import RetailerInventoryLot, RetailerCartItem
+        from fpo.models import FPOInventoryLot
         import traceback
 
-        # Prevent duplicate inventory creation on repeated calls
+        # Idempotency: prevent duplicate inventory creation on repeated calls
         existing_lots = RetailerInventoryLot.objects.filter(escrow=escrow).count()
         if existing_lots > 0:
             logger.info('RetailerInventoryLot already exists for escrow #%d, skipping creation.', escrow.pk)
         else:
-            quote = escrow.quote
-            if quote and hasattr(quote, 'allocations'):
-                price = quote.price_per_unit or (
-                    escrow.amount_eth / quote.quantity if quote.quantity else Decimal('0')
-                )
+            if quote:
+                # â”€â”€ Commercial INR price for inventory records â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                # Sourced strictly from commercial INR fields (never from ETH)
+                if escrow.unit_price_inr:
+                    inr_price_per_unit = escrow.unit_price_inr
+                elif escrow.agreed_price_inr and quote.quantity:
+                    inr_price_per_unit = (escrow.agreed_price_inr / Decimal(str(quote.quantity))).quantize(Decimal('0.01'))
+                elif quote.price_per_unit and Decimal(str(quote.price_per_unit)) >= Decimal('1'):
+                    inr_price_per_unit = Decimal(str(quote.price_per_unit))
+                else:
+                    inr_price_per_unit = Decimal('0')
+                    logger.warning(
+                        'Escrow #%d: no INR price found; RetailerInventoryLot created with price=0.',
+                        escrow.pk,
+                    )
+
                 allocations = list(quote.allocations.select_related(
                     'inventory_lot', 'farmer', 'crop_passport'
-                ).all())
+                ).all()) if hasattr(quote, 'allocations') else []
 
                 if allocations:
                     for alloc in allocations:
-                        # 1. Update FPO Inventory Lot â€” reduce available_quantity only
-                        #    (original_quantity is the historical record and must stay > 0)
                         lot = alloc.inventory_lot
+                        qty = alloc.allocated_quantity
                         if lot:
-                            qty = alloc.allocated_quantity
-                            lot.available_quantity = max(
-                                Decimal('0'),
-                                (lot.available_quantity or Decimal('0')) - qty
-                            )
-                            lot.reserved_quantity = max(
-                                Decimal('0'),
-                                (lot.reserved_quantity or Decimal('0')) - qty
-                            )
-                            # Status auto-updates via save() method
+                            # Conservation of stock:
+                            # When reserved in cart, available_quantity was already decremented by alloc quantity.
+                            # So upon completion, we deduct from reserved_quantity first.
+                            if (lot.reserved_quantity or Decimal('0')) >= qty:
+                                lot.reserved_quantity = (lot.reserved_quantity or Decimal('0')) - qty
+                            else:
+                                rem = qty - (lot.reserved_quantity or Decimal('0'))
+                                lot.reserved_quantity = Decimal('0')
+                                lot.available_quantity = max(Decimal('0'), (lot.available_quantity or Decimal('0')) - rem)
                             lot.save()
 
-                        # 2. Create Retailer Inventory Lot
+                        # Create Retailer Inventory Lot with INR commercial price
                         RetailerInventoryLot.objects.create(
                             retailer=escrow.retailer,
                             fpo=escrow.fpo,
@@ -2937,24 +3757,49 @@ def retailer_escrow_released(request, escrow_pk):
                             escrow=escrow,
                             product_name=quote.product_name,
                             crop_category=quote.category,
-                            quantity=alloc.allocated_quantity,
+                            quantity=qty,
                             unit=quote.unit,
-                            purchase_price_per_unit=price,
-                            total_price=alloc.allocated_quantity * price,
+                            purchase_price_per_unit=inr_price_per_unit,
+                            total_price=(qty * inr_price_per_unit).quantize(Decimal('0.01')),
                             status='in_stock',
                         )
                     logger.info(
-                        'Created %d RetailerInventoryLot(s) for escrow #%d from allocations.',
-                        len(allocations), escrow.pk,
+                        'Created %d RetailerInventoryLot(s) for escrow #%d (INR price=â‚¹%s/unit).',
+                        len(allocations), escrow.pk, inr_price_per_unit,
                     )
                 else:
-                    # Fallback: quote has no allocations â€” this shouldn't happen in
-                    # normal flow but log a warning for investigation
-                    logger.warning(
-                        'Escrow #%d released but quote #%d has no FPOQuoteAllocations. '
-                        'RetailerInventoryLot not created â€” provenance data missing.',
-                        escrow.pk, quote.pk,
-                    )
+                    # Fallback if no quote allocations exist: link matching FPOInventoryLot
+                    matching_lot = FPOInventoryLot.objects.filter(fpo=escrow.fpo, product_name=quote.product_name).first()
+                    qty = quote.quantity
+                    if matching_lot:
+                        if (matching_lot.reserved_quantity or Decimal('0')) >= qty:
+                            matching_lot.reserved_quantity = (matching_lot.reserved_quantity or Decimal('0')) - qty
+                        else:
+                            rem = qty - (matching_lot.reserved_quantity or Decimal('0'))
+                            matching_lot.reserved_quantity = Decimal('0')
+                            matching_lot.available_quantity = max(Decimal('0'), (matching_lot.available_quantity or Decimal('0')) - rem)
+                        matching_lot.save()
+
+                        RetailerInventoryLot.objects.create(
+                            retailer=escrow.retailer,
+                            fpo=escrow.fpo,
+                            farmer=matching_lot.farmer,
+                            crop_passport=matching_lot.crop_passport,
+                            inventory_lot=matching_lot,
+                            escrow=escrow,
+                            product_name=quote.product_name,
+                            crop_category=quote.category,
+                            quantity=qty,
+                            unit=quote.unit,
+                            purchase_price_per_unit=inr_price_per_unit,
+                            total_price=(qty * inr_price_per_unit).quantize(Decimal('0.01')),
+                            status='in_stock',
+                        )
+                        logger.info('Created RetailerInventoryLot via matching FPO lot for escrow #%d.', escrow.pk)
+
+                # Clear retailer cart item for this quote now that purchase is completed
+                RetailerCartItem.objects.filter(retailer=escrow.retailer, quote=quote).delete()
+
     except Exception as exc:
         logger.error(
             "Error creating RetailerInventoryLot for escrow #%d: %s\n%s",
@@ -3712,6 +4557,7 @@ class FarmerQuoteSerializer(serializers.ModelSerializer):
         error_messages={"required": "Select a completed Crop Passport before creating a quote."}
     )
     crop_passport_details = serializers.SerializerMethodField()
+    escrow_details = serializers.SerializerMethodField()
 
     class Meta:
         model = FarmerQuote
@@ -3720,7 +4566,7 @@ class FarmerQuoteSerializer(serializers.ModelSerializer):
             'product_name', 'category', 'description', 
             'quantity', 'unit', 'price_per_unit', 'status', 'deadline', 
             'created_at', 'accepted_bid', 'farmer_name', 'farmer_email',
-            'bids', 'contract_address'
+            'bids', 'contract_address', 'escrow_details'
         ]
         read_only_fields = ('farmer', 'status', 'created_at', 'accepted_bid')
         extra_kwargs = {
@@ -3745,6 +4591,12 @@ class FarmerQuoteSerializer(serializers.ModelSerializer):
                 'submitted_at': bid.submitted_at
             })
         return bids_data
+
+    def get_escrow_details(self, obj):
+        if hasattr(obj, 'escrow') and obj.escrow:
+            from escrow.serializers import EscrowTransactionSerializer
+            return EscrowTransactionSerializer(obj.escrow).data
+        return None
 
     def get_crop_passport_details(self, obj):
         if not obj.crop_passport:
@@ -4070,1318 +4922,7 @@ FILE: backend/farmer/urls.py
 ================================================
 FILE: backend/farmer/views.py
 ================================================
-from rest_framework import generics, status
-from common.events import emit_event
-from rest_framework.response import Response
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.decorators import api_view, permission_classes
-from django.shortcuts import get_object_or_404
-from .models import Farmer, FarmerQuote, CropPassport, CropPassportDocument, AIQualityVerification
-from django.utils import timezone
-from .serializers import (
-    FarmerSerializer, FarmerRegistrationSerializer, FarmerQuoteSerializer,
-    CropPassportSerializer, PublicCropPassportSerializer,
-    CropPassportDocumentSerializer, PublicDocumentSerializer,
-    AIQualityVerificationSerializer, PublicVerificationSerializer,
-)
-from common.permissions import IsFarmer
-from fpo.models import FPOBid
-from fpo.serializers import FPOBidSerializer
-import re
-import logging
-
-logger = logging.getLogger(__name__)
-
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Existing views (unchanged)
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-class FarmerRegistrationView(generics.CreateAPIView):
-    queryset = Farmer.objects.all()
-    serializer_class = FarmerRegistrationSerializer
-    permission_classes = [AllowAny]
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(
-            {"message": "Registration successful.", "data": serializer.data},
-            status=status.HTTP_201_CREATED,
-            headers=headers
-        )
-
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def farmer_login_check(request):
-    email = request.data.get('email')
-    
-    try:
-        farmer = Farmer.objects.get(email=email)
-        if farmer.approval_status == 'pending':
-            return Response({
-                'message': 'Your account is pending admin approval. Please wait for approval to login.',
-                'approved': False,
-                'status': 'pending'
-            }, status=status.HTTP_200_OK)
-        elif farmer.approval_status == 'rejected':
-            return Response({
-                'message': 'Your account has been rejected by admin. Please contact support.',
-                'approved': False,
-                'status': 'rejected'
-            }, status=status.HTTP_200_OK)
-        else:
-            return Response({
-                'message': 'Account is approved. You can proceed to login.',
-                'approved': True,
-                'status': 'approved'
-            }, status=status.HTTP_200_OK)
-    except Farmer.DoesNotExist:
-        return Response({
-            'message': 'Farmer not found with this email.',
-            'approved': False,
-            'status': 'not_found'
-        }, status=status.HTTP_404_NOT_FOUND)
-
-class FarmerListView(generics.ListAPIView):
-    queryset = Farmer.objects.all()
-    serializer_class = FarmerSerializer
-    permission_classes = [IsAuthenticated, IsFarmer]
-
-class FarmerDetailView(generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = FarmerSerializer
-    permission_classes = [IsAuthenticated, IsFarmer]
-
-    def get_queryset(self):
-        farmer = getattr(self.request.user, 'user_obj', None)
-        if farmer:
-            return Farmer.objects.filter(pk=farmer.pk)
-        return Farmer.objects.none()
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated, IsFarmer])
-def farmer_dashboard(request):
-    farmer = request.user.user_obj
-    
-    my_quotes = FarmerQuote.objects.filter(farmer=farmer)
-    bids_received = FPOBid.objects.filter(quote__in=my_quotes)
-
-    data = {
-        "my_quotes_count": my_quotes.count(),
-        "bids_received_count": bids_received.count(),
-        "active_quotes": my_quotes.filter(status='open').count(),
-        "awarded_quotes": my_quotes.filter(status='awarded').count(),
-    }
-    return Response(data)
-
-class FarmerQuoteListCreateView(generics.ListCreateAPIView):
-    serializer_class = FarmerQuoteSerializer
-    permission_classes = [IsAuthenticated, IsFarmer]
-
-    def get_queryset(self):
-        farmer = self.request.user.user_obj
-        qs = FarmerQuote.objects.filter(farmer=farmer)
-
-        q = self.request.query_params.get('search') or self.request.query_params.get('q')
-        if q:
-            q = q.strip()
-            from django.db.models import Q
-            qs = qs.filter(
-                Q(product_name__icontains=q) |
-                Q(category__icontains=q) |
-                Q(crop_passport__crop_category__icontains=q) |
-                Q(description__icontains=q)
-            )
-
-        category = self.request.query_params.get('category')
-        if category and category.strip() and category.lower() != 'all':
-            qs = qs.filter(
-                Q(category__iexact=category.strip()) |
-                Q(crop_passport__crop_category__iexact=category.strip())
-            )
-
-        unit = self.request.query_params.get('unit')
-        if unit and unit.strip() and unit.lower() != 'all':
-            qs = qs.filter(unit__iexact=unit.strip())
-
-        status_param = self.request.query_params.get('status')
-        if status_param and status_param.strip() and status_param.lower() != 'all':
-            qs = qs.filter(status=status_param.strip())
-
-        min_qty = self.request.query_params.get('min_qty')
-        if min_qty:
-            try:
-                min_val = float(min_qty)
-                if min_val >= 0:
-                    qs = qs.filter(quantity__gte=min_val)
-            except (ValueError, TypeError):
-                pass
-
-        max_qty = self.request.query_params.get('max_qty')
-        if max_qty:
-            try:
-                max_val = float(max_qty)
-                if max_val >= 0:
-                    qs = qs.filter(quantity__lte=max_val)
-            except (ValueError, TypeError):
-                pass
-
-        harvest_from = self.request.query_params.get('harvest_from')
-        if harvest_from:
-            qs = qs.filter(crop_passport__harvest_date__gte=harvest_from)
-
-        harvest_to = self.request.query_params.get('harvest_to')
-        if harvest_to:
-            qs = qs.filter(crop_passport__harvest_date__lte=harvest_to)
-
-        return qs.order_by('-created_at')
-
-    def perform_create(self, serializer):
-        from decimal import Decimal
-        from rest_framework import serializers
-        farmer = self.request.user.user_obj
-        
-        # Check passport available quantity before saving
-        passport = serializer.validated_data.get('crop_passport')
-        quote_qty = serializer.validated_data.get('quantity')
-        if passport:
-            avail = passport.available_quantity if passport.available_quantity is not None else passport.quantity
-            if avail is not None and Decimal(str(avail)) < Decimal(str(quote_qty)):
-                raise serializers.ValidationError(
-                    f"Quote quantity ({quote_qty} {passport.unit}) exceeds remaining passport available stock ({avail} {passport.unit})."
-                )
-
-        quote = serializer.save(farmer=farmer)
-
-        if passport:
-            avail = passport.available_quantity if passport.available_quantity is not None else passport.quantity
-            passport.available_quantity = max(Decimal('0'), Decimal(str(avail)) - Decimal(str(quote.quantity)))
-            passport.sold_quantity = Decimal(str(passport.sold_quantity or '0')) + Decimal(str(quote.quantity))
-            if passport.available_quantity <= Decimal('0') and passport.status != 'minted':
-                passport.status = 'sold'
-            passport.save()
-
-        emit_event("quote_updated", {"quote_id": quote.id, "farmer_id": farmer.pk})
-
-class FarmerQuoteDetailView(generics.RetrieveUpdateAPIView):
-    serializer_class = FarmerQuoteSerializer
-    permission_classes = [IsAuthenticated, IsFarmer]
-
-    def get_queryset(self):
-        farmer = getattr(self.request.user, 'user_obj', None)
-        if farmer:
-            return FarmerQuote.objects.filter(farmer=farmer)
-        return FarmerQuote.objects.none()
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated, IsFarmer])
-def accept_fpo_bid(request, bid_pk):
-    bid = get_object_or_404(FPOBid, pk=bid_pk)
-    quote = bid.quote
-
-    if quote.farmer != request.user.user_obj:
-        return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
-    
-    if quote.status != 'open':
-        return Response({"error": "Quote is not open for bidding."}, status=status.HTTP_400_BAD_REQUEST)
-
-    # Accept this bid
-    bid.status = 'accepted'
-    bid.save()
-
-    # Reject other bids
-    quote.bids.exclude(pk=bid.pk).update(status='rejected')
-
-    # Update quote status to 'accepted' (contract will be created in frontend)
-    quote.status = 'accepted'
-    quote.accepted_bid = bid
-    quote.save()
-
-    # Phase 1 â€” Create FPO Inventory Lot preserving Farmer & Crop Passport provenance
-    try:
-        from fpo.services import create_fpo_inventory_lot_from_deal
-        create_fpo_inventory_lot_from_deal(quote, bid)
-    except Exception as exc:
-        logger.warning("Could not auto-create FPO inventory lot on bid accept: %s", exc)
-
-    emit_event("bid_updated", {"bid_id": bid.pk, "quote_id": quote.id})
-    emit_event("deal_updated", {"quote_id": quote.id})
-
-    return Response({
-        "message": "Bid accepted successfully. You can now create the smart contract.",
-        "bid_id": bid.pk,
-        "quote_id": quote.id,
-        "quote_status": quote.status,
-        "next_step": "create_smart_contract"
-    })
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated, IsFarmer])
-def update_contract_address(request, quote_id):
-    """Update the contract address after smart contract creation"""
-    quote = get_object_or_404(FarmerQuote, id=quote_id)
-    
-    if quote.farmer != request.user.user_obj:
-        return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
-    
-    contract_address = request.data.get('contract_address')
-    if not contract_address:
-        return Response({"error": "Contract address is required"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    if not contract_address.startswith('0x') or len(contract_address) != 42:
-        return Response({"error": "Invalid contract address format"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    quote.contract_address = contract_address
-    quote.status = 'contract_created'
-    quote.contract_created_at = timezone.now()
-    quote.save()
-    
-    return Response({
-        "message": "Contract address updated successfully",
-        "contract_address": contract_address,
-        "quote_id": quote.id
-    })
-
-
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def get_contract_details(request, contract_address):
-    """Get contract details for public viewing"""
-    quote = get_object_or_404(FarmerQuote, contract_address=contract_address)
-    
-    serializer = FarmerQuoteSerializer(quote)
-    
-    response_data = {
-        'quote': serializer.data,
-        'contract_address': contract_address,
-        'farmer_info': {
-            'name': quote.farmer.name,
-            'location': f"{quote.farmer.city}, {quote.farmer.state}"
-        },
-        'fpo_info': None,
-        'retailer_info': None
-    }
-    
-    if quote.accepted_bid:
-        response_data['fpo_info'] = {
-            'name': quote.accepted_bid.fpo.name,
-            'email': quote.accepted_bid.fpo.email
-        }
-    
-    return Response(response_data)
-
-
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Phase 2.2 â€” Crop Passport views
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-def _is_valid_eth_address(addr: str) -> bool:
-    """Basic Ethereum address format check: 0x + 40 hex chars."""
-    return bool(addr and re.fullmatch(r'0x[0-9a-fA-F]{40}', addr))
-
-
-def _is_valid_tx_hash(txhash: str) -> bool:
-    """Basic tx hash format check: 0x + 64 hex chars."""
-    return bool(txhash and re.fullmatch(r'0x[0-9a-fA-F]{64}', txhash))
-
-
-def _is_valid_ipfs_uri(uri: str) -> bool:
-    """Accept ipfs://<CID> or https://gateway.pinata.cloud/ipfs/<CID>."""
-    return bool(uri and (uri.startswith('ipfs://') or '/ipfs/' in uri))
-
-
-class CropPassportListCreateView(generics.ListCreateAPIView):
-    """
-    GET  /api/farmer/crops/  â€” list farmer's own crops
-    POST /api/farmer/crops/  â€” create a new crop passport
-    """
-    serializer_class = CropPassportSerializer
-    permission_classes = [IsAuthenticated, IsFarmer]
-
-    def get_queryset(self):
-        return CropPassport.objects.filter(farmer=self.request.user.user_obj)
-
-    def perform_create(self, serializer):
-        # farmer is always derived from the authenticated request, never request.data
-        serializer.save(farmer=self.request.user.user_obj)
-
-
-class CropPassportDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """
-    GET    /api/farmer/crops/<id>/  â€” retrieve one crop (owner only)
-    PATCH  /api/farmer/crops/<id>/  â€” update crop (only before minting)
-    DELETE /api/farmer/crops/<id>/  â€” delete crop passport (owner only, not active in quotes/escrow)
-    """
-    serializer_class = CropPassportSerializer
-    permission_classes = [IsAuthenticated, IsFarmer]
-
-    def get_queryset(self):
-        # Scoped to logged-in farmer only
-        return CropPassport.objects.filter(farmer=self.request.user.user_obj)
-
-    def partial_update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        if instance.is_minted:
-            return Response(
-                {"error": "A minted Crop Passport cannot be modified."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        return super().partial_update(request, *args, **kwargs)
-
-    def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        if instance.is_minted:
-            return Response(
-                {"error": "A minted Crop Passport cannot be modified."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        return super().update(request, *args, **kwargs)
-
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-
-        # Check if linked to active quotes
-        active_quotes = instance.quotes.filter(status__in=['open', 'accepted', 'contract_created', 'awarded'])
-        if active_quotes.exists():
-            return Response(
-                {"error": f"Cannot delete Crop Passport because it is currently referenced by an active supply quote (Quote #{active_quotes.first().id}). Please close or cancel the quote first."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Check if linked to active escrow transactions
-        from escrow.models import EscrowTransaction
-        active_escrows = EscrowTransaction.objects.filter(
-            quote__crop_passport=instance
-        ).exclude(status__in=['released', 'refunded'])
-        if active_escrows.exists():
-            return Response(
-                {"error": f"Cannot delete Crop Passport because it is linked to an active escrow agreement (Escrow #{active_escrows.first().id})."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        was_minted = instance.is_minted
-        instance.delete()
-
-        msg = "Crop Passport successfully deleted from FarmerChain."
-        if was_minted:
-            msg += " Note: Historical on-chain NFT token records remain recorded on the blockchain ledger."
-
-        emit_event("crop_updated", {"crop_id": instance.pk})
-
-        return Response(
-            {"message": msg, "is_minted": was_minted},
-            status=status.HTTP_200_OK,
-        )
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated, IsFarmer])
-def prepare_mint_view(request, crop_id):
-    """
-    POST /api/farmer/crops/<id>/mint/
-
-    Validates the crop, builds NFT metadata, uploads it to IPFS via
-    server-side Pinata credentials, and returns the token_uri + wallet
-    for the frontend to use when calling MetaMask.
-
-    Enforces mandatory fields, required IPFS image upload, and AI quality verification.
-    """
-    farmer = request.user.user_obj
-    crop = get_object_or_404(CropPassport, pk=crop_id)
-
-    # Ownership check â€” never trust the URL parameter alone
-    if crop.farmer_id != farmer.pk:
-        return Response(
-            {"error": "You do not own this Crop Passport."},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
-    # Double-mint guard
-    if crop.is_minted:
-        return Response(
-            {"error": "This Crop Passport has already been minted as an NFT."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # â”€â”€ 1. Validate mandatory fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    if not crop.crop_name or not crop.crop_category or not crop.quantity or crop.quantity <= 0 or not crop.unit or not crop.cultivation_date or not crop.harvest_date:
-        return Response(
-            {"error": "All mandatory crop fields (crop name, category, quantity > 0, unit, cultivation date, harvest date) must be complete before generating Crop Passport."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    if crop.cultivation_date > crop.harvest_date:
-        return Response(
-            {"error": "Cultivation date cannot be after harvest date."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # â”€â”€ 2. Validate Primary Crop Image & AI Quality Verification â”€â”€â”€â”€â”€â”€
-    verifications = crop.ai_verifications.filter(verification_status='verified')
-    if not crop.primary_image_url or not verifications.exists():
-        return Response(
-            {"error": "Primary crop image and successful AI Quality Verification are required before generating the Crop Passport."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # â”€â”€ 3. (Evidence documents are optional supporting proof â€” not required for minting)
-
-    # Build W3C-style NFT metadata (no sensitive fields)
-    metadata = {
-        "name": f"FarmerChain Crop Passport â€” {crop.crop_name}",
-        "description": (
-            f"Blockchain-backed digital crop passport issued by FarmerChain. "
-            f"Crop: {crop.crop_name} | Category: {crop.crop_category} | "
-            f"Farmer DID: {farmer.did or 'N/A'}"
-        ),
-        "image": "",   # placeholder â€” no image for MVP
-        "attributes": [
-            {"trait_type": "Crop", "value": crop.crop_name},
-            {"trait_type": "Category", "value": crop.crop_category},
-            {"trait_type": "Quantity", "value": str(crop.quantity)},
-            {"trait_type": "Unit", "value": crop.unit},
-            {"trait_type": "Cultivation Date", "value": str(crop.cultivation_date)},
-            {"trait_type": "Harvest Date", "value": str(crop.harvest_date)},
-            {"trait_type": "Location", "value": crop.location or f"{farmer.city}, {farmer.state}"},
-            {"trait_type": "Farmer DID", "value": farmer.did or ""},
-            {"trait_type": "Farmer Wallet", "value": farmer.wallet_address or ""},
-            {"trait_type": "FarmerChain Crop ID", "value": str(crop.pk)},
-            # Explicitly excluded: aadhaar, email, password, GSTIN, CIN
-        ],
-    }
-
-    # Upload to IPFS via server-side Pinata credentials
-    try:
-        from services.ipfs_service import upload_json_to_ipfs, IPFSUploadError
-        token_uri = upload_json_to_ipfs(
-            metadata,
-            name=f"crop-passport-{crop.pk}.json",
-        )
-    except IPFSUploadError as exc:
-        logger.warning("IPFS upload failed for crop %s: %s", crop.pk, exc)
-        return Response(
-            {"error": f"IPFS upload failed: {str(exc)}"},
-            status=status.HTTP_502_BAD_GATEWAY,
-        )
-
-    return Response({
-        "crop_id": crop.pk,
-        "crop_name": crop.crop_name,
-        "token_uri": token_uri,
-        "farmer_wallet": farmer.wallet_address,
-        "farmer_did": farmer.did,
-        "metadata": metadata,        # returned for transparency / debugging
-    })
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated, IsFarmer])
-def confirm_mint_view(request, crop_id):
-    """
-    POST /api/farmer/crops/<id>/confirm-mint/
-
-    Called by the frontend AFTER the blockchain tx is confirmed.
-    Validates format of all inputs before persisting.
-
-    Body: { token_id, contract_address, tx_hash, token_uri }
-
-    Limitations (documented):
-    - We validate format (ETH address, tx hash, IPFS URI) but do NOT
-      perform a live RPC call to Sepolia here because the ETH_RPC_URL
-      in .env contains a placeholder Infura key. Once a real Infura key
-      is configured, on-chain verification can be added here.
-    """
-    farmer = request.user.user_obj
-    crop = get_object_or_404(CropPassport, pk=crop_id)
-
-    if crop.farmer_id != farmer.pk:
-        return Response(
-            {"error": "You do not own this Crop Passport."},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
-    if crop.is_minted:
-        return Response(
-            {"error": "This Crop Passport is already minted."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    token_id = str(request.data.get("token_id", "")).strip()
-    contract_address = str(request.data.get("contract_address", "")).strip()
-    tx_hash = str(request.data.get("tx_hash", "")).strip()
-    token_uri = str(request.data.get("token_uri", "")).strip()
-
-    # â”€â”€ Format validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    errors = {}
-    if not token_id:
-        errors["token_id"] = "token_id is required."
-    if not _is_valid_eth_address(contract_address):
-        errors["contract_address"] = "Must be a valid Ethereum address (0x + 40 hex chars)."
-    if not _is_valid_tx_hash(tx_hash):
-        errors["tx_hash"] = "Must be a valid transaction hash (0x + 64 hex chars)."
-    if not _is_valid_ipfs_uri(token_uri):
-        errors["token_uri"] = "Must be a valid IPFS URI (ipfs://...)."
-    if errors:
-        return Response({"errors": errors}, status=status.HTTP_400_BAD_REQUEST)
-
-    # â”€â”€ Persist â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    crop.nft_token_id = token_id
-    crop.nft_contract_address = contract_address.lower()   # normalise
-    crop.nft_transaction_hash = tx_hash.lower()
-    crop.nft_token_uri = token_uri
-    crop.status = CropPassport.STATUS_MINTED
-    crop.nft_minted_at = timezone.now()
-    crop.save()
-
-    serializer = CropPassportSerializer(crop)
-
-    emit_event("crop_updated", {"crop_id": crop.pk})
-
-    return Response({
-        "message": "Crop Passport NFT successfully recorded.",
-        "crop": serializer.data,
-    })
-
-
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def public_crop_passport_view(request, crop_id):
-    """
-    GET /api/farmer/crops/public/<id>/
-
-    Public, unauthenticated. Returns only non-sensitive fields.
-    No email, aadhaar, password, GSTIN, CIN.
-    Phase 2.3: includes public documents list.
-    """
-    crop = get_object_or_404(CropPassport, pk=crop_id)
-    serializer = PublicCropPassportSerializer(crop)
-    documents  = crop.documents.all()
-    doc_serializer = PublicDocumentSerializer(documents, many=True)
-    data = serializer.data
-    data['documents'] = doc_serializer.data
-    return Response(data)
-
-
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Phase 2.3 â€” IPFS Document views
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024   # 10 MB
-ALLOWED_CONTENT_TYPES = {
-    'image/jpeg', 'image/jpg', 'image/png',
-    'image/webp', 'application/pdf',
-}
-ALLOWED_DOC_TYPES = {
-    'crop_image', 'soil_report', 'quality_report',
-    'certification', 'harvest_document', 'other',
-}
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated, IsFarmer])
-def upload_document(request, crop_id):
-    """
-    POST /api/farmer/crops/<crop_id>/documents/
-
-    Uploads a file to Pinata IPFS and stores the CID in Django.
-    Farmer is always derived from the JWT cookie (never from request body).
-    """
-    farmer = request.user.user_obj
-    crop   = get_object_or_404(CropPassport, pk=crop_id)
-
-    # â”€â”€ Ownership check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    if crop.farmer_id != farmer.pk:
-        return Response(
-            {'error': 'You do not own this Crop Passport.'},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
-    # â”€â”€ File presence check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    uploaded_file = request.FILES.get('file')
-    if not uploaded_file:
-        return Response(
-            {'error': 'No file provided. Send the file as multipart/form-data with key "file".'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # â”€â”€ Size validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    if uploaded_file.size > MAX_UPLOAD_BYTES:
-        return Response(
-            {'error': f'File too large. Maximum allowed size is 10 MB.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # â”€â”€ MIME type validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    content_type = uploaded_file.content_type.lower().split(';')[0].strip()
-    if content_type not in ALLOWED_CONTENT_TYPES:
-        return Response(
-            {'error': f'File type "{content_type}" is not allowed. '
-                      f'Allowed types: JPG, PNG, WEBP, PDF.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # â”€â”€ Document type validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    document_type = request.data.get('document_type', 'other').strip()
-    if document_type not in ALLOWED_DOC_TYPES:
-        return Response(
-            {'error': f'Invalid document_type "{document_type}". '
-                      f'Allowed: {sorted(ALLOWED_DOC_TYPES)}'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # â”€â”€ Upload to IPFS via server-side Pinata â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    try:
-        from services.ipfs_service import upload_file_to_ipfs, IPFSUploadError
-        cid, ipfs_uri = upload_file_to_ipfs(
-            file_obj=uploaded_file,
-            file_name=uploaded_file.name,
-            pin_name=f'crop-{crop_id}-{uploaded_file.name}',
-        )
-    except IPFSUploadError as exc:
-        logger.warning('IPFS file upload failed for crop %s: %s', crop_id, exc)
-        return Response(
-            {'error': f'Unable to upload file to IPFS: {str(exc)}'},
-            status=status.HTTP_502_BAD_GATEWAY,
-        )
-
-    # â”€â”€ Persist CID reference in DB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    doc = CropPassportDocument.objects.create(
-        crop_passport=crop,
-        uploaded_by=farmer,
-        file_name=uploaded_file.name,
-        file_type=content_type,
-        file_size=uploaded_file.size,
-        document_type=document_type,
-        ipfs_cid=cid,
-        ipfs_uri=ipfs_uri,
-    )
-
-    serializer = CropPassportDocumentSerializer(doc)
-
-    emit_event("crop_updated", {"crop_id": crop.pk})
-
-    return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated, IsFarmer])
-def list_documents(request, crop_id):
-    """
-    GET /api/farmer/crops/<crop_id>/documents/
-
-    Lists documents belonging to the authenticated farmer's crop.
-    """
-    farmer = request.user.user_obj
-    crop   = get_object_or_404(CropPassport, pk=crop_id)
-
-    if crop.farmer_id != farmer.pk:
-        return Response(
-            {'error': 'You do not own this Crop Passport.'},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
-    docs = CropPassportDocument.objects.filter(crop_passport=crop)
-    serializer = CropPassportDocumentSerializer(docs, many=True)
-    return Response(serializer.data)
-
-
-@api_view(['GET', 'DELETE'])
-@permission_classes([IsAuthenticated, IsFarmer])
-def document_detail(request, crop_id, document_id):
-    """
-    GET    /api/farmer/crops/<crop_id>/documents/<document_id>/
-    DELETE /api/farmer/crops/<crop_id>/documents/<document_id>/
-
-    GET:    Return document metadata (farmer-scoped).
-    DELETE: Remove DB record and attempt to unpin from Pinata.
-            IPFS content may still be accessible via other gateways/nodes.
-    """
-    farmer = request.user.user_obj
-    crop   = get_object_or_404(CropPassport, pk=crop_id)
-
-    if crop.farmer_id != farmer.pk:
-        return Response(
-            {'error': 'You do not own this Crop Passport.'},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
-    doc = get_object_or_404(CropPassportDocument, pk=document_id, crop_passport=crop)
-
-    if request.method == 'GET':
-        serializer = CropPassportDocumentSerializer(doc)
-        return Response(serializer.data)
-
-    # DELETE
-    cid = doc.ipfs_cid
-    doc.delete()
-
-    # Attempt Pinata unpin (best-effort; does not guarantee IPFS removal)
-    unpin_result = 'not_attempted'
-    try:
-        from services.ipfs_service import unpin_from_ipfs, IPFSUploadError
-        unpinned = unpin_from_ipfs(cid)
-        unpin_result = 'unpinned' if unpinned else 'not_found_in_pinata'
-    except Exception as exc:
-        logger.warning('Unpin attempt failed for CID %s: %s', cid, exc)
-        unpin_result = 'unpin_failed'
-
-    return Response({
-        'message': 'Document record deleted.',
-        'ipfs_cid': cid,
-        'pinata_unpin': unpin_result,
-        'note': (
-            'The IPFS content may still be accessible via public gateways '
-            'if other nodes have cached or pinned it.'
-        ),
-    })
-
-
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Phase 2.4 â€” AI Crop Quality Verification views
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-AI_ALLOWED_MIME_TYPES = {'image/jpeg', 'image/jpg', 'image/png', 'image/webp'}
-AI_MAX_UPLOAD_BYTES   = 10 * 1024 * 1024   # 10 MB
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated, IsFarmer])
-def verify_crop_view(request, crop_id):
-    """
-    POST /api/farmer/crops/<crop_id>/verify/
-
-    Complete AI verification flow:
-      1. Validate file (image type, size)
-      2. Upload image to IPFS via existing Pinata service
-      3. Read image bytes and send to Gemini Vision
-      4. Validate AI JSON response
-      5. Crop mismatch check (detected vs registered)
-      6. Persist AIQualityVerification record
-      7. Return structured result (no API keys, no PII)
-
-    Security:
-      - Farmer derived from JWT cookie (never from request body)
-      - crop.farmer_id == farmer.pk checked before any processing
-      - Gemini API key never returned
-    """
-    farmer = request.user.user_obj
-    crop   = get_object_or_404(CropPassport, pk=crop_id)
-
-    # â”€â”€ Ownership check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    if crop.farmer_id != farmer.pk:
-        return Response(
-            {'error': 'You do not own this Crop Passport.'},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
-    # â”€â”€ File presence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    uploaded_file = request.FILES.get('file')
-    if not uploaded_file:
-        return Response(
-            {'error': 'No image provided. Send the image as multipart/form-data with key "file".'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # â”€â”€ Size validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    if uploaded_file.size > AI_MAX_UPLOAD_BYTES:
-        return Response(
-            {'error': 'Image too large. Maximum is 10 MB.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # â”€â”€ MIME type validation (images only, no PDFs) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    content_type = uploaded_file.content_type.lower().split(';')[0].strip()
-    if content_type not in AI_ALLOWED_MIME_TYPES:
-        return Response(
-            {'error': f'File type "{content_type}" is not accepted for AI verification. '
-                      f'Upload a JPEG, PNG, or WEBP image.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # â”€â”€ Step 0: Pre-validate image bytes & resolution with Pillow â”€
-    uploaded_file.seek(0)
-    image_bytes = uploaded_file.read()
-    uploaded_file.seek(0)
-
-    from services.ai_service import validate_image_bytes, AIAnalysisError
-    try:
-        validate_image_bytes(image_bytes)
-    except AIAnalysisError as exc:
-        return Response(
-            {'error': f'Image validation error: {str(exc)}'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # â”€â”€ Step 1: Upload image to IPFS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    try:
-        from services.ipfs_service import upload_file_to_ipfs, IPFSUploadError
-        cid, image_uri = upload_file_to_ipfs(
-            file_obj=uploaded_file,
-            file_name=uploaded_file.name,
-            pin_name=f'ai-verify-crop-{crop_id}-{uploaded_file.name}',
-        )
-    except IPFSUploadError as exc:
-        logger.warning('IPFS upload failed during AI verify for crop %s: %s', crop_id, exc)
-        return Response(
-            {'error': f'Image upload to IPFS failed: {str(exc)}'},
-            status=status.HTTP_502_BAD_GATEWAY,
-        )
-
-    # â”€â”€ Step 1b: Duplicate/Reused Image Detection across different crops â”€â”€
-    existing_dup = (
-        AIQualityVerification.objects
-        .exclude(crop_passport=crop)
-        .filter(image_cid=cid)
-        .first()
-    )
-    if existing_dup:
-        dup_reason = (
-            f"Duplicate Image Flagged: This exact image has already been used for "
-            f"Crop Record #{existing_dup.crop_passport_id} ({existing_dup.crop_passport.crop_name}). "
-            f"Please upload a genuine, distinct photo of your current harvest lot."
-        )
-        failed_record = AIQualityVerification.objects.create(
-            crop_passport=crop,
-            verified_by=farmer,
-            image_cid=cid,
-            image_uri=image_uri,
-            verification_status=AIQualityVerification.STATUS_FAILED,
-            failure_reason=dup_reason,
-            ai_provider='gemini-1.5-flash',
-        )
-        serializer = AIQualityVerificationSerializer(failed_record)
-        emit_event("crop_updated", {"crop_id": crop.pk})
-        return Response(
-            {
-                'error': dup_reason,
-                'verification': serializer.data,
-            },
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # â”€â”€ Step 2: AI analysis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    try:
-        from services.ai_service import analyze_crop_image
-        ai_result = analyze_crop_image(
-            image_bytes=image_bytes,
-            mime_type=content_type,
-            crop_name=crop.crop_name,
-        )
-    except AIAnalysisError as exc:
-        error_msg = str(exc)
-        logger.warning('Gemini analysis failed for crop %s: %s', crop_id, error_msg)
-
-        is_truncation = 'incomplete' in error_msg.lower() or 'truncated' in error_msg.lower()
-        if is_truncation:
-            return Response(
-                {
-                    'error': error_msg,
-                    'can_retry': True,
-                },
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
-
-        failed_record = AIQualityVerification.objects.create(
-            crop_passport=crop,
-            verified_by=farmer,
-            image_cid=cid,
-            image_uri=image_uri,
-            verification_status=AIQualityVerification.STATUS_FAILED,
-            failure_reason=error_msg,
-        )
-        serializer = AIQualityVerificationSerializer(failed_record)
-        emit_event("crop_updated", {"crop_id": crop.pk})
-        return Response(
-            {
-                'error': f'AI analysis failed: {error_msg}',
-                'verification': serializer.data,
-            },
-            status=status.HTTP_502_BAD_GATEWAY,
-        )
-
-    # â”€â”€ Step 3: Check agricultural relevance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    is_crop = ai_result.get('is_crop_image', True)
-    auth_flag = ai_result.get('authenticity_flag', 'normal')
-    if not is_crop or auth_flag == 'unrelated':
-        unrelated_reason = (
-            "The uploaded photo does not appear to contain an agricultural crop or harvest produce. "
-            "Please upload a clear photo of your actual crop harvest."
-        )
-        failed_record = AIQualityVerification.objects.create(
-            crop_passport=crop,
-            verified_by=farmer,
-            image_cid=cid,
-            image_uri=image_uri,
-            crop_detected=ai_result.get('crop_detected', ''),
-            confidence_score=ai_result.get('confidence_score'),
-            ai_summary=ai_result.get('summary', ''),
-            verification_status=AIQualityVerification.STATUS_FAILED,
-            failure_reason=unrelated_reason,
-            ai_provider='gemini-1.5-flash',
-        )
-        serializer = AIQualityVerificationSerializer(failed_record)
-        emit_event("crop_updated", {"crop_id": crop.pk})
-        return Response(
-            {
-                'error': unrelated_reason,
-                'verification': serializer.data,
-            },
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # â”€â”€ Step 4: Strict crop match check (NO unknown loophole) â”€
-    detected  = ai_result.get('crop_detected', '').lower().strip()
-    expected  = crop.crop_name.lower().strip()
-    crop_matches_expected = ai_result.get('crop_matches_expected', False)
-
-    # Strict match: must match or substring match, but strictly NOT 'unknown' or 'unrelated'
-    name_match = (
-        (detected == expected or detected in expected or expected in detected)
-        and detected not in {'unknown', 'unrelated', 'non-crop', 'other'}
-    )
-    crop_match = crop_matches_expected or name_match
-
-    if not crop_match:
-        mismatch_reason = (
-            f"Crop mismatch detected: Image appears to show '{ai_result.get('crop_detected', 'unknown')}' "
-            f"but the registered crop is '{crop.crop_name}'."
-        )
-        failed_record = AIQualityVerification.objects.create(
-            crop_passport=crop,
-            verified_by=farmer,
-            image_cid=cid,
-            image_uri=image_uri,
-            crop_detected=ai_result.get('crop_detected', ''),
-            confidence_score=ai_result.get('confidence_score'),
-            ai_summary=ai_result.get('summary', ''),
-            verification_status=AIQualityVerification.STATUS_FAILED,
-            failure_reason=mismatch_reason,
-            ai_provider='gemini-1.5-flash',
-        )
-        serializer = AIQualityVerificationSerializer(failed_record)
-        emit_event("crop_updated", {"crop_id": crop.pk})
-        return Response(
-            {
-                'error': mismatch_reason,
-                'verification': serializer.data,
-            },
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # â”€â”€ Step 5: Confidence threshold check (< 0.45 flags failure) â”€
-    conf_score = float(ai_result.get('confidence_score') or 0.0)
-    if conf_score < 0.45:
-        low_conf_reason = (
-            f"Verification Confidence too low ({int(conf_score * 100)}%). "
-            f"The AI could not confidently verify this crop. "
-            f"Please upload a clearer, well-lit photo of your harvest."
-        )
-        failed_record = AIQualityVerification.objects.create(
-            crop_passport=crop,
-            verified_by=farmer,
-            image_cid=cid,
-            image_uri=image_uri,
-            crop_detected=ai_result.get('crop_detected', ''),
-            confidence_score=ai_result.get('confidence_score'),
-            ai_summary=ai_result.get('summary', ''),
-            verification_status=AIQualityVerification.STATUS_FAILED,
-            failure_reason=low_conf_reason,
-            ai_provider='gemini-1.5-flash',
-        )
-        serializer = AIQualityVerificationSerializer(failed_record)
-        emit_event("crop_updated", {"crop_id": crop.pk})
-        return Response(
-            {
-                'error': low_conf_reason,
-                'verification': serializer.data,
-            },
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # â”€â”€ Step 6: Save verified record â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    verification = AIQualityVerification.objects.create(
-        crop_passport=crop,
-        verified_by=farmer,
-        image_cid=cid,
-        image_uri=image_uri,
-        crop_detected=ai_result.get('crop_detected', ''),
-        quality_grade=ai_result.get('quality_grade', ''),
-        quality_score=ai_result.get('quality_score'),
-        confidence_score=ai_result.get('confidence_score'),
-        disease_detected=ai_result.get('disease_detected', False),
-        disease_name=ai_result.get('disease_name'),
-        visible_defects=ai_result.get('visible_defects', ''),
-        ai_summary=ai_result.get('summary', ''),
-        verification_status=AIQualityVerification.STATUS_VERIFIED,
-        ai_provider='gemini-1.5-flash',
-    )
-
-    serializer = AIQualityVerificationSerializer(verification)
-
-    emit_event("crop_updated", {"crop_id": crop.pk})
-
-    return Response(
-        {
-            'message': 'AI quality verification complete.',
-            'disclaimer': (
-                'This is an AI-assisted visual assessment. '
-                'It is NOT an agricultural laboratory certification.'
-            ),
-            'verification': serializer.data,
-        },
-        status=status.HTTP_201_CREATED,
-    )
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated, IsFarmer])
-def get_verification_view(request, crop_id):
-    """
-    GET /api/farmer/crops/<crop_id>/verification/
-
-    Returns the latest AI verification for the authenticated farmer's crop.
-    """
-    farmer = request.user.user_obj
-    crop   = get_object_or_404(CropPassport, pk=crop_id)
-
-    if crop.farmer_id != farmer.pk:
-        return Response(
-            {'error': 'You do not own this Crop Passport.'},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
-    verifications = AIQualityVerification.objects.filter(crop_passport=crop)
-    if not verifications.exists():
-        return Response(
-            {'message': 'No AI verification has been run for this crop yet.'},
-            status=status.HTTP_200_OK,
-        )
-
-    serializer = AIQualityVerificationSerializer(verifications, many=True)
-    return Response({'verifications': serializer.data})
-
-
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def public_verification_view(request, crop_id):
-    """
-    GET /api/farmer/crops/public/<crop_id>/verification/
-
-    Public endpoint. Returns the latest verified AI result for consumer trust.
-    Does NOT expose farmer PII (name, email, aadhaar, wallet, password).
-    """
-    crop = get_object_or_404(CropPassport, pk=crop_id)
-    latest = (
-        AIQualityVerification.objects
-        .filter(crop_passport=crop, verification_status=AIQualityVerification.STATUS_VERIFIED)
-        .first()
-    )
-    if not latest:
-        return Response(
-            {'message': 'No verified AI assessment available for this crop.'},
-            status=status.HTTP_200_OK,
-        )
-
-    serializer = PublicVerificationSerializer(latest)
-    return Response({
-        'disclaimer': (
-            'AI-assisted visual assessment only. '
-            'Not an agricultural laboratory certification.'
-        ),
-        'verification': serializer.data,
-    })
-
-
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Phase 2.7 â€” Supply-Chain Traceability Timeline (public)
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def crop_timeline_view(request, crop_id):
-    """
-    GET /api/farmer/crops/public/<crop_id>/timeline/
-
-    Returns a chronological list of supply-chain events for a Crop Passport.
-    Public endpoint â€” no authentication required.
-    No sensitive data (email, aadhaar, password, API keys) is exposed.
-    """
-    crop = get_object_or_404(CropPassport, pk=crop_id)
-    events = []
-    SEPOLIA = "https://sepolia.etherscan.io"
-
-    # 1. Crop Registered
-    events.append({
-        'type': 'crop_registered',
-        'title': 'Crop Registered',
-        'timestamp': crop.created_at.isoformat(),
-        'status': 'completed',
-        'details': {
-            'crop_name': crop.crop_name,
-            'category': crop.crop_category,
-            'quantity': f"{crop.quantity} {crop.unit}",
-        },
-    })
-
-    # 2. IPFS Documents
-    docs = crop.documents.order_by('uploaded_at')
-    for doc in docs:
-        events.append({
-            'type': 'document_uploaded',
-            'title': f'Document Stored on IPFS â€” {doc.get_document_type_display()}',
-            'timestamp': doc.uploaded_at.isoformat(),
-            'status': 'completed',
-            'details': {
-                'file_name': doc.file_name,
-                'ipfs_cid': doc.ipfs_cid,
-                'gateway_url': doc.gateway_url,
-            },
-        })
-
-    # 3. AI Quality Verification (latest verified)
-    ai = (
-        crop.ai_verifications
-        .filter(verification_status=AIQualityVerification.STATUS_VERIFIED)
-        .order_by('-created_at')
-        .first()
-    )
-    if ai:
-        events.append({
-            'type': 'ai_verified',
-            'title': 'AI Quality Verification',
-            'timestamp': ai.created_at.isoformat(),
-            'status': 'completed',
-            'details': {
-                'quality_grade': ai.quality_grade,
-                'quality_score': str(ai.quality_score),
-                'confidence_score': str(ai.confidence_score),
-                'crop_detected': ai.crop_detected,
-                'disease_detected': ai.disease_detected,
-            },
-        })
-
-    # 4. NFT Minted
-    if crop.is_minted and crop.nft_minted_at:
-        events.append({
-            'type': 'nft_minted',
-            'title': 'NFT Crop Passport Minted',
-            'timestamp': crop.nft_minted_at.isoformat(),
-            'status': 'completed',
-            'details': {
-                'token_id': crop.nft_token_id,
-                'contract_address': crop.nft_contract_address,
-                'tx_hash': crop.nft_transaction_hash,
-                'etherscan_url': f"{SEPOLIA}/tx/{crop.nft_transaction_hash}" if crop.nft_transaction_hash else None,
-            },
-        })
-
-    # 5â€“10. Quote â†’ Bid â†’ Escrow chain
-    from escrow.models import EscrowTransaction
-    quote = crop.quotes.exclude(status='open').order_by('-created_at').first()
-    if not quote:
-        quote = (
-            FarmerQuote.objects
-            .filter(farmer=crop.farmer, product_name__iexact=crop.crop_name)
-            .exclude(status='open')
-            .order_by('-created_at')
-            .first()
-        )
-
-    if quote:
-        # 5. Quote Created
-        events.append({
-            'type': 'quote_created',
-            'title': 'Supply Quote Created',
-            'timestamp': quote.created_at.isoformat(),
-            'status': 'completed',
-            'details': {
-                'product': quote.product_name,
-                'quantity': f"{quote.quantity} {quote.unit}",
-            },
-        })
-
-        # 6. Bid Accepted
-        if quote.accepted_bid:
-            bid = quote.accepted_bid
-            events.append({
-                'type': 'bid_accepted',
-                'title': 'FPO Bid Accepted',
-                'timestamp': bid.submitted_at.isoformat() if bid.submitted_at else quote.created_at.isoformat(),
-                'status': 'completed',
-                'details': {
-                    'fpo_name': bid.fpo.name,
-                    'bid_amount': str(bid.bid_amount),
-                },
-            })
-
-            # 7â€“10. Escrow stages
-            try:
-                escrow = quote.escrow
-            except EscrowTransaction.DoesNotExist:
-                escrow = None
-
-            if escrow:
-                # 7. Escrow Created
-                events.append({
-                    'type': 'escrow_created',
-                    'title': 'Escrow Created',
-                    'timestamp': escrow.created_at.isoformat(),
-                    'status': 'completed',
-                    'details': {
-                        'amount_eth': str(escrow.amount_eth),
-                        'contract_address': escrow.contract_address,
-                        'etherscan_url': escrow.etherscan_contract_url,
-                    },
-                })
-
-                # 8. Escrow Funded
-                if escrow.funded_at:
-                    events.append({
-                        'type': 'escrow_funded',
-                        'title': 'Escrow Funded',
-                        'timestamp': escrow.funded_at.isoformat(),
-                        'status': 'completed',
-                        'details': {
-                            'tx_hash': escrow.deposit_tx_hash,
-                            'etherscan_url': escrow.etherscan_deposit_url,
-                        },
-                    })
-
-                # 9. Delivery Confirmed
-                if escrow.delivery_confirmed_at:
-                    events.append({
-                        'type': 'delivery_confirmed',
-                        'title': 'Delivery Confirmed',
-                        'timestamp': escrow.delivery_confirmed_at.isoformat(),
-                        'status': 'completed',
-                        'details': {
-                            'tx_hash': escrow.delivery_tx_hash,
-                        },
-                    })
-
-                # 10. Payment Released
-                if escrow.released_at:
-                    events.append({
-                        'type': 'payment_released',
-                        'title': 'Payment Released',
-                        'timestamp': escrow.released_at.isoformat(),
-                        'status': 'completed',
-                        'details': {
-                            'tx_hash': escrow.release_tx_hash,
-                            'etherscan_url': escrow.etherscan_release_url,
-                        },
-                    })
-
-    # Sort by timestamp
-    events.sort(key=lambda e: e['timestamp'])
-
-    return Response({
-        'crop_id': crop.id,
-        'crop_name': crop.crop_name,
-        'events': events,
-    })
+[Binary file]
 
 
 ================================================
@@ -6721,6 +6262,7 @@ class FPOQuoteSerializer(serializers.ModelSerializer):
     bids = serializers.SerializerMethodField()
     allocations = FPOQuoteAllocationSerializer(many=True, read_only=True)
     provenance_summary = serializers.SerializerMethodField()
+    escrow_details = serializers.SerializerMethodField()
     
     class Meta:
         model = FPOQuote
@@ -6728,9 +6270,16 @@ class FPOQuoteSerializer(serializers.ModelSerializer):
             'id', 'fpo', 'fpo_name', 'fpo_email', 'fpo_did', 'fpo_location',
             'product_name', 'category', 'description', 
             'quantity', 'unit', 'price_per_unit', 'status', 'deadline', 
-            'created_at', 'accepted_bid', 'bids', 'allocations', 'provenance_summary'
+            'created_at', 'accepted_bid', 'bids', 'allocations', 'provenance_summary',
+            'escrow_details'
         ]
         read_only_fields = ('fpo', 'status', 'created_at', 'accepted_bid')
+
+    def get_escrow_details(self, obj):
+        if hasattr(obj, 'escrow') and obj.escrow:
+            from escrow.serializers import RetailerEscrowTransactionSerializer
+            return RetailerEscrowTransactionSerializer(obj.escrow).data
+        return None
 
     def get_fpo_location(self, obj):
         if obj.fpo:
@@ -7267,9 +6816,24 @@ def create_fpo_quote_from_cart_view(request):
         'quote': serializer.data
     }, status=status.HTTP_201_CREATED)
 
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated, IsFPO])
 def accept_retailer_bid(request, bid_pk):
+    """
+    Phase 5 â€” FPO accepts a Retailer bid on an FPOQuote.
+    Reuses the Phase 4 transaction architecture:
+      - Validates stock availability from source inventory lots
+      - Authoritative Decimal INR calculations (unit_price_inr, total_amount_inr, agreed_price_inr)
+      - Pre-initializes off-chain RetailerEscrowTransaction
+      - Emits real-time Socket.IO synchronization events
+    """
+    from decimal import Decimal, InvalidOperation
+    import os
+    from escrow.models import RetailerEscrowTransaction
+    from escrow.views import DEFAULT_INR_PER_ETH, ESCROW_CONTRACT
+    from escrow.serializers import RetailerEscrowTransactionSerializer
+
     bid = get_object_or_404(RetailerBid, pk=bid_pk)
     quote = bid.quote
 
@@ -7277,22 +6841,93 @@ def accept_retailer_bid(request, bid_pk):
         return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
     
     if quote.status != 'open':
-        return Response({"error": "Quote is not open."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Quote is not open for accepting bids."}, status=status.HTTP_400_BAD_REQUEST)
 
+    # Validate price and quantity are positive
+    try:
+        quantity = Decimal(str(quote.quantity))
+        unit_price_inr = Decimal(str(bid.bid_amount)).quantize(Decimal('0.01'))
+        if quantity <= Decimal('0') or unit_price_inr <= Decimal('0'):
+            return Response({"error": "Quantity and bid price must be positive numbers greater than zero."}, status=status.HTTP_400_BAD_REQUEST)
+    except (TypeError, ValueError, InvalidOperation):
+        return Response({"error": "Invalid price or quantity format."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Validate inventory lot stock availability across source allocations
+    allocations = quote.allocations.select_related('inventory_lot').all()
+    if allocations.exists():
+        for alloc in allocations:
+            lot = alloc.inventory_lot
+            if not lot:
+                return Response({"error": "Underlying inventory lot not found for allocation."}, status=status.HTTP_400_BAD_REQUEST)
+            if lot.fpo_id != quote.fpo_id:
+                return Response({"error": "FPO does not own the inventory lot for this quote allocation."}, status=status.HTTP_403_FORBIDDEN)
+            # The allocated quantity was reserved in lot.reserved_quantity at quote creation, or must be available
+            effective_available = (lot.available_quantity or Decimal('0')) + (lot.reserved_quantity or Decimal('0'))
+            if effective_available < alloc.allocated_quantity:
+                return Response({
+                    "error": f"Insufficient stock in lot #{lot.id} for {lot.product_name}. Available + reserved: {effective_available} {lot.unit}, required: {alloc.allocated_quantity} {lot.unit}."
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+    total_amount_inr = (quantity * unit_price_inr).quantize(Decimal('0.01'))
+    agreed_price_inr = total_amount_inr
+
+    # Accept this bid & reject competing bids
     bid.status = 'accepted'
-    bid.save()
+    bid.save(update_fields=['status'])
+
     quote.bids.exclude(pk=bid.pk).update(status='rejected')
+
+    # Update quote status to 'awarded' and store agreed unit price
     quote.status = 'awarded'
     quote.accepted_bid = bid
-    quote.save()
-    
+    quote.price_per_unit = unit_price_inr
+    quote.save(update_fields=['status', 'accepted_bid', 'price_per_unit'])
+
+    # Pre-initialize or update off-chain RetailerEscrowTransaction record with authoritative INR values
+    contract_addr = ESCROW_CONTRACT or os.environ.get('ESCROW_CONTRACT_ADDRESS', '').strip()
+    amount_eth = (total_amount_inr / DEFAULT_INR_PER_ETH).quantize(Decimal('0.000001'))
+
+    escrow, created = RetailerEscrowTransaction.objects.get_or_create(
+        quote=quote,
+        defaults={
+            'fpo': quote.fpo,
+            'retailer': bid.retailer,
+            'contract_address': contract_addr,
+            'amount_eth': amount_eth,
+            'status': RetailerEscrowTransaction.STATUS_CREATED,
+            'unit_price_inr': unit_price_inr,
+            'total_amount_inr': total_amount_inr,
+            'agreed_price_inr': agreed_price_inr,
+            'payment_status': RetailerEscrowTransaction.PAYMENT_STATUS_PENDING,
+        }
+    )
+    if not created and escrow.status == RetailerEscrowTransaction.STATUS_CREATED and escrow.escrow_id is None:
+        escrow.retailer = bid.retailer
+        escrow.unit_price_inr = unit_price_inr
+        escrow.total_amount_inr = total_amount_inr
+        escrow.agreed_price_inr = agreed_price_inr
+        escrow.amount_eth = amount_eth
+        if contract_addr and not escrow.contract_address:
+            escrow.contract_address = contract_addr
+        escrow.save()
+
+    # Emit real-time Socket.IO events for synchronized dashboard updates
     emit_event("bid_updated", {"bid_id": bid.pk, "quote_id": quote.id})
     emit_event("deal_updated", {"quote_id": quote.id})
+    emit_event("escrow_updated", {"escrow_id": escrow.pk, "type": "fpo_retailer"})
+    emit_event("quote_updated", {"quote_id": quote.id, "fpo_id": quote.fpo_id})
 
     return Response({
-        "message": "Retailer bid accepted successfully.",
+        "message": f"Retailer bid accepted successfully. Commercial deal recorded at â‚¹{total_amount_inr}. Proceed to secure on blockchain.",
         "bid_id": bid.pk,
-        "quote_id": quote.id
+        "quote_id": quote.id,
+        "quote_status": quote.status,
+        "unit_price_inr": str(unit_price_inr),
+        "total_amount_inr": str(total_amount_inr),
+        "agreed_price_inr": str(agreed_price_inr),
+        "escrow_id": escrow.pk,
+        "escrow": RetailerEscrowTransactionSerializer(escrow).data,
+        "next_step": "create_smart_contract"
     })
 
 
@@ -10144,7 +9779,7 @@ logger = logging.getLogger(__name__)
 #
 # gemini-3.5-flash on v1 â€” confirmed working via live probe.
 #
-GEMINI_MODEL   = "gemini-3.5-flash"
+GEMINI_MODEL   = "gemini-2.5-flash"
 GEMINI_API_URL = (
     f"https://generativelanguage.googleapis.com/v1/models/"
     f"{GEMINI_MODEL}:generateContent"
@@ -12254,6 +11889,12 @@ export default function BaseModal({
 
 
 ================================================
+FILE: frontend/src/components/common/BlockchainDetailsCollapse.jsx
+================================================
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 1314: character maps to <undefined>
+
+
+================================================
 FILE: frontend/src/components/common/DashboardNavbar.jsx
 ================================================
 import React, { useState } from "react";
@@ -12418,142 +12059,7 @@ Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in posi
 ================================================
 FILE: frontend/src/components/common/EscrowDealCard.jsx
 ================================================
-import React from "react";
-import StatusBadge from "./StatusBadge";
-import { formatInr } from "../../utils/pricing";
-
-export default function EscrowDealCard({
-  escrow,
-  partnerLabel = "Partner",
-  partnerName,
-  requiredActionLabel,
-  onViewDeal,
-  isRetailer = false,
-  actionLabel = "View Transaction",
-}) {
-  const isOnChain = Boolean(escrow.escrow_id);
-  const status = escrow.status;
-
-  // Derive payment & delivery status tags
-  let paymentTag = { label: "Payment Pending", color: "bg-amber-50 text-amber-800 border-amber-200", icon: "🟡" };
-  let deliveryTag = { label: "Awaiting Handover", color: "bg-slate-100 text-slate-700 border-slate-200", icon: "⏳" };
-
-  if (status === "funded") {
-    paymentTag = { label: "Payment Secured", color: "bg-blue-50 text-blue-800 border-blue-200", icon: "🔒" };
-    deliveryTag = { label: "In Transit / Awaiting Handover", color: "bg-amber-50 text-amber-800 border-amber-200", icon: "🚚" };
-  } else if (status === "delivery_confirmed") {
-    paymentTag = { label: "Payment Secured", color: "bg-blue-50 text-blue-800 border-blue-200", icon: "🔒" };
-    deliveryTag = { label: "Delivery Confirmed", color: "bg-emerald-50 text-emerald-800 border-emerald-200", icon: "📦" };
-  } else if (status === "released") {
-    paymentTag = { label: "Payment Released", color: "bg-emerald-50 text-emerald-800 border-emerald-200", icon: "✅" };
-    deliveryTag = { label: "Delivered & Settled", color: "bg-emerald-50 text-emerald-800 border-emerald-200", icon: "🎉" };
-  } else if (status === "cancelled" || status === "disputed") {
-    paymentTag = { label: status === "disputed" ? "Payment Disputed" : "Cancelled", color: "bg-rose-50 text-rose-800 border-rose-200", icon: "⚠️" };
-    deliveryTag = { label: status === "disputed" ? "Under Arbitration" : "Cancelled", color: "bg-rose-50 text-rose-800 border-rose-200", icon: "⚠️" };
-  }
-
-  // Phase 1: derive display values from stored INR fields (source of truth).
-  // Falls back to ETH×250000 only for legacy records pre-dating Phase 1.
-  const qty = parseFloat(escrow.quantity);
-  const amount = parseFloat(escrow.amount_eth);
-
-  const commercialInr =
-    escrow.agreed_price_inr != null ? parseFloat(escrow.agreed_price_inr)
-    : escrow.total_amount_inr != null ? parseFloat(escrow.total_amount_inr)
-    : escrow.amount_inr != null ? parseFloat(escrow.amount_inr)
-    : (amount || 0) * 250000;  // legacy fallback only
-
-  const inrTotal = formatInr(commercialInr);
-
-  const unitInr =
-    escrow.unit_price_inr != null ? parseFloat(escrow.unit_price_inr)
-    : qty > 0 && commercialInr > 0 ? commercialInr / qty
-    : null;
-
-  const unitRateInr = unitInr != null ? formatInr(Math.round(unitInr)) : null;
-
-  return (
-    <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 min-w-0">
-      <div className="space-y-2">
-        {/* Header: Title & Status Badge */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <h4 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
-                {escrow.product_name}
-              </h4>
-              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
-                {isOnChain ? `Escrow #${escrow.escrow_id}` : `Draft #${escrow.id}`}
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 font-medium truncate mt-0.5">
-              {partnerLabel}: <span className="font-semibold text-slate-800">{partnerName || escrow.fpo_name || escrow.farmer_name || "Verified Participant"}</span>
-            </p>
-          </div>
-          <StatusBadge status={status} />
-        </div>
-
-        {/* Product, Quantity & Price */}
-        <div className="flex items-center justify-between gap-2 p-2.5 bg-slate-50/80 rounded-xl border border-slate-100 text-xs">
-          <div>
-            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Quantity & Rate</span>
-            <span className="font-semibold text-slate-800 font-mono text-xs">
-              {escrow.quantity} {escrow.unit} {unitRateInr ? `· ${unitRateInr}/${escrow.unit}` : ""}
-            </span>
-          </div>
-          <div className="text-right">
-            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Commercial Value</span>
-            <span className="font-bold text-slate-900 font-mono text-xs sm:text-sm block">
-              {inrTotal}
-            </span>
-            <span className="text-[10px] text-slate-400 font-mono block">
-              Settlement: {escrow.amount_eth} ETH
-            </span>
-          </div>
-        </div>
-
-        {/* State Badges: Payment secured, delivery status */}
-        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-          <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${paymentTag.color}`}>
-            <span>{paymentTag.icon}</span>
-            <span>{paymentTag.label}</span>
-          </span>
-          <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${deliveryTag.color}`}>
-            <span>{deliveryTag.icon}</span>
-            <span>{deliveryTag.label}</span>
-          </span>
-        </div>
-      </div>
-
-      {/* Footer Actions */}
-      <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-        {requiredActionLabel ? (
-          <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 truncate">
-            ⚡ {requiredActionLabel}
-          </span>
-        ) : (
-          <span className="text-[10px] text-slate-400 font-mono">
-            {new Date(escrow.created_at || Date.now()).toLocaleDateString()}
-          </span>
-        )}
-
-        <button
-          type="button"
-          onClick={() => onViewDeal(escrow)}
-          className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all shadow-2xs flex items-center gap-1 cursor-pointer shrink-0 ${
-            isRetailer
-              ? "bg-purple-600 hover:bg-purple-500 text-white"
-              : "bg-slate-900 hover:bg-slate-800 text-white"
-          }`}
-        >
-          <span>🔐</span>
-          <span>{actionLabel}</span>
-        </button>
-      </div>
-    </div>
-  );
-}
-
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 1191: character maps to <undefined>
 
 
 ================================================
@@ -12562,14 +12068,15 @@ FILE: frontend/src/components/common/EscrowDealModal.jsx
 import React from "react";
 import BaseModal from "./BaseModal";
 import StatusBadge from "./StatusBadge";
-import AddressCopy from "./AddressCopy";
+import WorkflowStatusPanel from "./WorkflowStatusPanel";
+import BlockchainDetailsCollapse from "./BlockchainDetailsCollapse";
 import { formatInr } from "../../utils/pricing";
 
 const ESCROW_STEPS = [
   { key: "created", label: "Agreement", icon: "📝", desc: "Contract Created" },
-  { key: "funded", label: "Payment", icon: "💰", desc: "Funds Secured in Escrow" },
+  { key: "funded", label: "Payment", icon: "💰", desc: "Funds Secured" },
   { key: "delivery_confirmed", label: "Delivery", icon: "📦", desc: "Handover Confirmed" },
-  { key: "released", label: "Released", icon: "💸", desc: "Payment Settled" },
+  { key: "released", label: "Completed", icon: "🎉", desc: "Payment Settled" },
 ];
 
 function getStepIndex(status) {
@@ -12582,12 +12089,30 @@ function getStepIndex(status) {
   }
 }
 
+/**
+ * EscrowDealModal — Phase 6: Commercial Transaction Details View
+ *
+ * Strict information hierarchy:
+ *  1. Primary: Commercial ₹ value, crop, quantity, unit rate, counterparty, date, status badge.
+ *  2. Secondary: Deal details and lifecycle progress stepper.
+ *  3. Action: MetaMask Assisted/Manual Mode workflow.
+ *  4. Tertiary: Expandable Blockchain Details (collapsed by default).
+ */
 export default function EscrowDealModal({
   isOpen,
   onClose,
   escrow,
   partnerLabel = "Partner",
   partnerName,
+  // Phase 3 workflow props
+  workflow,
+  mode,
+  onModeChange,
+  onPrimaryAction,
+  primaryActionLabel,
+  retryEndpoint,
+  retryData,
+  // Backward compatibility fallback
   actionButton,
   actionStatus,
 }) {
@@ -12596,184 +12121,243 @@ export default function EscrowDealModal({
   const currentIdx = getStepIndex(escrow.status);
   const isOnChain = Boolean(escrow.escrow_id);
 
-  // Phase 1: prefer stored INR fields (source of truth) over ETH conversion.
-  const inrDisplay =
-    escrow.agreed_price_inr != null ? formatInr(parseFloat(escrow.agreed_price_inr))
-    : escrow.total_amount_inr != null ? formatInr(parseFloat(escrow.total_amount_inr))
-    : escrow.amount_inr != null ? formatInr(parseFloat(escrow.amount_inr))
-    : formatInr(Math.round(parseFloat(escrow.amount_eth || 0) * 250000)); // legacy fallback
+  // Derive primary commercial values
+  const qty = parseFloat(escrow.quantity) || 0;
+  const commercialInr =
+    escrow.agreed_price_inr != null ? parseFloat(escrow.agreed_price_inr)
+    : escrow.total_amount_inr != null ? parseFloat(escrow.total_amount_inr)
+    : escrow.amount_inr != null ? parseFloat(escrow.amount_inr)
+    : null;
+
+  const inrDisplay = commercialInr != null ? formatInr(commercialInr) : "—";
+
+  const unitRate =
+    escrow.unit_price_inr != null ? parseFloat(escrow.unit_price_inr)
+    : qty > 0 && commercialInr != null ? commercialInr / qty
+    : null;
+
+  const unitPriceDisplay = unitRate != null ? `${formatInr(Math.round(unitRate))} / ${escrow.unit}` : "—";
+
+  const resolvedPartner =
+    partnerName ||
+    escrow.retailer_name ||
+    escrow.fpo_name ||
+    escrow.farmer_name ||
+    "Verified Participant";
+
+  const dateDisplay = escrow.created_at
+    ? new Date(escrow.created_at).toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "—";
 
   return (
     <BaseModal
       isOpen={isOpen}
       onClose={onClose}
       title={escrow.product_name}
-      subtitle={`${partnerLabel}: ${partnerName || escrow.fpo_name || escrow.farmer_name || "Verified Participant"}`}
+      subtitle={`${partnerLabel}: ${resolvedPartner}`}
       icon="🔐"
       badge={<StatusBadge status={escrow.status} />}
       maxWidth="max-w-2xl"
     >
-      {/* ── 4-Step Lifecycle Stepper ───────────────────────────────── */}
-      <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3.5 sm:p-4">
-        <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-2">
-          Escrow Settlement Lifecycle
-        </span>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {ESCROW_STEPS.map((step, idx) => {
-            const isDone = currentIdx > idx || currentIdx === 3;
-            const isCurrent = currentIdx === idx && currentIdx !== 3;
+      <div className="space-y-4">
+        {/* ── 4-Step Lifecycle Stepper ───────────────────────────────── */}
+        <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3.5 sm:p-4">
+          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-2">
+            Transaction Lifecycle
+          </span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {ESCROW_STEPS.map((step, idx) => {
+              const isDone = currentIdx > idx || currentIdx === 3;
+              const isCurrent = currentIdx === idx && currentIdx !== 3;
 
-            let stepStyle = "bg-white border-slate-200 text-slate-400";
-            let dotStyle = "bg-slate-100 text-slate-400 border border-slate-200";
+              let stepStyle = "bg-white border-slate-200 text-slate-400";
+              let dotStyle = "bg-slate-100 text-slate-400 border border-slate-200";
 
-            if (isDone) {
-              stepStyle = "bg-emerald-50/70 border-emerald-300 text-emerald-900";
-              dotStyle = "bg-emerald-600 text-white";
-            } else if (isCurrent) {
-              stepStyle = "bg-blue-50 border-blue-400 text-blue-900 ring-1 ring-blue-400 shadow-2xs";
-              dotStyle = "bg-blue-600 text-white animate-pulse";
-            }
+              if (isDone) {
+                stepStyle = "bg-emerald-50/80 border-emerald-300 text-emerald-900";
+                dotStyle = "bg-emerald-600 text-white";
+              } else if (isCurrent) {
+                stepStyle = "bg-blue-50 border-blue-400 text-blue-900 ring-1 ring-blue-400 shadow-2xs";
+                dotStyle = "bg-blue-600 text-white animate-pulse";
+              }
 
-            return (
-              <div
-                key={step.key}
-                className={`border rounded-xl p-2.5 text-center transition-all ${stepStyle}`}
-              >
-                <div className="flex items-center justify-center gap-1 mb-1">
-                  <span className={`w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center ${dotStyle}`}>
-                    {isDone ? "✓" : idx + 1}
-                  </span>
-                  <span className="text-sm">{step.icon}</span>
+              return (
+                <div
+                  key={step.key}
+                  className={`border rounded-xl p-2.5 text-center transition-all ${stepStyle}`}
+                >
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    <span className={`w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center ${dotStyle}`}>
+                      {isDone ? "✓" : idx + 1}
+                    </span>
+                    <span className="text-sm">{step.icon}</span>
+                  </div>
+                  <p className="text-xs font-bold truncate">{step.label}</p>
+                  <p className="text-[10px] text-slate-500 hidden sm:block truncate mt-0.5">
+                    {step.desc}
+                  </p>
                 </div>
-                <p className="text-xs font-bold truncate">{step.label}</p>
-                <p className="text-[10px] text-slate-500 hidden sm:block truncate mt-0.5">
-                  {step.desc}
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── PRIMARY SECTION: Commercial Transaction Overview ─────────── */}
+        <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+          <div className="flex items-start justify-between gap-2 flex-wrap">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Commercial Transaction Value
+              </span>
+              <div className="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-400 mt-0.5">
+                {inrDisplay}
+              </div>
+            </div>
+            <div className="text-right shrink-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Transaction Status
+              </span>
+              <div className="mt-1">
+                <StatusBadge status={escrow.status} />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-700/70 text-xs">
+            <div>
+              <span className="text-[10px] text-slate-400 uppercase font-bold block">Crop</span>
+              <span className="font-semibold text-slate-100 block truncate">{escrow.product_name}</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-400 uppercase font-bold block">Quantity</span>
+              <span className="font-mono font-semibold text-slate-100 block truncate">
+                {escrow.quantity} {escrow.unit}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-400 uppercase font-bold block">Agreed Rate</span>
+              <span className="font-mono font-semibold text-slate-100 block truncate">
+                {unitPriceDisplay}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-400 uppercase font-bold block">Date</span>
+              <span className="font-mono font-semibold text-slate-100 block truncate">
+                {dateDisplay}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── SECONDARY SECTION: Counterparty & Deal Reference ────────── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+              {partnerLabel}
+            </span>
+            <span className="font-bold text-slate-900 text-sm block mt-0.5 truncate">
+              {resolvedPartner}
+            </span>
+          </div>
+
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+              Contract Agreement Ref
+            </span>
+            <span className="font-mono font-bold text-slate-800 text-sm block mt-0.5 truncate">
+              {isOnChain ? `Smart Contract Escrow #${escrow.escrow_id}` : `Draft Deal #${escrow.id}`}
+            </span>
+          </div>
+        </div>
+
+        {/* ── Transaction Completed Banner ────────────────────────────── */}
+        {escrow.status === "released" && (
+          <div className="p-4 bg-emerald-50/90 border border-emerald-300 rounded-2xl flex items-center justify-between gap-3 flex-wrap animate-fade-in">
+            <div className="flex items-center gap-2.5">
+              <span className="text-2xl shrink-0">✅</span>
+              <div>
+                <h4 className="text-sm font-bold text-emerald-950">
+                  Transaction Completed & Settled
+                </h4>
+                <p className="text-xs text-emerald-800 mt-0.5">
+                  Payment released and inventory transfer settled in full.
                 </p>
               </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ── Deal Overview Grid ───────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
-        <div className="bg-slate-50/70 p-3 rounded-xl border border-slate-100 min-w-0">
-          <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Quantity</span>
-          <span className="font-extrabold text-slate-900 font-mono mt-0.5 block truncate">
-            {escrow.quantity} {escrow.unit}
-          </span>
-        </div>
-        <div className="bg-slate-50/70 p-3 rounded-xl border border-slate-100 min-w-0">
-          <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Commercial Value</span>
-          <span className="font-extrabold text-emerald-700 font-mono mt-0.5 block truncate">
-            {inrDisplay}
-          </span>
-          <span className="text-[10px] text-slate-400 font-mono block truncate">
-            Settlement: {escrow.amount_eth} ETH
-          </span>
-        </div>
-        <div className="bg-slate-50/70 p-3 rounded-xl border border-slate-100 min-w-0">
-          <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">{partnerLabel}</span>
-          <span className="font-semibold text-slate-800 mt-0.5 block truncate">
-            {partnerName || escrow.fpo_name || escrow.farmer_name || "N/A"}
-          </span>
-        </div>
-        <div className="bg-slate-50/70 p-3 rounded-xl border border-slate-100 min-w-0">
-          <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Created Date</span>
-          <span className="font-medium text-slate-700 mt-0.5 block truncate">
-            {new Date(escrow.created_at || Date.now()).toLocaleDateString()}
-          </span>
-        </div>
-      </div>
-
-      {/* ── Primary Action Area & Feedback Alerts ─────────────────────── */}
-      {actionButton && (
-        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="space-y-0.5">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">
-                Required Settlement Action
-              </span>
-              <p className="text-xs text-slate-600">
-                Execute next smart contract transition on Ethereum Sepolia.
-              </p>
             </div>
-            {actionButton}
-          </div>
-
-          {actionStatus?.success && (
-            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 animate-fade-in flex items-center gap-2">
-              <span>✅</span>
-              <span>{actionStatus.success}</span>
-            </div>
-          )}
-
-          {actionStatus?.error && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-800 animate-fade-in flex items-center gap-2">
-              <span>❌</span>
-              <span>{actionStatus.error}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Collapsible Blockchain Details Section ────────────────────── */}
-      <details className="group border border-slate-200/80 rounded-2xl p-4 bg-slate-50/50 text-xs">
-        <summary className="font-bold text-slate-700 cursor-pointer flex items-center justify-between select-none list-none">
-          <div className="flex items-center gap-2">
-            <span>⛓️</span>
-            <span className="text-xs font-extrabold text-slate-800">Verification & Blockchain Details</span>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200/60 text-slate-700">
-              Sepolia 11155111
+            <span className="text-xs font-bold font-mono px-3 py-1 bg-white text-emerald-800 rounded-xl border border-emerald-200 shadow-2xs">
+              {inrDisplay} Paid
             </span>
           </div>
-          <span className="text-xs text-slate-400 group-open:rotate-180 transition-transform font-bold">
-            ▼
-          </span>
-        </summary>
+        )}
 
-        <div className="space-y-2.5 pt-3 mt-3 border-t border-slate-200/80">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-            <span className="text-slate-500 font-semibold text-[11px]">Blockchain Settlement Rate:</span>
-            <span className="font-mono text-slate-700 text-[11px]">1 ETH = ₹2,50,000 (Sepolia testnet — not commercial price)</span>
+        {/* ── Workflow Action & Status Area (MetaMask Assisted Mode) ──── */}
+        {workflow && (onPrimaryAction || workflow.phase !== "idle") && (
+          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
+            <WorkflowStatusPanel
+              workflow={workflow}
+              mode={mode}
+              onModeChange={onModeChange}
+              onPrimaryAction={onPrimaryAction}
+              primaryActionLabel={primaryActionLabel}
+              retryEndpoint={retryEndpoint}
+              retryData={retryData}
+              escrow={escrow}
+            />
           </div>
+        )}
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-            <span className="text-slate-500 font-semibold text-[11px]">On-Chain Escrow ID:</span>
-            <span className="font-mono font-bold text-slate-800">
-              {isOnChain ? `#${escrow.escrow_id}` : "Pending on-chain registration"}
+        {/* Info notice when partner action is pending */}
+        {workflow && !onPrimaryAction && workflow.phase === "idle" && escrow.status !== "released" && (
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-500 flex items-center gap-2">
+            <span>⏳</span>
+            <span>
+              {escrow.status === "created"
+                ? "Awaiting buyer deposit to secure escrow funds on-chain."
+                : escrow.status === "funded"
+                ? "Payment secured in escrow. Awaiting delivery handover."
+                : "Awaiting next transaction step from partner."}
             </span>
           </div>
+        )}
 
-          {escrow.contract_address && (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-              <span className="text-slate-500 font-semibold text-[11px]">Escrow Contract:</span>
-              <AddressCopy value={escrow.contract_address} etherscanType="address" />
+        {/* Legacy fallback action area if workflow hook not passed */}
+        {!workflow && actionButton && (
+          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">
+                  Required Settlement Action
+                </span>
+                <p className="text-xs text-slate-600">
+                  Execute next smart contract transition on Ethereum Sepolia.
+                </p>
+              </div>
+              {actionButton}
             </div>
-          )}
 
-          {escrow.create_tx_hash && (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-              <span className="text-slate-500 font-semibold text-[11px]">Create Transaction:</span>
-              <AddressCopy value={escrow.create_tx_hash} etherscanType="tx" />
-            </div>
-          )}
+            {actionStatus?.success && (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 animate-fade-in flex items-center gap-2">
+                <span>✅</span>
+                <span>{actionStatus.success}</span>
+              </div>
+            )}
 
-          {escrow.deposit_tx_hash && (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-              <span className="text-slate-500 font-semibold text-[11px]">Deposit Transaction:</span>
-              <AddressCopy value={escrow.deposit_tx_hash} etherscanType="tx" />
-            </div>
-          )}
+            {actionStatus?.error && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-800 animate-fade-in flex items-center gap-2">
+                <span>❌</span>
+                <span>{actionStatus.error}</span>
+              </div>
+            )}
+          </div>
+        )}
 
-          {escrow.release_tx_hash && (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-              <span className="text-slate-500 font-semibold text-[11px]">Release Transaction:</span>
-              <AddressCopy value={escrow.release_tx_hash} etherscanType="tx" />
-            </div>
-          )}
-        </div>
-      </details>
+        {/* ── COLLAPSIBLE SECTION: Blockchain Details (Collapsed by default) ── */}
+        <BlockchainDetailsCollapse escrow={escrow} defaultOpen={false} />
+      </div>
     </BaseModal>
   );
 }
@@ -12906,41 +12490,52 @@ const STATUS_CONFIG = {
   minted: { label: "NFT Minted", bg: "bg-purple-50 text-purple-700 border-purple-200", dot: "bg-purple-500" },
   registered: { label: "Registered", bg: "bg-slate-50 text-slate-700 border-slate-200", dot: "bg-slate-400" },
   
-  // Escrow
-  created: { label: "Created", bg: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" },
-  funded: { label: "Funded", bg: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500" },
-  delivery_confirmed: { label: "Delivery Confirmed", bg: "bg-indigo-50 text-indigo-700 border-indigo-200", dot: "bg-indigo-500" },
-  released: { label: "Payment Released", bg: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
-  cancelled: { label: "Cancelled", bg: "bg-rose-50 text-rose-700 border-rose-200", dot: "bg-rose-500" },
-  disputed: { label: "Disputed", bg: "bg-red-50 text-red-700 border-red-200", dot: "bg-red-500" },
+  // Escrow / Payment Lifecycle
+  created: { label: "Escrow Created", bg: "bg-amber-50 text-amber-800 border-amber-200", dot: "bg-amber-500" },
+  funded: { label: "Funded", bg: "bg-blue-50 text-blue-800 border-blue-200", dot: "bg-blue-500" },
+  delivery_confirmed: { label: "Delivery Confirmed", bg: "bg-indigo-50 text-indigo-800 border-indigo-200", dot: "bg-indigo-500" },
+  released: { label: "Completed", bg: "bg-emerald-50 text-emerald-800 border-emerald-200", dot: "bg-emerald-500" },
+  completed: { label: "Completed", bg: "bg-emerald-50 text-emerald-800 border-emerald-200", dot: "bg-emerald-500" },
+  cancelled: { label: "Cancelled", bg: "bg-rose-50 text-rose-800 border-rose-200", dot: "bg-rose-500" },
+  disputed: { label: "Disputed", bg: "bg-red-50 text-red-800 border-red-200", dot: "bg-red-500" },
+
+  // Commercial Payment Statuses
+  processing: { label: "Payment Processing", bg: "bg-blue-50 text-blue-800 border-blue-200", dot: "bg-blue-400" },
+  paid: { label: "Paid", bg: "bg-emerald-50 text-emerald-800 border-emerald-200", dot: "bg-emerald-500" },
+  failed: { label: "Failed", bg: "bg-rose-50 text-rose-800 border-rose-200", dot: "bg-rose-500" },
+
+  // Inventory
+  in_stock: { label: "In Stock", bg: "bg-emerald-50 text-emerald-800 border-emerald-200", dot: "bg-emerald-500" },
+  available: { label: "Available", bg: "bg-emerald-50 text-emerald-800 border-emerald-200", dot: "bg-emerald-500" },
+  reserved: { label: "Reserved", bg: "bg-amber-50 text-amber-800 border-amber-200", dot: "bg-amber-500" },
+  depleted: { label: "Depleted", bg: "bg-slate-100 text-slate-600 border-slate-200", dot: "bg-slate-400" },
 
   // Approval / Verification
-  approved: { label: "Approved", bg: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
-  pending: { label: "Pending Approval", bg: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-400 animate-pulse" },
-  rejected: { label: "Rejected", bg: "bg-rose-50 text-rose-700 border-rose-200", dot: "bg-rose-500" },
-  verified: { label: "AI Verified", bg: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
-  failed: { label: "Failed", bg: "bg-rose-50 text-rose-700 border-rose-200", dot: "bg-rose-500" },
+  approved: { label: "Approved", bg: "bg-emerald-50 text-emerald-800 border-emerald-200", dot: "bg-emerald-500" },
+  pending: { label: "Pending", bg: "bg-amber-50 text-amber-800 border-amber-200", dot: "bg-amber-400 animate-pulse" },
+  rejected: { label: "Rejected", bg: "bg-rose-50 text-rose-800 border-rose-200", dot: "bg-rose-500" },
+  verified: { label: "AI Verified", bg: "bg-emerald-50 text-emerald-800 border-emerald-200", dot: "bg-emerald-500" },
 
   // Quotes / Bids
-  open: { label: "Open for Bids", bg: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
-  accepted: { label: "Bid Accepted", bg: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500" },
-  awarded: { label: "Awarded", bg: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500" },
-  contract_created: { label: "Contract Created", bg: "bg-indigo-50 text-indigo-700 border-indigo-200", dot: "bg-indigo-500" },
-  submitted: { label: "Bid Submitted", bg: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-400" },
-  closed: { label: "Closed", bg: "bg-gray-50 text-gray-600 border-gray-200", dot: "bg-gray-400" },
+  open: { label: "Open for Bids", bg: "bg-emerald-50 text-emerald-800 border-emerald-200", dot: "bg-emerald-500" },
+  accepted: { label: "Bid Accepted", bg: "bg-blue-50 text-blue-800 border-blue-200", dot: "bg-blue-500" },
+  awarded: { label: "Awarded", bg: "bg-blue-50 text-blue-800 border-blue-200", dot: "bg-blue-500" },
+  contract_created: { label: "Contract Created", bg: "bg-indigo-50 text-indigo-800 border-indigo-200", dot: "bg-indigo-500" },
+  submitted: { label: "Bid Submitted", bg: "bg-blue-50 text-blue-800 border-blue-200", dot: "bg-blue-400" },
+  closed: { label: "Closed", bg: "bg-slate-100 text-slate-600 border-slate-200", dot: "bg-slate-400" },
 };
 
 export default function StatusBadge({ status, customLabel }) {
   const norm = (status || "").toLowerCase();
   const config = STATUS_CONFIG[norm] || {
     label: customLabel || status || "Unknown",
-    bg: "bg-gray-50 text-gray-700 border-gray-200",
-    dot: "bg-gray-400",
+    bg: "bg-slate-50 text-slate-700 border-slate-200",
+    dot: "bg-slate-400",
   };
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${config.bg} shadow-2xs`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${config.bg} shadow-2xs whitespace-nowrap`}
     >
       <span className={`w-1.5 h-1.5 rounded-full ${config.dot}`} />
       {customLabel || config.label}
@@ -12951,9 +12546,492 @@ export default function StatusBadge({ status, customLabel }) {
 
 
 ================================================
+FILE: frontend/src/components/common/TransactionHistoryTable.jsx
+================================================
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 6515: character maps to <undefined>
+
+
+================================================
 FILE: frontend/src/components/common/TrustReputationCard.jsx
 ================================================
 Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 2143: character maps to <undefined>
+
+
+================================================
+FILE: frontend/src/components/common/WorkflowStatusPanel.jsx
+================================================
+/**
+ * WorkflowStatusPanel — Phase 3: MetaMask Assisted Mode UI
+ *
+ * Compact, reusable panel that renders inside EscrowDealModal's action area.
+ * Displays workflow phase, mode selector, action button, and error/success states.
+ *
+ * DISPLAY RULES (enforced):
+ *  - Commercial value (₹) is always PRIMARY.
+ *  - ETH is SECONDARY and always labelled "Testnet settlement" — never "crop price".
+ *  - ₹X = Y ETH conversion is NEVER shown.
+ *  - Seed phrases and private keys are NEVER referenced.
+ */
+
+import React from "react";
+import { formatInr } from "../../utils/pricing";
+
+const SEPOLIA_EXPLORER = "https://sepolia.etherscan.io";
+
+// ── Phase display config ───────────────────────────────────────────────────
+const PHASE_CONFIG = {
+  idle: null, // no panel shown at idle
+  checking_wallet: {
+    icon: "🔍",
+    title: "Checking MetaMask",
+    description: "Verifying your wallet is installed and connected…",
+    showSpinner: true,
+  },
+  connecting_wallet: {
+    icon: "🦊",
+    title: "Connecting Wallet",
+    description: "MetaMask is requesting your permission to connect. Check the extension.",
+    showSpinner: true,
+  },
+  checking_network: {
+    icon: "🌐",
+    title: "Checking Network",
+    description: "Verifying you are on Ethereum Sepolia testnet…",
+    showSpinner: true,
+  },
+  switching_network: {
+    icon: "🔄",
+    title: "Switching to Sepolia",
+    description: "MetaMask is asking you to switch to Ethereum Sepolia. Approve in the extension.",
+    showSpinner: true,
+  },
+  preparing_transaction: {
+    icon: "📋",
+    title: "Preparing Transaction",
+    description: "Loading escrow parameters from FarmerChain…",
+    showSpinner: true,
+  },
+  awaiting_wallet_confirmation: {
+    icon: "🦊",
+    title: "Awaiting Your Approval",
+    description: "MetaMask has opened (check the extension or browser popup). Review and approve the transaction.",
+    showSpinner: false,
+    isWaiting: true, // pulse animation
+  },
+  transaction_submitted: {
+    icon: "⛓️",
+    title: "Transaction Submitted",
+    description: "Your transaction is on the Sepolia blockchain. Waiting for confirmation…",
+    showSpinner: true,
+  },
+  syncing_backend: {
+    icon: "🔄",
+    title: "Recording on FarmerChain",
+    description: "Saving your transaction record…",
+    showSpinner: true,
+  },
+  completed: {
+    icon: "✅",
+    title: "Transaction Complete",
+    description: "Your blockchain action is confirmed and recorded.",
+    isSuccess: true,
+  },
+  user_rejected: {
+    icon: "✋",
+    title: "Transaction Cancelled",
+    isError: true,
+    errorType: "user_rejected",
+  },
+  wallet_error: {
+    icon: "⚠️",
+    title: "Wallet Error",
+    isError: true,
+    errorType: "wallet_error",
+  },
+  network_error: {
+    icon: "🌐",
+    title: "Wrong Network",
+    isError: true,
+    errorType: "network_error",
+  },
+  insufficient_funds: {
+    icon: "💸",
+    title: "Insufficient Funds",
+    isError: true,
+    errorType: "insufficient_funds",
+  },
+  backend_error: {
+    icon: "⚡",
+    title: "Sync Error (Blockchain OK)",
+    isError: true,
+    errorType: "backend_error",
+  },
+};
+
+// ── Action label map ───────────────────────────────────────────────────────
+const ACTION_LABELS = {
+  create_escrow: "Create Escrow",
+  complete_onchain: "Register On-Chain",
+  fund_escrow: "Deposit Funds",
+  confirm_delivery: "Confirm Delivery",
+  release_payment: "Release Payment",
+  create_retailer_escrow: "Create Wholesale Escrow",
+  fund_retailer_escrow: "Lock Funds in Escrow",
+  confirm_retailer_delivery: "Confirm Shipment",
+  release_retailer_payment: "Release Payment & Receive Stock",
+};
+
+// ── Subcomponents ──────────────────────────────────────────────────────────
+
+function Spinner() {
+  return (
+    <svg
+      className="animate-spin h-3.5 w-3.5 text-blue-600"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+    </svg>
+  );
+}
+
+function TxHashLink({ hash }) {
+  if (!hash) return null;
+  const short = `${hash.slice(0, 8)}…${hash.slice(-6)}`;
+  return (
+    <a
+      href={`${SEPOLIA_EXPLORER}/tx/${hash}`}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1 font-mono text-[11px] text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+    >
+      <span>🔗</span>
+      <span>{short}</span>
+      <span className="text-slate-400">(Sepolia)</span>
+    </a>
+  );
+}
+
+function ModeSelector({ mode, onChange, disabled }) {
+  return (
+    <div className="flex items-center gap-0.5 p-0.5 bg-slate-100 rounded-lg shrink-0">
+      <button
+        type="button"
+        onClick={() => onChange("assisted")}
+        disabled={disabled}
+        className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer disabled:cursor-not-allowed ${
+          mode === "assisted"
+            ? "bg-white text-blue-700 shadow-xs border border-blue-200"
+            : "text-slate-500 hover:text-slate-700"
+        }`}
+        title="Assisted Mode: guided step-by-step workflow"
+      >
+        ⚡ Assisted
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("manual")}
+        disabled={disabled}
+        className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer disabled:cursor-not-allowed ${
+          mode === "manual"
+            ? "bg-white text-slate-800 shadow-xs border border-slate-300"
+            : "text-slate-500 hover:text-slate-700"
+        }`}
+        title="Manual Mode: explicit confirmation at each step"
+      >
+        🔧 Manual
+      </button>
+    </div>
+  );
+}
+
+// ── Commercial summary ─────────────────────────────────────────────────────
+function CommercialSummary({ escrow }) {
+  if (!escrow) return null;
+
+  // INR is always primary (Phase 1/2 source of truth)
+  const inrVal =
+    escrow.agreed_price_inr != null
+      ? parseFloat(escrow.agreed_price_inr)
+      : escrow.total_amount_inr != null
+      ? parseFloat(escrow.total_amount_inr)
+      : escrow.amount_inr != null
+      ? parseFloat(escrow.amount_inr)
+      : null;
+
+  const ethVal = escrow.amount_eth ? parseFloat(escrow.amount_eth) : null;
+
+  return (
+    <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+      <div className="flex-1 min-w-0">
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+          Commercial Deal
+        </span>
+        <span className="font-extrabold text-emerald-700 text-sm font-mono">
+          {inrVal != null ? formatInr(inrVal) : "—"}
+        </span>
+        {escrow.product_name && (
+          <span className="text-slate-500 block truncate mt-0.5">
+            {escrow.product_name}
+            {escrow.quantity && escrow.unit ? ` · ${escrow.quantity} ${escrow.unit}` : ""}
+          </span>
+        )}
+      </div>
+      <div className="text-right shrink-0">
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+          Blockchain
+        </span>
+        <span className="font-semibold text-slate-600 block">Sepolia Testnet</span>
+        {ethVal != null && (
+          <span className="text-[10px] text-slate-400 font-mono block">
+            Testnet settlement: {ethVal} ETH
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────
+
+/**
+ * @param {Object} props
+ * @param {Object} props.workflow         - The useEscrowWorkflow hook return value
+ * @param {'assisted'|'manual'} props.mode      - Current mode
+ * @param {Function} props.onModeChange         - Called with new mode string
+ * @param {Function} props.onPrimaryAction      - Called when the primary action button is clicked
+ * @param {string|null} props.primaryActionLabel- Label override for the action button
+ * @param {boolean} props.primaryActionDisabled - Whether the action button is disabled independently
+ * @param {string|null} props.retryEndpoint     - Backend endpoint for backend_error retry
+ * @param {Object|null} props.retryData         - Data for backend_error retry
+ */
+export default function WorkflowStatusPanel({
+  workflow,
+  mode = "assisted",
+  onModeChange,
+  onPrimaryAction,
+  primaryActionLabel,
+  primaryActionDisabled = false,
+  retryEndpoint = null,
+  retryData = null,
+  escrow = null,
+}) {
+  const { phase, txHash, errorMessage, currentEscrow, currentAction, isLocked } = workflow;
+  const config = PHASE_CONFIG[phase];
+  const activeEscrow = currentEscrow || escrow;
+
+  // Derive action button label
+  const actionLabel =
+    primaryActionLabel ||
+    (currentAction ? ACTION_LABELS[currentAction] : "Execute Action");
+
+  // At idle, just show the mode selector + action button (no status panel)
+  if (phase === "idle") {
+    return (
+      <div className="space-y-3">
+        {/* Commercial summary */}
+        <CommercialSummary escrow={activeEscrow} />
+
+        {/* Mode selector + action */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <ModeSelector mode={mode} onChange={onModeChange} disabled={false} />
+          {onPrimaryAction && (
+            <button
+              type="button"
+              id="workflow-primary-action"
+              onClick={onPrimaryAction}
+              disabled={primaryActionDisabled}
+              className="flex-1 sm:flex-none px-4 py-2 text-xs font-bold text-white rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed bg-emerald-600 hover:bg-emerald-500"
+            >
+              <span>▶</span>
+              <span>{actionLabel}</span>
+            </button>
+          )}
+        </div>
+
+        {/* Manual mode guidance */}
+        {mode === "manual" && (
+          <p className="text-[11px] text-slate-500 leading-relaxed">
+            🔧 <strong>Manual Mode:</strong> You will review and confirm each blockchain action explicitly.
+          </p>
+        )}
+        {mode === "assisted" && (
+          <p className="text-[11px] text-slate-500 leading-relaxed">
+            ⚡ <strong>Assisted Mode:</strong> The system will guide you through each step and open MetaMask when your approval is needed.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // Null guard
+  if (!config) return null;
+
+  // ── Active / Pending states ──────────────────────────────────────────
+  if (!config.isError && !config.isSuccess) {
+    return (
+      <div className="space-y-3">
+        <CommercialSummary escrow={activeEscrow} />
+
+        {/* Mode selector (disabled while active) */}
+        <div className="flex items-center justify-between gap-2">
+          <ModeSelector mode={mode} onChange={() => {}} disabled={true} />
+          <span className="text-[11px] text-slate-400 font-medium">
+            {actionLabel}
+          </span>
+        </div>
+
+        {/* Status banner */}
+        <div
+          className={`flex items-start gap-3 p-3 rounded-xl border text-xs ${
+            config.isWaiting
+              ? "bg-amber-50 border-amber-200 text-amber-900"
+              : "bg-blue-50 border-blue-200 text-blue-900"
+          }`}
+        >
+          <div className="shrink-0 mt-0.5">
+            {config.showSpinner ? (
+              <Spinner />
+            ) : (
+              <span
+                className={config.isWaiting ? "animate-pulse text-base" : "text-base"}
+              >
+                {config.icon}
+              </span>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <span className="font-bold block">{config.title}</span>
+            <span className="text-xs leading-relaxed opacity-80">{config.description}</span>
+            {txHash && (
+              <div className="mt-1">
+                <TxHashLink hash={txHash} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* MetaMask waiting instruction */}
+        {phase === "awaiting_wallet_confirmation" && (
+          <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-xl text-[11px] text-amber-900 font-semibold flex items-center gap-2">
+            <span>🦊</span>
+            <span>
+              Check the MetaMask extension icon in your browser toolbar. Your approval is required to continue.
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Success state ────────────────────────────────────────────────────
+  if (config.isSuccess) {
+    return (
+      <div className="space-y-3">
+        <CommercialSummary escrow={activeEscrow} />
+
+        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-base">✅</span>
+            <span className="font-bold text-emerald-800">Transaction Complete</span>
+          </div>
+          {txHash && (
+            <div className="pl-6 space-y-1">
+              <span className="text-slate-600 block">Blockchain confirmation:</span>
+              <TxHashLink hash={txHash} />
+            </div>
+          )}
+        </div>
+
+        {/* Allow retry for next step or close */}
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <ModeSelector mode={mode} onChange={onModeChange} disabled={false} />
+          <button
+            type="button"
+            onClick={workflow.reset}
+            className="px-3.5 py-1.5 text-xs font-semibold text-slate-700 rounded-xl border border-slate-200 hover:bg-slate-50 transition-all cursor-pointer"
+          >
+            ✓ Done
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Error states ─────────────────────────────────────────────────────
+  const isBackendError = phase === "backend_error";
+  const isUserRejected = phase === "user_rejected";
+
+  return (
+    <div className="space-y-3">
+      <CommercialSummary escrow={activeEscrow} />
+
+      {/* Error banner */}
+      <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs space-y-2">
+        <div className="flex items-start gap-2">
+          <span className="text-base shrink-0 mt-0.5">{config.icon}</span>
+          <div className="flex-1 min-w-0">
+            <span className="font-bold text-rose-800 block">{config.title}</span>
+            <span className="text-rose-700 leading-relaxed block mt-0.5">
+              {errorMessage || config.description}
+            </span>
+            {/* For backend_error: show preserved tx hash */}
+            {isBackendError && txHash && (
+              <div className="mt-1.5 p-2 bg-white rounded-lg border border-rose-200 space-y-1">
+                <span className="font-semibold text-slate-700 block text-[10px] uppercase tracking-wider">
+                  Blockchain transaction (confirmed):
+                </span>
+                <TxHashLink hash={txHash} />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Action buttons for error recovery */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <ModeSelector mode={mode} onChange={onModeChange} disabled={false} />
+
+        <div className="flex items-center gap-2 ml-auto flex-wrap">
+          {/* Retry sync (backend_error only) */}
+          {isBackendError && retryEndpoint && retryData && (
+            <button
+              type="button"
+              onClick={() => workflow.retryBackendSync(retryEndpoint, retryData)}
+              className="px-3.5 py-1.5 text-xs font-bold text-white rounded-xl bg-amber-600 hover:bg-amber-500 transition-all shadow-xs cursor-pointer flex items-center gap-1"
+            >
+              <span>🔄</span>
+              <span>Retry Sync</span>
+            </button>
+          )}
+
+          {/* Retry action (user_rejected, wallet_error, network_error, insufficient_funds) */}
+          {!isBackendError && onPrimaryAction && (
+            <button
+              type="button"
+              onClick={() => { workflow.reset(); }}
+              className="px-3.5 py-1.5 text-xs font-semibold text-slate-700 rounded-xl border border-slate-200 hover:bg-slate-50 transition-all cursor-pointer"
+            >
+              ← Back
+            </button>
+          )}
+          {!isBackendError && onPrimaryAction && (
+            <button
+              type="button"
+              onClick={onPrimaryAction}
+              className="px-3.5 py-1.5 text-xs font-bold text-white rounded-xl bg-slate-800 hover:bg-slate-700 transition-all shadow-xs cursor-pointer flex items-center gap-1"
+            >
+              <span>↩</span>
+              <span>{isUserRejected ? "Try Again" : "Retry"}</span>
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 
 ================================================
@@ -14057,7 +14135,7 @@ export default function DocumentUploader({ cropId, onUploadSuccess }) {
 ================================================
 FILE: frontend/src/components/farmer/EscrowPanel.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 11717: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 9658: character maps to <undefined>
 
 
 ================================================
@@ -14081,7 +14159,7 @@ Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in posi
 ================================================
 FILE: frontend/src/components/farmer/QuoteHistory.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 4774: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 4823: character maps to <undefined>
 
 
 ================================================
@@ -14099,7 +14177,237 @@ Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in posi
 ================================================
 FILE: frontend/src/components/fpo/FpoEscrowPanel.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 7041: character maps to <undefined>
+/**
+ * FpoEscrowPanel â€” FPO View, Farmer Procurement Escrows (Phase 6: Transaction UI)
+ *
+ * FPO escrow lifecycle (farmer procurement):
+ *   1. (Farmer creates escrow â€” handled in EscrowPanel)
+ *   2. fundEscrow    â€” FPO deposits ETH after farmer's on-chain registration
+ *   3. (Farmer confirms delivery â€” handled in EscrowPanel)
+ *   4. releasePayment â€” FPO releases ETH to farmer after delivery confirmed
+ *
+ * Commercial INR values are always primary.
+ * ETH amounts are strictly testnet settlement â€” never shown as crop price.
+ */
+
+import React, { useState, useEffect, useCallback } from "react";
+import axios from "axios";
+import { useRefresh, useRefreshSubscription } from "../../context/useRefresh";
+import { useEscrowWorkflow } from "../../hooks/useEscrowWorkflow";
+import EscrowDealCard from "../common/EscrowDealCard";
+import EscrowDealModal from "../common/EscrowDealModal";
+import TransactionHistoryTable from "../common/TransactionHistoryTable";
+
+const MODE_KEY = "farmerchain-workflow-mode";
+
+export default function FpoEscrowPanel({ onEscrowUpdated }) {
+  const { refresh } = useRefresh();
+  const [escrows, setEscrows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeModalEscrow, setActiveModalEscrow] = useState(null);
+  const [mode, setMode] = useState(() => localStorage.getItem(MODE_KEY) || "assisted");
+  const [viewMode, setViewMode] = useState("cards");
+
+  // â”€â”€ Workflow hook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const workflow = useEscrowWorkflow({
+    mode,
+    onSuccess: () => {
+      if (onEscrowUpdated) onEscrowUpdated();
+    },
+    onRefresh: (domains) => {
+      refresh(domains);
+      fetchEscrows();
+    },
+  });
+
+  const handleModeChange = (m) => {
+    setMode(m);
+    localStorage.setItem(MODE_KEY, m);
+  };
+
+  // â”€â”€ Data fetching â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const fetchEscrows = useCallback(async () => {
+    try {
+      const res = await axios.get("/api/escrow/my/", { withCredentials: true });
+      setEscrows(res.data.escrows || []);
+    } catch (err) {
+      console.error("Error fetching escrows:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchEscrows();
+  }, [fetchEscrows]);
+
+  useRefreshSubscription(["escrow", "deals", "quotes", "fpo", "farmer"], fetchEscrows);
+
+  // â”€â”€ Modal open/close â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const openModal = (escrow) => {
+    workflow.reset();
+    setActiveModalEscrow(escrow);
+  };
+
+  const closeModal = () => {
+    workflow.reset();
+    setActiveModalEscrow(null);
+  };
+
+  // â”€â”€ Required action label â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const getRequiredAction = (escrow) => {
+    if (escrow.status === "created") {
+      return escrow.escrow_id ? "Deposit Funds (MetaMask)" : "Awaiting Farmer Setup";
+    }
+    if (escrow.status === "delivery_confirmed") return "Release Payment to Farmer";
+    if (escrow.status === "funded") return "Awaiting Crop Handover";
+    return null;
+  };
+
+  // â”€â”€ Workflow action for modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const getModalAction = (escrow) => {
+    if (!escrow) return null;
+    if (escrow.status === "created" && escrow.escrow_id) {
+      return () => workflow.runFundEscrow(escrow);
+    }
+    if (escrow.status === "delivery_confirmed") {
+      return () => workflow.runReleasePayment(escrow);
+    }
+    return null;
+  };
+
+  const getModalActionLabel = (escrow) => {
+    if (!escrow) return "";
+    if (escrow.status === "created" && escrow.escrow_id) return "Deposit Funds";
+    if (escrow.status === "delivery_confirmed") return "Release Payment to Farmer";
+    return "";
+  };
+
+  const getRetryData = () => {
+    if (!activeModalEscrow || workflow.phase !== "backend_error") return null;
+    const action = workflow.currentAction;
+    if (action === "fund_escrow") {
+      return {
+        endpoint: `/api/escrow/${activeModalEscrow.id}/funded/`,
+        data: { tx_hash: workflow.txHash, escrow_id: activeModalEscrow.escrow_id },
+      };
+    }
+    if (action === "release_payment") {
+      return {
+        endpoint: `/api/escrow/${activeModalEscrow.id}/released/`,
+        data: { tx_hash: workflow.txHash },
+      };
+    }
+    return null;
+  };
+
+  // â”€â”€ Loading skeleton â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2].map((i) => (
+          <div key={i} className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 animate-pulse space-y-2">
+            <div className="h-4 bg-slate-200 rounded w-1/4"></div>
+            <div className="h-10 bg-slate-200 rounded"></div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (escrows.length === 0) {
+    return (
+      <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-100 space-y-2">
+        <span className="text-4xl block mb-2">ðŸŒ¾</span>
+        <p className="text-sm font-bold text-slate-800">No Farmer Procurement Transactions Yet</p>
+        <p className="text-xs text-slate-400 max-w-sm mx-auto">
+          When farmers accept your bids on supply quotes, smart contract escrow transactions will appear here for funding and payment release.
+        </p>
+      </div>
+    );
+  }
+
+  const retryInfo = getRetryData();
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between pb-1 flex-wrap gap-2">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+          Farmer Procurement Transactions ({escrows.length})
+        </h3>
+
+        {/* View Switcher */}
+        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl text-xs">
+          <button
+            type="button"
+            onClick={() => setViewMode("cards")}
+            className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+              viewMode === "cards"
+                ? "bg-white text-slate-900 shadow-2xs font-bold"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            âŠž Cards
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("table")}
+            className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+              viewMode === "table"
+                ? "bg-white text-slate-900 shadow-2xs font-bold"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            â˜° Table
+          </button>
+        </div>
+      </div>
+
+      {viewMode === "cards" ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {escrows.map((escrow) => (
+            <EscrowDealCard
+              key={escrow.id}
+              escrow={escrow}
+              partnerLabel="Purchased from"
+              partnerName={escrow.farmer_name}
+              requiredActionLabel={getRequiredAction(escrow)}
+              actionLabel="View Transaction"
+              onViewDeal={openModal}
+            />
+          ))}
+        </div>
+      ) : (
+        <TransactionHistoryTable
+          escrows={escrows}
+          partnerLabel="Purchased from (Farmer)"
+          onViewDeal={openModal}
+          getRequiredAction={getRequiredAction}
+          role="fpo"
+        />
+      )}
+
+      {/* â”€â”€ Escrow Deal Detail Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {activeModalEscrow && (
+        <EscrowDealModal
+          isOpen={Boolean(activeModalEscrow)}
+          onClose={closeModal}
+          escrow={activeModalEscrow}
+          partnerLabel="Purchased from (Farmer)"
+          partnerName={activeModalEscrow.farmer_name}
+          workflow={workflow}
+          mode={mode}
+          onModeChange={handleModeChange}
+          onPrimaryAction={getModalAction(activeModalEscrow)}
+          primaryActionLabel={getModalActionLabel(activeModalEscrow)}
+          retryEndpoint={retryInfo?.endpoint}
+          retryData={retryInfo?.data}
+        />
+      )}
+    </div>
+  );
+}
+
 
 
 ================================================
@@ -14111,7 +14419,7 @@ Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in posi
 ================================================
 FILE: frontend/src/components/fpo/FpoRetailerEscrowPanel.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 9088: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 6385: character maps to <undefined>
 
 
 ================================================
@@ -14135,7 +14443,7 @@ Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in posi
 ================================================
 FILE: frontend/src/components/retailer/RetailerEscrowPanel.jsx
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 6250: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8d in position 5824: character maps to <undefined>
 
 
 ================================================
@@ -14165,6 +14473,7 @@ const EVENT_DOMAIN_MAP = {
   quote_updated: ["quotes", "farmer", "fpo", "retailer"],
   bid_updated: ["bids", "quotes", "deals", "farmer", "fpo", "retailer"],
   deal_updated: ["deals", "quotes", "bids", "escrow", "farmer", "fpo", "retailer"],
+  negotiation_updated: ["bids", "deals", "quotes", "farmer", "fpo", "retailer"],
   inventory_updated: ["inventory", "fpo", "retailer"],
   escrow_updated: ["escrow", "deals", "farmer", "fpo", "retailer"],
   transaction_updated: ["transactions", "escrow", "deals"],
@@ -14271,12 +14580,30 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { io } from "socket.io-client";
 import { SocketContext } from "./socketContextDef";
 
+/**
+ * Resolve the Socket.IO server URL.
+ *
+ * Strategy:
+ *  1. If VITE_SOCKET_URL is set (e.g. production override), use it.
+ *  2. In local dev, connect to the SAME origin as the Vite dev server
+ *     (e.g. http://localhost:5173). Vite's proxy config then forwards
+ *     /socket.io â†’ http://127.0.0.1:3001.
+ *     This avoids a direct cross-port WebSocket connection that browsers
+ *     sometimes block or that fails when the sidecar isn't yet started.
+ *  3. In production (non-localhost), always use the same origin so that
+ *     the hosting platform's proxy rules apply.
+ *
+ * Why NOT http://localhost:3001 directly?
+ *  - Bypasses the Vite proxy â€” requires the sidecar to be reachable on
+ *    the exact hostname the browser uses (can differ: localhost vs 127.0.0.1).
+ *  - Fails in production environments where port 3001 is internal-only.
+ *  - Same-origin via proxy is the correct, portable approach.
+ */
 const getSocketUrl = () => {
-  if (typeof window === "undefined") return "http://localhost:3001";
+  if (typeof window === "undefined") return "";
+  // Explicit override for deployment environments
   if (import.meta.env?.VITE_SOCKET_URL) return import.meta.env.VITE_SOCKET_URL;
-  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
-    return `http://${window.location.hostname}:3001`;
-  }
+  // Same-origin: Vite proxy (dev) or hosting proxy (prod) handles /socket.io
   return window.location.origin;
 };
 
@@ -14287,12 +14614,24 @@ export function SocketProvider({ children, role }) {
 
   useEffect(() => {
     const url = getSocketUrl();
+
+    /**
+     * Transport order: polling first, then WebSocket upgrade.
+     *
+     * Socket.IO's default is ["polling", "websocket"] for a reason:
+     *  - polling always works (plain HTTP) â†’ handshake succeeds reliably
+     *  - Socket.IO then upgrades to WebSocket automatically
+     * Using ["websocket"] only would cause the visible browser error when
+     * WebSocket is blocked or the sidecar hasn't started yet.
+     */
     const socket = io(url, {
-      transports: ["websocket", "polling"],
+      path: "/socket.io",
+      transports: ["polling", "websocket"],
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
+      reconnectionDelayMax: 10000,
+      timeout: 10000,
     });
 
     socketRef.current = socket;
@@ -14313,16 +14652,23 @@ export function SocketProvider({ children, role }) {
     });
 
     socket.on("connect_error", (error) => {
-      console.warn("[SocketContext] Realtime connection warning:", error.message);
+      // Log a concise warning â€” do NOT crash the app.
+      // The React app remains fully functional without real-time updates.
+      // Socket.IO will automatically retry with exponential backoff.
+      console.warn(
+        "[SocketContext] Realtime sidecar unavailable â€” retrying automatically.",
+        error.message
+      );
       setIsConnected(false);
     });
 
-    // Listen to all defined FarmerChain real-time event topics
+    // â”€â”€ FarmerChain real-time event topics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const events = [
       "crop_updated",
       "quote_updated",
       "bid_updated",
       "deal_updated",
+      "negotiation_updated",   // added: negotiation state changes
       "inventory_updated",
       "escrow_updated",
       "transaction_updated",
@@ -14342,6 +14688,7 @@ export function SocketProvider({ children, role }) {
     });
 
     return () => {
+      // Clean up all listeners and disconnect on unmount
       socket.disconnect();
     };
   }, [role]);
@@ -14818,6 +15165,12 @@ export default function Contract() {
     </div>
   );
 }
+
+
+================================================
+FILE: frontend/src/hooks/useEscrowWorkflow.js
+================================================
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 14284: character maps to <undefined>
 
 
 ================================================

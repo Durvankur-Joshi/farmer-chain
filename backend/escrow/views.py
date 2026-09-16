@@ -97,8 +97,28 @@ def create_escrow(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Prevent duplicate escrow
+    # Prevent duplicate escrow — or return existing pre-initialized draft idempotently
     if hasattr(quote, 'escrow'):
+        escrow = quote.escrow
+        if escrow.status == EscrowTransaction.STATUS_CREATED and escrow.escrow_id is None:
+            contract_address = request.data.get('contract_address') or escrow.contract_address or ESCROW_CONTRACT or os.environ.get('ESCROW_CONTRACT_ADDRESS', '').strip()
+            if contract_address and escrow.contract_address != contract_address:
+                escrow.contract_address = contract_address
+                escrow.save(update_fields=['contract_address'])
+            serializer = EscrowTransactionSerializer(escrow)
+            return Response(
+                {
+                    'message': 'Escrow ready. Proceed to create on-chain escrow via MetaMask.',
+                    'escrow': serializer.data,
+                    'id': escrow.pk,
+                    'contract_address': escrow.contract_address,
+                    'farmer_wallet': farmer.wallet_address,
+                    'fpo_wallet': fpo.wallet_address,
+                    'amount_eth': str(escrow.amount_eth),
+                    'quote_id': quote.pk,
+                },
+                status=status.HTTP_200_OK,
+            )
         existing = EscrowTransactionSerializer(quote.escrow).data
         return Response(
             {
@@ -226,6 +246,16 @@ def escrow_created_onchain(request, escrow_pk):
         update_fields.append('contract_address')
     escrow.save(update_fields=update_fields)
 
+    # Sync quote status & contract address
+    if escrow.quote:
+        quote = escrow.quote
+        quote.contract_address = escrow.contract_address
+        quote.status = 'contract_created'
+        quote.contract_created_at = timezone.now()
+        quote.save(update_fields=['contract_address', 'status', 'contract_created_at'])
+        emit_event("quote_updated", {"quote_id": quote.id})
+        emit_event("deal_updated", {"quote_id": quote.id})
+
     logger.info(
         'Escrow on-chain created: db_id=%d, chain_id=%d, tx=%s',
         escrow.pk, escrow.escrow_id, tx_hash,
@@ -250,6 +280,13 @@ def escrow_funded(request, escrow_pk):
 
     if escrow.fpo_id != fpo.pk:
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+    # Idempotency check: if already funded, return existing state
+    if escrow.status == EscrowTransaction.STATUS_FUNDED:
+        return Response(
+            {'message': 'Escrow already funded.', 'escrow': EscrowTransactionSerializer(escrow).data},
+            status=status.HTTP_200_OK,
+        )
 
     if escrow.status != EscrowTransaction.STATUS_CREATED:
         return Response(
@@ -289,6 +326,7 @@ def escrow_funded(request, escrow_pk):
     serializer = EscrowTransactionSerializer(escrow)
     emit_event("escrow_updated", {"escrow_id": escrow.pk, "type": "farmer_fpo"})
     emit_event("transaction_updated", {"escrow_id": escrow.pk, "type": "farmer_fpo"})
+    emit_event("deal_updated", {"quote_id": escrow.quote.id if escrow.quote else None})
     return Response({'message': 'Escrow funded successfully.', 'escrow': serializer.data})
 
 
@@ -384,6 +422,14 @@ def escrow_released(request, escrow_pk):
     escrow.payment_status = EscrowTransaction.PAYMENT_STATUS_PAID
     escrow.save(update_fields=['status', 'release_tx_hash', 'released_at', 'payment_status'])
 
+    # Close quote and sync
+    if escrow.quote:
+        quote = escrow.quote
+        quote.status = 'closed'
+        quote.save(update_fields=['status'])
+        emit_event("quote_updated", {"quote_id": quote.id})
+        emit_event("deal_updated", {"quote_id": quote.id})
+
     # Create FPO Inventory Lot for the acquired crop.
     # Bug fix: EscrowTransaction has no .bid field — use quote.accepted_bid instead.
     try:
@@ -457,14 +503,14 @@ def escrow_my_list(request):
 # ── POST /api/escrow/retailer/create/ ─────────────────────────────────────
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def create_retailer_escrow(request):
+def create_retailer_escrow(request, quote_pk=None):
     """
     Create an escrow record for an accepted FPO quote (FPO is Seller, Retailer is Buyer).
 
-    Body: { "quote_id": <int> }
+    Body: { "quote_id": <int> } or URL path <int:quote_pk>
     """
     user_obj = request.user.user_obj
-    quote_id = request.data.get('quote_id')
+    quote_id = quote_pk or request.data.get('quote_id')
     bid_id = request.data.get('bid_id')
 
     if not quote_id and bid_id:
@@ -514,8 +560,28 @@ def create_retailer_escrow(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Prevent duplicate escrow
+    # Prevent duplicate escrow — or return existing pre-initialized draft idempotently
     if hasattr(quote, 'escrow'):
+        escrow = quote.escrow
+        if escrow.status == RetailerEscrowTransaction.STATUS_CREATED and escrow.escrow_id is None:
+            contract_address = request.data.get('contract_address') or escrow.contract_address or ESCROW_CONTRACT or os.environ.get('ESCROW_CONTRACT_ADDRESS', '').strip()
+            if contract_address and escrow.contract_address != contract_address:
+                escrow.contract_address = contract_address
+                escrow.save(update_fields=['contract_address'])
+            serializer = RetailerEscrowTransactionSerializer(escrow)
+            return Response(
+                {
+                    'message': 'Retailer escrow draft already initialized.',
+                    'escrow': serializer.data,
+                    'id': escrow.pk,
+                    'contract_address': escrow.contract_address,
+                    'fpo_wallet': fpo.wallet_address,
+                    'retailer_wallet': retailer.wallet_address,
+                    'amount_eth': str(escrow.amount_eth),
+                    'quote_id': quote.pk,
+                },
+                status=status.HTTP_200_OK,
+            )
         existing = RetailerEscrowTransactionSerializer(quote.escrow).data
         return Response(
             {
@@ -595,6 +661,7 @@ def create_retailer_escrow(request):
         {
             'message': 'Retailer escrow created. Proceed to create/fund on-chain escrow via MetaMask.',
             'escrow': serializer.data,
+            'id': escrow.pk,
             'contract_address': contract_address,
             'fpo_wallet': fpo.wallet_address,
             'retailer_wallet': retailer.wallet_address,
@@ -679,6 +746,12 @@ def retailer_escrow_funded(request, escrow_pk):
 
     if escrow.retailer_id != retailer.pk:
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+    if escrow.status == RetailerEscrowTransaction.STATUS_FUNDED:
+        return Response(
+            {'message': 'Escrow already funded.', 'escrow': RetailerEscrowTransactionSerializer(escrow).data},
+            status=status.HTTP_200_OK,
+        )
 
     if escrow.status != RetailerEscrowTransaction.STATUS_CREATED:
         return Response(
@@ -812,9 +885,17 @@ def retailer_escrow_released(request, escrow_pk):
     escrow.payment_status = RetailerEscrowTransaction.PAYMENT_STATUS_PAID
     escrow.save(update_fields=['status', 'release_tx_hash', 'released_at', 'payment_status'])
 
+    # ── Close Quote status ──────────────────────────────────────────
+    quote = escrow.quote
+    if quote:
+        quote.status = 'closed'
+        quote.save(update_fields=['status'])
+        emit_event("quote_updated", {"quote_id": quote.pk, "status": "closed"})
+
     # ── Move stock into RetailerInventoryLot with full provenance ────
     try:
-        from retailer.models import RetailerInventoryLot
+        from retailer.models import RetailerInventoryLot, RetailerCartItem
+        from fpo.models import FPOInventoryLot
         import traceback
 
         # Idempotency: prevent duplicate inventory creation on repeated calls
@@ -822,11 +903,9 @@ def retailer_escrow_released(request, escrow_pk):
         if existing_lots > 0:
             logger.info('RetailerInventoryLot already exists for escrow #%d, skipping creation.', escrow.pk)
         else:
-            quote = escrow.quote
-            if quote and hasattr(quote, 'allocations'):
+            if quote:
                 # ── Commercial INR price for inventory records ──────────────
-                # Use the agreed INR price stored on the escrow — never ETH-derived values.
-                # Fallback chain: agreed_price_inr → unit_price_inr → quote.price_per_unit
+                # Sourced strictly from commercial INR fields (never from ETH)
                 if escrow.unit_price_inr:
                     inr_price_per_unit = escrow.unit_price_inr
                 elif escrow.agreed_price_inr and quote.quantity:
@@ -834,8 +913,6 @@ def retailer_escrow_released(request, escrow_pk):
                 elif quote.price_per_unit and Decimal(str(quote.price_per_unit)) >= Decimal('1'):
                     inr_price_per_unit = Decimal(str(quote.price_per_unit))
                 else:
-                    # No valid INR price found — log and use zero; inventory is still created
-                    # for provenance but financial value should be reviewed manually
                     inr_price_per_unit = Decimal('0')
                     logger.warning(
                         'Escrow #%d: no INR price found; RetailerInventoryLot created with price=0.',
@@ -844,29 +921,25 @@ def retailer_escrow_released(request, escrow_pk):
 
                 allocations = list(quote.allocations.select_related(
                     'inventory_lot', 'farmer', 'crop_passport'
-                ).all())
+                ).all()) if hasattr(quote, 'allocations') else []
 
                 if allocations:
                     for alloc in allocations:
-                        # 1. Reduce FPO Inventory Lot available_quantity only.
-                        #    original_quantity is the permanent historical record — never reduce it.
                         lot = alloc.inventory_lot
+                        qty = alloc.allocated_quantity
                         if lot:
-                            qty = alloc.allocated_quantity
-                            lot.available_quantity = max(
-                                Decimal('0'),
-                                (lot.available_quantity or Decimal('0')) - qty
-                            )
-                            lot.reserved_quantity = max(
-                                Decimal('0'),
-                                (lot.reserved_quantity or Decimal('0')) - qty
-                            )
-                            # Status auto-updates via FPOInventoryLot.save() signal
+                            # Conservation of stock:
+                            # When reserved in cart, available_quantity was already decremented by alloc quantity.
+                            # So upon completion, we deduct from reserved_quantity first.
+                            if (lot.reserved_quantity or Decimal('0')) >= qty:
+                                lot.reserved_quantity = (lot.reserved_quantity or Decimal('0')) - qty
+                            else:
+                                rem = qty - (lot.reserved_quantity or Decimal('0'))
+                                lot.reserved_quantity = Decimal('0')
+                                lot.available_quantity = max(Decimal('0'), (lot.available_quantity or Decimal('0')) - rem)
                             lot.save()
 
-                        # 2. Create Retailer Inventory Lot with INR commercial price.
-                        #    Each allocation is a separate lot to preserve per-farmer provenance.
-                        #    Never merge allocations from different farmers even for same crop name.
+                        # Create Retailer Inventory Lot with INR commercial price
                         RetailerInventoryLot.objects.create(
                             retailer=escrow.retailer,
                             fpo=escrow.fpo,
@@ -876,10 +949,10 @@ def retailer_escrow_released(request, escrow_pk):
                             escrow=escrow,
                             product_name=quote.product_name,
                             crop_category=quote.category,
-                            quantity=alloc.allocated_quantity,
+                            quantity=qty,
                             unit=quote.unit,
                             purchase_price_per_unit=inr_price_per_unit,
-                            total_price=(alloc.allocated_quantity * inr_price_per_unit).quantize(Decimal('0.01')),
+                            total_price=(qty * inr_price_per_unit).quantize(Decimal('0.01')),
                             status='in_stock',
                         )
                     logger.info(
@@ -887,12 +960,38 @@ def retailer_escrow_released(request, escrow_pk):
                         len(allocations), escrow.pk, inr_price_per_unit,
                     )
                 else:
-                    # No allocations on quote — log a warning; this is unexpected in normal flow
-                    logger.warning(
-                        'Escrow #%d released but quote #%d has no FPOQuoteAllocations. '
-                        'RetailerInventoryLot not created — provenance data missing.',
-                        escrow.pk, quote.pk,
-                    )
+                    # Fallback if no quote allocations exist: link matching FPOInventoryLot
+                    matching_lot = FPOInventoryLot.objects.filter(fpo=escrow.fpo, product_name=quote.product_name).first()
+                    qty = quote.quantity
+                    if matching_lot:
+                        if (matching_lot.reserved_quantity or Decimal('0')) >= qty:
+                            matching_lot.reserved_quantity = (matching_lot.reserved_quantity or Decimal('0')) - qty
+                        else:
+                            rem = qty - (matching_lot.reserved_quantity or Decimal('0'))
+                            matching_lot.reserved_quantity = Decimal('0')
+                            matching_lot.available_quantity = max(Decimal('0'), (matching_lot.available_quantity or Decimal('0')) - rem)
+                        matching_lot.save()
+
+                        RetailerInventoryLot.objects.create(
+                            retailer=escrow.retailer,
+                            fpo=escrow.fpo,
+                            farmer=matching_lot.farmer,
+                            crop_passport=matching_lot.crop_passport,
+                            inventory_lot=matching_lot,
+                            escrow=escrow,
+                            product_name=quote.product_name,
+                            crop_category=quote.category,
+                            quantity=qty,
+                            unit=quote.unit,
+                            purchase_price_per_unit=inr_price_per_unit,
+                            total_price=(qty * inr_price_per_unit).quantize(Decimal('0.01')),
+                            status='in_stock',
+                        )
+                        logger.info('Created RetailerInventoryLot via matching FPO lot for escrow #%d.', escrow.pk)
+
+                # Clear retailer cart item for this quote now that purchase is completed
+                RetailerCartItem.objects.filter(retailer=escrow.retailer, quote=quote).delete()
+
     except Exception as exc:
         logger.error(
             "Error creating RetailerInventoryLot for escrow #%d: %s\n%s",

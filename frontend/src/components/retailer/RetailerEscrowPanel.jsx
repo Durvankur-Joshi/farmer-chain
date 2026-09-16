@@ -1,5 +1,5 @@
 /**
- * RetailerEscrowPanel — Retailer View, Wholesale Procurement Escrows (Phase 3: Assisted Mode)
+ * RetailerEscrowPanel — Retailer View, Wholesale Procurement Escrows (Phase 6: Transaction UI)
  *
  * Retailer escrow lifecycle:
  *   1. (FPO creates escrow — handled in FpoRetailerEscrowPanel)
@@ -9,7 +9,6 @@
  *
  * Commercial INR values are always primary.
  * ETH amounts are strictly testnet settlement — never shown as crop price.
- * Provenance, crop passport, and farmer attribution are preserved after release.
  */
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -18,6 +17,7 @@ import { useRefresh, useRefreshSubscription } from "../../context/useRefresh";
 import { useEscrowWorkflow } from "../../hooks/useEscrowWorkflow";
 import EscrowDealCard from "../common/EscrowDealCard";
 import EscrowDealModal from "../common/EscrowDealModal";
+import TransactionHistoryTable from "../common/TransactionHistoryTable";
 
 const MODE_KEY = "farmerchain-workflow-mode";
 
@@ -27,13 +27,13 @@ export default function RetailerEscrowPanel({ onPaymentReleased, onEscrowUpdated
   const [loading, setLoading] = useState(true);
   const [activeModalEscrow, setActiveModalEscrow] = useState(null);
   const [mode, setMode] = useState(() => localStorage.getItem(MODE_KEY) || "assisted");
+  const [viewMode, setViewMode] = useState("cards");
 
   // ── Workflow hook ────────────────────────────────────────────────────
   const workflow = useEscrowWorkflow({
     mode,
     onSuccess: (txHash, data) => {
       if (onEscrowUpdated) onEscrowUpdated();
-      // Notify parent of payment release (triggers inventory refresh)
       if (
         workflow.currentAction === "release_retailer_payment" &&
         onPaymentReleased
@@ -84,7 +84,7 @@ export default function RetailerEscrowPanel({ onPaymentReleased, onEscrowUpdated
   // ── Required action label ────────────────────────────────────────────
   const getRequiredAction = (escrow) => {
     if (escrow.status === "created") {
-      return escrow.escrow_id ? "Lock ETH Funds in Escrow" : "Awaiting FPO Setup";
+      return escrow.escrow_id ? "Lock Funds in Escrow" : "Awaiting FPO Setup";
     }
     if (escrow.status === "funded") return "Awaiting Delivery Handover";
     if (escrow.status === "delivery_confirmed") return "Release Payment to FPO";
@@ -145,10 +145,10 @@ export default function RetailerEscrowPanel({ onPaymentReleased, onEscrowUpdated
   if (escrows.length === 0) {
     return (
       <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-100 space-y-2">
-        <span className="text-4xl block mb-2">🔐</span>
-        <p className="text-sm font-bold text-slate-800">No Commercial Escrows Active</p>
+        <span className="text-4xl block mb-2">🛍️</span>
+        <p className="text-sm font-bold text-slate-800">No Wholesale Purchases Yet</p>
         <p className="text-xs text-slate-400 max-w-sm mx-auto">
-          When an FPO accepts your wholesale procurement bid, the on-chain escrow transaction will appear here for payment lock and release.
+          When FPO suppliers accept your bids, your wholesale procurement transactions and delivery tracking will appear here.
         </p>
       </div>
     );
@@ -158,20 +158,63 @@ export default function RetailerEscrowPanel({ onPaymentReleased, onEscrowUpdated
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-        {escrows.map((escrow) => (
-          <EscrowDealCard
-            key={escrow.id}
-            escrow={escrow}
-            partnerLabel="FPO Supplier"
-            partnerName={escrow.fpo_name}
-            requiredActionLabel={getRequiredAction(escrow)}
-            actionLabel="View Transaction"
-            onViewDeal={openModal}
-            isRetailer={true}
-          />
-        ))}
+      <div className="flex items-center justify-between pb-1 flex-wrap gap-2">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+          Wholesale Procurement Transactions ({escrows.length})
+        </h3>
+
+        {/* View Switcher: Cards vs Table */}
+        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl text-xs">
+          <button
+            type="button"
+            onClick={() => setViewMode("cards")}
+            className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+              viewMode === "cards"
+                ? "bg-white text-slate-900 shadow-2xs font-bold"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            ⊞ Cards
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("table")}
+            className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+              viewMode === "table"
+                ? "bg-white text-slate-900 shadow-2xs font-bold"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            ☰ Table
+          </button>
+        </div>
       </div>
+
+      {viewMode === "cards" ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {escrows.map((escrow) => (
+            <EscrowDealCard
+              key={escrow.id}
+              escrow={escrow}
+              partnerLabel="Purchased from"
+              partnerName={escrow.fpo_name}
+              requiredActionLabel={getRequiredAction(escrow)}
+              actionLabel="View Transaction"
+              onViewDeal={openModal}
+              isRetailer={true}
+            />
+          ))}
+        </div>
+      ) : (
+        <TransactionHistoryTable
+          escrows={escrows}
+          partnerLabel="Purchased from (FPO)"
+          onViewDeal={openModal}
+          getRequiredAction={getRequiredAction}
+          isRetailer={true}
+          role="retailer"
+        />
+      )}
 
       {/* ── Escrow Deal Detail Modal ──────────────────────────────────── */}
       {activeModalEscrow && (
@@ -179,7 +222,7 @@ export default function RetailerEscrowPanel({ onPaymentReleased, onEscrowUpdated
           isOpen={Boolean(activeModalEscrow)}
           onClose={closeModal}
           escrow={activeModalEscrow}
-          partnerLabel="FPO Supplier"
+          partnerLabel="Purchased from (FPO Supplier)"
           partnerName={activeModalEscrow.fpo_name}
           workflow={workflow}
           mode={mode}

@@ -32,6 +32,7 @@ urlpatterns = [
 
     # FPO ↔ Retailer Escrow
     path('retailer/create/',                         create_retailer_escrow,          name='retailer-escrow-create'),
+    path('retailer/<int:quote_pk>/create/',          create_retailer_escrow,          name='retailer-escrow-create-with-id'),
     path('retailer/<int:escrow_pk>/created-onchain/', retailer_escrow_created_onchain, name='retailer-escrow-created-onchain'),
     path('retailer/<int:escrow_pk>/funded/',          retailer_escrow_funded,          name='retailer-escrow-funded'),
     path('retailer/<int:escrow_pk>/delivery-confirm/', retailer_escrow_delivery_confirm, name='retailer-escrow-delivery-confirm'),

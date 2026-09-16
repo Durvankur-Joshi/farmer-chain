@@ -272,9 +272,24 @@ def create_fpo_quote_from_cart_view(request):
         'quote': serializer.data
     }, status=status.HTTP_201_CREATED)
 
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated, IsFPO])
 def accept_retailer_bid(request, bid_pk):
+    """
+    Phase 5 — FPO accepts a Retailer bid on an FPOQuote.
+    Reuses the Phase 4 transaction architecture:
+      - Validates stock availability from source inventory lots
+      - Authoritative Decimal INR calculations (unit_price_inr, total_amount_inr, agreed_price_inr)
+      - Pre-initializes off-chain RetailerEscrowTransaction
+      - Emits real-time Socket.IO synchronization events
+    """
+    from decimal import Decimal, InvalidOperation
+    import os
+    from escrow.models import RetailerEscrowTransaction
+    from escrow.views import DEFAULT_INR_PER_ETH, ESCROW_CONTRACT
+    from escrow.serializers import RetailerEscrowTransactionSerializer
+
     bid = get_object_or_404(RetailerBid, pk=bid_pk)
     quote = bid.quote
 
@@ -282,22 +297,93 @@ def accept_retailer_bid(request, bid_pk):
         return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
     
     if quote.status != 'open':
-        return Response({"error": "Quote is not open."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Quote is not open for accepting bids."}, status=status.HTTP_400_BAD_REQUEST)
 
+    # Validate price and quantity are positive
+    try:
+        quantity = Decimal(str(quote.quantity))
+        unit_price_inr = Decimal(str(bid.bid_amount)).quantize(Decimal('0.01'))
+        if quantity <= Decimal('0') or unit_price_inr <= Decimal('0'):
+            return Response({"error": "Quantity and bid price must be positive numbers greater than zero."}, status=status.HTTP_400_BAD_REQUEST)
+    except (TypeError, ValueError, InvalidOperation):
+        return Response({"error": "Invalid price or quantity format."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Validate inventory lot stock availability across source allocations
+    allocations = quote.allocations.select_related('inventory_lot').all()
+    if allocations.exists():
+        for alloc in allocations:
+            lot = alloc.inventory_lot
+            if not lot:
+                return Response({"error": "Underlying inventory lot not found for allocation."}, status=status.HTTP_400_BAD_REQUEST)
+            if lot.fpo_id != quote.fpo_id:
+                return Response({"error": "FPO does not own the inventory lot for this quote allocation."}, status=status.HTTP_403_FORBIDDEN)
+            # The allocated quantity was reserved in lot.reserved_quantity at quote creation, or must be available
+            effective_available = (lot.available_quantity or Decimal('0')) + (lot.reserved_quantity or Decimal('0'))
+            if effective_available < alloc.allocated_quantity:
+                return Response({
+                    "error": f"Insufficient stock in lot #{lot.id} for {lot.product_name}. Available + reserved: {effective_available} {lot.unit}, required: {alloc.allocated_quantity} {lot.unit}."
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+    total_amount_inr = (quantity * unit_price_inr).quantize(Decimal('0.01'))
+    agreed_price_inr = total_amount_inr
+
+    # Accept this bid & reject competing bids
     bid.status = 'accepted'
-    bid.save()
+    bid.save(update_fields=['status'])
+
     quote.bids.exclude(pk=bid.pk).update(status='rejected')
+
+    # Update quote status to 'awarded' and store agreed unit price
     quote.status = 'awarded'
     quote.accepted_bid = bid
-    quote.save()
-    
+    quote.price_per_unit = unit_price_inr
+    quote.save(update_fields=['status', 'accepted_bid', 'price_per_unit'])
+
+    # Pre-initialize or update off-chain RetailerEscrowTransaction record with authoritative INR values
+    contract_addr = ESCROW_CONTRACT or os.environ.get('ESCROW_CONTRACT_ADDRESS', '').strip()
+    amount_eth = (total_amount_inr / DEFAULT_INR_PER_ETH).quantize(Decimal('0.000001'))
+
+    escrow, created = RetailerEscrowTransaction.objects.get_or_create(
+        quote=quote,
+        defaults={
+            'fpo': quote.fpo,
+            'retailer': bid.retailer,
+            'contract_address': contract_addr,
+            'amount_eth': amount_eth,
+            'status': RetailerEscrowTransaction.STATUS_CREATED,
+            'unit_price_inr': unit_price_inr,
+            'total_amount_inr': total_amount_inr,
+            'agreed_price_inr': agreed_price_inr,
+            'payment_status': RetailerEscrowTransaction.PAYMENT_STATUS_PENDING,
+        }
+    )
+    if not created and escrow.status == RetailerEscrowTransaction.STATUS_CREATED and escrow.escrow_id is None:
+        escrow.retailer = bid.retailer
+        escrow.unit_price_inr = unit_price_inr
+        escrow.total_amount_inr = total_amount_inr
+        escrow.agreed_price_inr = agreed_price_inr
+        escrow.amount_eth = amount_eth
+        if contract_addr and not escrow.contract_address:
+            escrow.contract_address = contract_addr
+        escrow.save()
+
+    # Emit real-time Socket.IO events for synchronized dashboard updates
     emit_event("bid_updated", {"bid_id": bid.pk, "quote_id": quote.id})
     emit_event("deal_updated", {"quote_id": quote.id})
+    emit_event("escrow_updated", {"escrow_id": escrow.pk, "type": "fpo_retailer"})
+    emit_event("quote_updated", {"quote_id": quote.id, "fpo_id": quote.fpo_id})
 
     return Response({
-        "message": "Retailer bid accepted successfully.",
+        "message": f"Retailer bid accepted successfully. Commercial deal recorded at ₹{total_amount_inr}. Proceed to secure on blockchain.",
         "bid_id": bid.pk,
-        "quote_id": quote.id
+        "quote_id": quote.id,
+        "quote_status": quote.status,
+        "unit_price_inr": str(unit_price_inr),
+        "total_amount_inr": str(total_amount_inr),
+        "agreed_price_inr": str(agreed_price_inr),
+        "escrow_id": escrow.pk,
+        "escrow": RetailerEscrowTransactionSerializer(escrow).data,
+        "next_step": "create_smart_contract"
     })
 
 

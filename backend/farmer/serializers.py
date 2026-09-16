@@ -35,6 +35,7 @@ class FarmerQuoteSerializer(serializers.ModelSerializer):
         error_messages={"required": "Select a completed Crop Passport before creating a quote."}
     )
     crop_passport_details = serializers.SerializerMethodField()
+    escrow_details = serializers.SerializerMethodField()
 
     class Meta:
         model = FarmerQuote
@@ -43,7 +44,7 @@ class FarmerQuoteSerializer(serializers.ModelSerializer):
             'product_name', 'category', 'description', 
             'quantity', 'unit', 'price_per_unit', 'status', 'deadline', 
             'created_at', 'accepted_bid', 'farmer_name', 'farmer_email',
-            'bids', 'contract_address'
+            'bids', 'contract_address', 'escrow_details'
         ]
         read_only_fields = ('farmer', 'status', 'created_at', 'accepted_bid')
         extra_kwargs = {
@@ -68,6 +69,12 @@ class FarmerQuoteSerializer(serializers.ModelSerializer):
                 'submitted_at': bid.submitted_at
             })
         return bids_data
+
+    def get_escrow_details(self, obj):
+        if hasattr(obj, 'escrow') and obj.escrow:
+            from escrow.serializers import EscrowTransactionSerializer
+            return EscrowTransactionSerializer(obj.escrow).data
+        return None
 
     def get_crop_passport_details(self, obj):
         if not obj.crop_passport:

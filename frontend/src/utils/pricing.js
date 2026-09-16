@@ -107,14 +107,8 @@ export const formatCommercialPrice = (price, unit = "kg") => {
   const p = parseFloat(price);
   if (isNaN(p)) return "";
 
-  if (p >= 1) {
-    // Standard INR Commercial Pricing
-    return `${formatInr(p)} / ${unit}`;
-  } else {
-    // Legacy ETH pricing with estimated INR equivalent
-    const estInr = Math.round(p * DEFAULT_INR_PER_ETH);
-    return `${p} ETH / ${unit} (~${formatInr(estInr)} / ${unit})`;
-  }
+  // Authoritative INR Commercial Pricing
+  return `${formatInr(p, true)} / ${unit}`;
 };
 
 /**
@@ -188,8 +182,5 @@ export const formatPricePerUnit = (price, unit = "unit") => {
   if (price === undefined || price === null || price === "") return "";
   const p = parseFloat(price);
   if (isNaN(p)) return "";
-  if (p >= 1) {
-    return `${formatInr(p)} / ${unit}`;
-  }
-  return `${price} ETH / ${unit}`;
+  return `${formatInr(p, true)} / ${unit}`;
 };

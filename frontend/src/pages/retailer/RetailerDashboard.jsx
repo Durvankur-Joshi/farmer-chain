@@ -213,7 +213,7 @@ export default function RetailerDashboard() {
     const days = bidDaysInput;
 
     if (!amount || Number(amount) <= 0) {
-      alert("⚠️ Please enter a valid positive bid amount in ETH.");
+      alert("⚠️ Please enter a valid positive bid amount in ₹ (INR).");
       return;
     }
     if (!days || Number(days) <= 0) {
@@ -1256,7 +1256,7 @@ export default function RetailerDashboard() {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">FPO Asking Rate:</span>
-                <span className="font-mono text-purple-700 font-bold">{activeBidQuote.price_per_unit} ETH / {activeBidQuote.unit}</span>
+                <span className="font-mono text-purple-700 font-bold">{formatCommercialPrice(activeBidQuote.price_per_unit, activeBidQuote.unit)}</span>
               </div>
             </div>
 
@@ -1269,7 +1269,7 @@ export default function RetailerDashboard() {
                 step="any"
                 min="0.000001"
                 required
-                placeholder="e.g. 150"
+                placeholder="e.g. 60"
                 value={bidAmountInput}
                 onChange={(e) => setBidAmountInput(e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:border-purple-500 outline-none"
@@ -1293,13 +1293,10 @@ export default function RetailerDashboard() {
 
             {bidAmountInput && Number(bidAmountInput) > 0 && (
               <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 flex items-center justify-between">
-                <span className="text-purple-900 font-semibold text-xs">Estimated Total:</span>
+                <span className="text-purple-900 font-semibold text-xs">Estimated Commercial Total:</span>
                 <div className="text-right">
                   <span className="font-extrabold text-purple-950 font-mono text-sm block">
-                    {formatSettlementBreakdown(bidAmountInput, activeBidQuote.quantity).totalInr}
-                  </span>
-                  <span className="text-[10px] text-purple-700 font-mono block">
-                    Settlement: {formatSettlementBreakdown(bidAmountInput, activeBidQuote.quantity).totalEth}
+                    {formatInr(Number(bidAmountInput) * Number(activeBidQuote.quantity || 0), true)}
                   </span>
                 </div>
               </div>

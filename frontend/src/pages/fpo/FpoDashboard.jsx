@@ -76,10 +76,11 @@ export default function FpoDashboard() {
   // Fetch real overview metrics & top preview records
   const fetchOverviewMetrics = useCallback(async () => {
     try {
-      const [farmerRes, marketRes, escrowRes] = await Promise.allSettled([
+      const [farmerRes, marketRes, escrowRes, retailerEscrowRes] = await Promise.allSettled([
         axios.get("/api/fpo/quotes/farmer/open/", { withCredentials: true }),
         axios.get("/api/fpo/quotes/", { withCredentials: true }),
         axios.get("/api/escrow/my/", { withCredentials: true }),
+        axios.get("/api/escrow/retailer/my/", { withCredentials: true }),
       ]);
 
       if (farmerRes.status === "fulfilled") {
@@ -92,11 +93,11 @@ export default function FpoDashboard() {
         setMarketQuotesCount(mData.length);
         setRecentMarketQuotes(mData.slice(0, 3));
       }
-      if (escrowRes.status === "fulfilled") {
-        const eData = escrowRes.value.data?.escrows || [];
-        setEscrowsCount(eData.length);
-        setRecentEscrows(eData.slice(0, 3));
-      }
+      const eData = escrowRes.status === "fulfilled" ? (escrowRes.value.data?.escrows || []) : [];
+      const rData = retailerEscrowRes.status === "fulfilled" ? (retailerEscrowRes.value.data?.escrows || []) : [];
+      const combinedEscrows = [...eData, ...rData];
+      setEscrowsCount(combinedEscrows.length);
+      setRecentEscrows(combinedEscrows.slice(0, 3));
     } catch (err) {
       console.error("Error fetching overview metrics:", err);
     }
@@ -762,6 +763,10 @@ export default function FpoDashboard() {
 
               <RetailerQuotes
                 onNavigateToCart={() => setActiveNav("inventory")}
+                onNavigateToEscrow={() => {
+                  setActiveNav("transactions");
+                  setEscrowSubTab("retailer");
+                }}
                 onBidAccepted={fetchOverviewMetrics}
                 onQuoteCreated={fetchOverviewMetrics}
               />
@@ -824,6 +829,10 @@ export default function FpoDashboard() {
                   </div>
                   <RetailerQuotes
                     onNavigateToCart={() => setActiveNav("inventory")}
+                    onNavigateToEscrow={() => {
+                      setActiveNav("transactions");
+                      setEscrowSubTab("retailer");
+                    }}
                     onBidAccepted={fetchOverviewMetrics}
                     onQuoteCreated={fetchOverviewMetrics}
                   />

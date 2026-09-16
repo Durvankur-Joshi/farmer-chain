@@ -110,6 +110,8 @@ class FPOQuoteSerializer(serializers.ModelSerializer):
     bids = serializers.SerializerMethodField()
     allocations = FPOQuoteAllocationSerializer(many=True, read_only=True)
     provenance_summary = serializers.SerializerMethodField()
+    accepted_bid_details = serializers.SerializerMethodField()
+    escrow_details = serializers.SerializerMethodField()
     
     class Meta:
         model = FPOQuote
@@ -117,9 +119,32 @@ class FPOQuoteSerializer(serializers.ModelSerializer):
             'id', 'fpo', 'fpo_name', 'fpo_email', 'fpo_did', 'fpo_location',
             'product_name', 'category', 'description', 
             'quantity', 'unit', 'price_per_unit', 'status', 'deadline', 
-            'created_at', 'accepted_bid', 'bids', 'allocations', 'provenance_summary'
+            'created_at', 'accepted_bid', 'accepted_bid_details', 'bids', 'allocations', 'provenance_summary',
+            'escrow_details'
         ]
         read_only_fields = ('fpo', 'status', 'created_at', 'accepted_bid')
+
+    def get_accepted_bid_details(self, obj):
+        if obj.accepted_bid:
+            return {
+                'id': obj.accepted_bid.id,
+                'retailer': obj.accepted_bid.retailer_id,
+                'retailer_name': obj.accepted_bid.retailer.name if obj.accepted_bid.retailer else '',
+                'bid_amount': str(obj.accepted_bid.bid_amount),
+                'delivery_time_days': obj.accepted_bid.delivery_time_days,
+                'status': obj.accepted_bid.status,
+                'submitted_at': obj.accepted_bid.submitted_at,
+            }
+        return None
+
+    def get_escrow_details(self, obj):
+        try:
+            if hasattr(obj, 'escrow') and obj.escrow:
+                from escrow.serializers import RetailerEscrowTransactionSerializer
+                return RetailerEscrowTransactionSerializer(obj.escrow).data
+        except Exception:
+            pass
+        return None
 
     def get_fpo_location(self, obj):
         if obj.fpo:
@@ -168,9 +193,11 @@ class FPOQuoteSerializer(serializers.ModelSerializer):
         for bid in obj.bids.all():
             bids_data.append({
                 'id': bid.id,
-                'retailer_name': bid.retailer.name,
+                'retailer': bid.retailer_id,
+                'retailer_name': bid.retailer.name if bid.retailer else f"Retailer #{bid.retailer_id}",
                 'bid_amount': str(bid.bid_amount),
                 'delivery_time_days': bid.delivery_time_days,
+                'comments': bid.comments,
                 'status': bid.status,
                 'submitted_at': bid.submitted_at
             })

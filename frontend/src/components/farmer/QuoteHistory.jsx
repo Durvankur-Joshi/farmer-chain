@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import StatusBadge from "../common/StatusBadge";
 import MarketplaceFilterBar from "../common/MarketplaceFilterBar";
+import { formatInr } from "../../utils/pricing";
 
 export default function QuoteHistory({ history, onViewBids }) {
   const [filters, setFilters] = useState({});
@@ -127,7 +128,10 @@ export default function QuoteHistory({ history, onViewBids }) {
                       </span>
                       {item.price_per_unit && (
                         <span className="bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 font-medium">
-                          <strong className="text-slate-700">Asking Price:</strong> {item.price_per_unit} ETH / {item.unit}
+                          <strong className="text-slate-700">Asking Price:</strong>{" "}
+                          {parseFloat(item.price_per_unit) >= 1
+                            ? `${formatInr(item.price_per_unit)} / ${item.unit}`
+                            : `${item.price_per_unit} / ${item.unit}`}
                         </span>
                       )}
                       {item.crop_passport_details?.harvest_date && (

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { useRefresh, useRefreshSubscription } from "../../context/useRefresh";
+import { formatInr, formatCommercialPrice } from "../../utils/pricing";
 
 export default function FpoStockCartPanel({ onCartUpdated, onQuotePublished }) {
   const { refresh } = useRefresh();
@@ -177,7 +178,7 @@ export default function FpoStockCartPanel({ onCartUpdated, onQuotePublished }) {
   const firstItemLot = items[0]?.inventory_lot_details || {};
   const totalQtyVal = parseFloat(summary.total_selected_quantity) || 0;
   const priceVal = parseFloat(quoteForm.price_per_unit) || 0;
-  const calculatedTotalEth = (totalQtyVal * priceVal).toFixed(6);
+  const calculatedTotalInr = totalQtyVal * priceVal;
 
   return (
     <div className="space-y-6">
@@ -344,7 +345,7 @@ export default function FpoStockCartPanel({ onCartUpdated, onQuotePublished }) {
                       <div className="min-w-0">
                         <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Acq. Price</span>
                         <span className="font-semibold text-slate-700 font-mono mt-0.5 block truncate">
-                          {lot.acquisition_price ? `${lot.acquisition_price} ETH/${lot.unit}` : "N/A"}
+                          {lot.acquisition_price ? formatCommercialPrice(lot.acquisition_price, lot.unit) : "N/A"}
                         </span>
                       </div>
                     </div>
@@ -477,14 +478,14 @@ export default function FpoStockCartPanel({ onCartUpdated, onQuotePublished }) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
-                    Asking Price (ETH per {firstItemLot.unit || "unit"}) *
+                    Price per unit (₹) *
                   </label>
                   <input
                     type="number"
                     step="any"
                     min="0.000001"
                     required
-                    placeholder="e.g. 0.05"
+                    placeholder="e.g. 60"
                     value={quoteForm.price_per_unit}
                     onChange={(e) => setQuoteForm({ ...quoteForm, price_per_unit: e.target.value })}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-extrabold text-slate-900 focus:bg-white focus:border-purple-500 outline-none"
@@ -507,7 +508,7 @@ export default function FpoStockCartPanel({ onCartUpdated, onQuotePublished }) {
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
                   <span className="font-bold text-emerald-900">Estimated Total Wholesale Value:</span>
                   <span className="font-extrabold text-emerald-900 font-mono text-sm">
-                    {calculatedTotalEth} ETH
+                    {formatInr(calculatedTotalInr, true)}
                   </span>
                 </div>
               )}

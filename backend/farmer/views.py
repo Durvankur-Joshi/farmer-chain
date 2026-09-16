@@ -1,3 +1,4 @@
+from decimal import Decimal
 from rest_framework import generics, status
 from common.events import emit_event
 from rest_framework.response import Response
@@ -205,8 +206,18 @@ class FarmerQuoteDetailView(generics.RetrieveUpdateAPIView):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated, IsFarmer])
 def accept_fpo_bid(request, bid_pk):
+    """
+    Phase 4: Accept FPO bid for a farmer quote.
+    Validates bid/quote relationship, ownership, submitted status, positive quantity and price.
+    Calculates authoritative commercial INR values via Decimal arithmetic.
+    Pre-initializes the off-chain EscrowTransaction record to prevent duplicate transactions.
+    Emits real-time Socket.IO events to sync both dashboards.
+    """
     bid = get_object_or_404(FPOBid, pk=bid_pk)
     quote = bid.quote
+
+    if not quote or bid.quote_id != quote.id:
+        return Response({"error": "Invalid bid or quote association."}, status=status.HTTP_400_BAD_REQUEST)
 
     if quote.farmer != request.user.user_obj:
         return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
@@ -214,33 +225,86 @@ def accept_fpo_bid(request, bid_pk):
     if quote.status != 'open':
         return Response({"error": "Quote is not open for bidding."}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Accept this bid
-    bid.status = 'accepted'
-    bid.save()
+    if bid.status not in ['submitted', 'pending']:
+        return Response(
+            {"error": f"Bid is not in submitted state (currently '{bid.status}')."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
-    # Reject other bids
+    # Validate quantity & price
+    if not quote.quantity or Decimal(str(quote.quantity)) <= Decimal('0'):
+        return Response({"error": "Quote quantity must be greater than zero."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not bid.bid_amount or Decimal(str(bid.bid_amount)) <= Decimal('0'):
+        return Response({"error": "Bid unit price must be greater than zero."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Authoritative commercial INR calculations via Decimal arithmetic
+    quantity = Decimal(str(quote.quantity))
+    unit_price_inr = Decimal(str(bid.bid_amount)).quantize(Decimal('0.01'))
+    total_amount_inr = (quantity * unit_price_inr).quantize(Decimal('0.01'))
+    agreed_price_inr = total_amount_inr
+
+    # Accept this bid & reject competing bids
+    bid.status = 'accepted'
+    bid.save(update_fields=['status'])
+
     quote.bids.exclude(pk=bid.pk).update(status='rejected')
 
-    # Update quote status to 'accepted' (contract will be created in frontend)
+    # Update quote status to 'accepted' and store agreed unit price
     quote.status = 'accepted'
     quote.accepted_bid = bid
-    quote.save()
+    quote.price_per_unit = unit_price_inr
+    quote.save(update_fields=['status', 'accepted_bid', 'price_per_unit'])
 
-    # Phase 1 — Create FPO Inventory Lot preserving Farmer & Crop Passport provenance
-    try:
-        from fpo.services import create_fpo_inventory_lot_from_deal
-        create_fpo_inventory_lot_from_deal(quote, bid)
-    except Exception as exc:
-        logger.warning("Could not auto-create FPO inventory lot on bid accept: %s", exc)
+    # Pre-initialize or update off-chain EscrowTransaction record with authoritative INR values
+    import os
+    from escrow.models import EscrowTransaction
+    from escrow.views import DEFAULT_INR_PER_ETH, ESCROW_CONTRACT
+    from escrow.serializers import EscrowTransactionSerializer
 
+    contract_addr = ESCROW_CONTRACT or os.environ.get('ESCROW_CONTRACT_ADDRESS', '').strip()
+    amount_eth = (total_amount_inr / DEFAULT_INR_PER_ETH).quantize(Decimal('0.000001'))
+
+    escrow, created = EscrowTransaction.objects.get_or_create(
+        quote=quote,
+        defaults={
+            'farmer': quote.farmer,
+            'fpo': bid.fpo,
+            'contract_address': contract_addr,
+            'amount_eth': amount_eth,
+            'status': EscrowTransaction.STATUS_CREATED,
+            'unit_price_inr': unit_price_inr,
+            'total_amount_inr': total_amount_inr,
+            'agreed_price_inr': agreed_price_inr,
+            'payment_status': EscrowTransaction.PAYMENT_STATUS_PENDING,
+        }
+    )
+    if not created and escrow.status == EscrowTransaction.STATUS_CREATED and escrow.escrow_id is None:
+        escrow.fpo = bid.fpo
+        escrow.unit_price_inr = unit_price_inr
+        escrow.total_amount_inr = total_amount_inr
+        escrow.agreed_price_inr = agreed_price_inr
+        escrow.amount_eth = amount_eth
+        if contract_addr and not escrow.contract_address:
+            escrow.contract_address = contract_addr
+        escrow.save()
+
+    # Emit real-time Socket.IO events for synchronized dashboard updates
     emit_event("bid_updated", {"bid_id": bid.pk, "quote_id": quote.id})
     emit_event("deal_updated", {"quote_id": quote.id})
+    emit_event("escrow_updated", {"escrow_id": escrow.pk, "type": "farmer_fpo"})
+    emit_event("quote_updated", {"quote_id": quote.id, "farmer_id": quote.farmer_id})
 
     return Response({
-        "message": "Bid accepted successfully. You can now create the smart contract.",
+        "message": f"Bid accepted successfully. Commercial deal recorded at ₹{total_amount_inr}. Proceed to secure on blockchain.",
         "bid_id": bid.pk,
         "quote_id": quote.id,
         "quote_status": quote.status,
+        "unit_price_inr": str(unit_price_inr),
+        "total_amount_inr": str(total_amount_inr),
+        "agreed_price_inr": str(agreed_price_inr),
+        "escrow_id": escrow.pk,
+        "escrow": EscrowTransactionSerializer(escrow).data,
         "next_step": "create_smart_contract"
     })
 

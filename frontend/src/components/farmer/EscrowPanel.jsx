@@ -1,5 +1,5 @@
 /**
- * EscrowPanel — Farmer View (Phase 3: MetaMask Assisted Mode)
+ * EscrowPanel — Farmer View (Phase 6: Transaction UI)
  *
  * Farmer escrow lifecycle:
  *   1. createEscrow  — farmer registers agreement on-chain
@@ -18,6 +18,7 @@ import { useEscrowWorkflow } from "../../hooks/useEscrowWorkflow";
 import { formatInr } from "../../utils/pricing";
 import EscrowDealCard from "../common/EscrowDealCard";
 import EscrowDealModal from "../common/EscrowDealModal";
+import TransactionHistoryTable from "../common/TransactionHistoryTable";
 
 // Mode preference key in localStorage
 const MODE_KEY = "farmerchain-workflow-mode";
@@ -29,6 +30,7 @@ export default function EscrowPanel({ onEscrowUpdated }) {
   const [acceptedQuotes, setAcceptedQuotes] = useState([]);
   const [activeModalEscrow, setActiveModalEscrow] = useState(null);
   const [mode, setMode] = useState(() => localStorage.getItem(MODE_KEY) || "assisted");
+  const [viewMode, setViewMode] = useState("cards");
 
   // ── Workflow hook ────────────────────────────────────────────────────
   const workflow = useEscrowWorkflow({
@@ -93,17 +95,16 @@ export default function EscrowPanel({ onEscrowUpdated }) {
   };
 
   // ── Pending recovery check ───────────────────────────────────────────
-  // For each escrow, check localStorage for a pending tx hash (reload recovery)
   const getPendingHint = (escrow) => {
     const rec = workflow.getPendingRecovery(escrow.id);
     if (!rec?.txHash) return null;
     return rec;
   };
 
-  // ── Determine next action for escrow (for card label + modal action) ──
+  // ── Determine next action for escrow ─────────────────────────────────
   const getRequiredAction = (escrow) => {
     if (escrow.status === "created" && !escrow.escrow_id) return "Complete On-Chain Setup";
-    if (escrow.status === "funded") return "Confirm Delivery Handover";
+    if (escrow.status === "funded") return "Confirm Handover";
     return null;
   };
 
@@ -122,17 +123,15 @@ export default function EscrowPanel({ onEscrowUpdated }) {
 
   const getModalActionLabel = (escrow) => {
     if (!escrow) return "";
-    if (escrow.status === "created" && !escrow.escrow_id) return "Register On-Chain";
-    if (escrow.status === "funded") return "Confirm Delivery";
+    if (escrow.status === "created" && !escrow.escrow_id) return "Complete Setup";
+    if (escrow.status === "funded") return "Confirm Handover";
     return "";
   };
 
-  // ── Retry data for backend_error recovery ───────────────────────────
   const getRetryData = () => {
     if (!activeModalEscrow || workflow.phase !== "backend_error") return null;
     const action = workflow.currentAction;
-
-    if (action === "complete_onchain") {
+    if (action === "create_escrow" || action === "complete_onchain") {
       return {
         endpoint: `/api/escrow/${activeModalEscrow.id}/created-onchain/`,
         data: { tx_hash: workflow.txHash, escrow_id: activeModalEscrow.escrow_id, contract_address: null },
@@ -175,10 +174,10 @@ export default function EscrowPanel({ onEscrowUpdated }) {
       {quotesNeedingEscrow.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between pb-1">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
               <span>💼</span> Accepted Deals Awaiting Payment Setup
             </h3>
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
               {quotesNeedingEscrow.length} Action Required
             </span>
           </div>
@@ -186,7 +185,6 @@ export default function EscrowPanel({ onEscrowUpdated }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {quotesNeedingEscrow.map((quote) => {
               const acceptedBid = quote.bids?.find((b) => b.status === "accepted");
-              // INR from bid_amount_inr if available, else from bid_amount if >= 1
               const bidAmountNum = parseFloat(acceptedBid?.bid_amount || 0);
               const qty = parseFloat(quote.quantity || 0);
               const isInr = bidAmountNum >= 1;
@@ -201,7 +199,7 @@ export default function EscrowPanel({ onEscrowUpdated }) {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <h4 className="text-sm font-bold text-slate-900 truncate">
+                      <h4 className="text-sm font-extrabold text-slate-900 truncate">
                         {quote.product_name}
                       </h4>
                       <p className="text-xs text-slate-600">
@@ -213,7 +211,7 @@ export default function EscrowPanel({ onEscrowUpdated }) {
                     </div>
                     {/* Commercial INR value — NOT ETH */}
                     {totalInrDisplay && (
-                      <span className="text-xs font-semibold font-mono text-emerald-700 bg-white px-2 py-0.5 rounded-md border border-emerald-200 shrink-0">
+                      <span className="text-xs font-bold font-mono text-emerald-700 bg-white px-2 py-0.5 rounded-md border border-emerald-200 shrink-0">
                         {totalInrDisplay}
                       </span>
                     )}
@@ -229,7 +227,7 @@ export default function EscrowPanel({ onEscrowUpdated }) {
                       id={`farmer-create-escrow-${quote.id}`}
                       onClick={() => workflow.runCreateEscrow(quote)}
                       disabled={workflow.isLocked}
-                      className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                     >
                       <span>🔐</span>
                       <span>
@@ -248,40 +246,76 @@ export default function EscrowPanel({ onEscrowUpdated }) {
 
       {/* ── Active Escrows ───────────────────────────────────────────── */}
       {escrows.length === 0 && quotesNeedingEscrow.length === 0 ? (
-        <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-100">
+        <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-100 space-y-2">
           <span className="text-4xl block mb-2">🔐</span>
           <p className="text-sm font-bold text-slate-800">No Transactions Yet</p>
-          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-            Once an FPO places an offer and you accept it, you can secure payment and confirm delivery right here.
+          <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+            Once an FPO buyer accepts an offer and payment is initialized, your commercial transactions and handover records will appear here.
           </p>
         </div>
       ) : (
         <div className="space-y-3">
-          <div className="flex items-center justify-between pb-1">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+          <div className="flex items-center justify-between pb-1 flex-wrap gap-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
               Secured Transactions ({escrows.length})
             </h3>
+
+            {/* View Switcher: Cards vs Table */}
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl text-xs">
+              <button
+                type="button"
+                onClick={() => setViewMode("cards")}
+                className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                  viewMode === "cards"
+                    ? "bg-white text-slate-900 shadow-2xs font-bold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                ⊞ Cards
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                  viewMode === "table"
+                    ? "bg-white text-slate-900 shadow-2xs font-bold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                ☰ Table
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            {escrows.map((escrow) => {
-              const pending = getPendingHint(escrow);
-              const requiredAction = getRequiredAction(escrow);
+          {viewMode === "cards" ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {escrows.map((escrow) => {
+                const pending = getPendingHint(escrow);
+                const requiredAction = getRequiredAction(escrow);
 
-              return (
-                <div key={escrow.id}>
-                  <EscrowDealCard
-                    escrow={escrow}
-                    partnerLabel="FPO Buyer"
-                    partnerName={escrow.fpo_name}
-                    requiredActionLabel={pending?.txHash ? "⚠️ Pending Sync" : requiredAction}
-                    actionLabel="View Transaction"
-                    onViewDeal={openModal}
-                  />
-                </div>
-              );
-            })}
-          </div>
+                return (
+                  <div key={escrow.id}>
+                    <EscrowDealCard
+                      escrow={escrow}
+                      partnerLabel="Sold to"
+                      partnerName={escrow.fpo_name}
+                      requiredActionLabel={pending?.txHash ? "⚠️ Pending Sync" : requiredAction}
+                      actionLabel="View Transaction"
+                      onViewDeal={openModal}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <TransactionHistoryTable
+              escrows={escrows}
+              partnerLabel="Sold to"
+              onViewDeal={openModal}
+              getRequiredAction={getRequiredAction}
+              role="farmer"
+            />
+          )}
         </div>
       )}
 
@@ -291,7 +325,7 @@ export default function EscrowPanel({ onEscrowUpdated }) {
           isOpen={Boolean(activeModalEscrow)}
           onClose={closeModal}
           escrow={activeModalEscrow}
-          partnerLabel="FPO Buyer"
+          partnerLabel="Sold to (FPO)"
           partnerName={activeModalEscrow.fpo_name}
           workflow={workflow}
           mode={mode}

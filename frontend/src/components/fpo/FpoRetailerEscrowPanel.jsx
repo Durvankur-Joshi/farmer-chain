@@ -1,5 +1,5 @@
 /**
- * FpoRetailerEscrowPanel — FPO View, Wholesale Retailer Escrows (Phase 3: Assisted Mode)
+ * FpoRetailerEscrowPanel — FPO View, Wholesale Retailer Escrows (Phase 6: Transaction UI)
  *
  * FPO → Retailer escrow lifecycle:
  *   1. createRetailerEscrow — FPO creates on-chain escrow for awarded retailer deal
@@ -9,7 +9,6 @@
  *
  * Commercial INR values are always primary.
  * ETH amounts are strictly testnet settlement — never shown as crop price.
- * After successful release: purchased quantity → retailer inventory; remaining → FPO inventory.
  */
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -19,6 +18,7 @@ import { useEscrowWorkflow } from "../../hooks/useEscrowWorkflow";
 import { formatInr } from "../../utils/pricing";
 import EscrowDealCard from "../common/EscrowDealCard";
 import EscrowDealModal from "../common/EscrowDealModal";
+import TransactionHistoryTable from "../common/TransactionHistoryTable";
 
 const MODE_KEY = "farmerchain-workflow-mode";
 
@@ -29,6 +29,7 @@ export default function FpoRetailerEscrowPanel({ onEscrowUpdated }) {
   const [awardedQuotes, setAwardedQuotes] = useState([]);
   const [activeModalEscrow, setActiveModalEscrow] = useState(null);
   const [mode, setMode] = useState(() => localStorage.getItem(MODE_KEY) || "assisted");
+  const [viewMode, setViewMode] = useState("cards");
 
   // ── Workflow hook ────────────────────────────────────────────────────
   const workflow = useEscrowWorkflow({
@@ -64,7 +65,7 @@ export default function FpoRetailerEscrowPanel({ onEscrowUpdated }) {
       const res = await axios.get("/api/fpo/quotes/", { withCredentials: true });
       const quotes = res.data || [];
       const awarded = quotes.filter(
-        (q) => (q.status === "awarded" || !!q.accepted_bid) && !q.escrow
+        (q) => (q.status === "awarded" || !!q.accepted_bid) && (!q.escrow_details || !q.escrow_details.escrow_id)
       );
       setAwardedQuotes(awarded);
     } catch (err) {
@@ -95,14 +96,19 @@ export default function FpoRetailerEscrowPanel({ onEscrowUpdated }) {
 
   // ── Required action label ────────────────────────────────────────────
   const getRequiredAction = (escrow) => {
-    if (escrow.status === "created") return "Awaiting Retailer Deposit";
-    if (escrow.status === "funded") return "Confirm Lot Handover";
+    if (escrow.status === "created") {
+      return escrow.escrow_id ? "Awaiting Retailer Deposit" : "Initialize On-Chain Escrow";
+    }
+    if (escrow.status === "funded") return "Confirm Handover";
     return null;
   };
 
   // ── Workflow action for modal ────────────────────────────────────────
   const getModalAction = (escrow) => {
     if (!escrow) return null;
+    if (escrow.status === "created" && !escrow.escrow_id) {
+      return () => workflow.runCreateRetailerEscrow({ id: escrow.quote_id, ...escrow });
+    }
     if (escrow.status === "funded") {
       return () => workflow.runConfirmRetailerDelivery(escrow);
     }
@@ -111,7 +117,8 @@ export default function FpoRetailerEscrowPanel({ onEscrowUpdated }) {
 
   const getModalActionLabel = (escrow) => {
     if (!escrow) return "";
-    if (escrow.status === "funded") return "Confirm Lot Handover";
+    if (escrow.status === "created" && !escrow.escrow_id) return "Initialize On-Chain Escrow";
+    if (escrow.status === "funded") return "Confirm Handover";
     return "";
   };
 
@@ -147,9 +154,8 @@ export default function FpoRetailerEscrowPanel({ onEscrowUpdated }) {
     );
   }
 
-  const existingQuoteIds = escrows.map((e) => e.quote_id);
-  const quotesNeedingEscrow = awardedQuotes.filter((q) => !existingQuoteIds.includes(q.id));
-
+  const existingOnChainQuoteIds = escrows.filter((e) => Boolean(e.escrow_id)).map((e) => e.quote_id);
+  const quotesNeedingEscrow = awardedQuotes.filter((q) => !existingOnChainQuoteIds.includes(q.id));
   const retryInfo = getRetryData();
 
   return (
@@ -169,7 +175,6 @@ export default function FpoRetailerEscrowPanel({ onEscrowUpdated }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {quotesNeedingEscrow.map((quote) => {
               const acceptedBid = quote.bids?.find((b) => b.status === "accepted");
-              // Commercial INR — from bid_amount if >= 1 (INR), else legacy ETH fallback label
               const bidAmountNum = parseFloat(acceptedBid?.bid_amount || 0);
               const qty = parseFloat(quote.quantity || 0);
               const isInr = bidAmountNum >= 1;
@@ -189,10 +194,9 @@ export default function FpoRetailerEscrowPanel({ onEscrowUpdated }) {
                       </h4>
                       <p className="text-xs text-slate-600">
                         Retail Buyer:{" "}
-                        <strong>{acceptedBid?.retailer_name || `Retailer #${acceptedBid?.retailer || ""}`}</strong>
+                        <strong className="text-slate-800">{acceptedBid?.retailer_name || `Retailer #${acceptedBid?.retailer || ""}`}</strong>
                       </p>
                     </div>
-                    {/* Commercial INR — never ETH as crop price */}
                     {totalInrDisplay && (
                       <span className="text-xs font-bold font-mono text-purple-700 bg-white px-2 py-0.5 rounded-md border border-purple-200 shrink-0">
                         {totalInrDisplay}
@@ -216,7 +220,7 @@ export default function FpoRetailerEscrowPanel({ onEscrowUpdated }) {
                       <span>
                         {workflow.isLocked && workflow.currentEscrow?.id === quote.id
                           ? "Initializing…"
-                          : "Initialize Wholesale Escrow"}
+                          : "Initialize Escrow"}
                       </span>
                     </button>
                   </div>
@@ -231,33 +235,70 @@ export default function FpoRetailerEscrowPanel({ onEscrowUpdated }) {
       {escrows.length === 0 && quotesNeedingEscrow.length === 0 ? (
         <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-100 space-y-2">
           <span className="text-4xl block mb-2">🏢</span>
-          <p className="text-sm font-bold text-slate-800">No Retail Wholesale Escrows Active</p>
+          <p className="text-sm font-bold text-slate-800">No Retail Wholesale Transactions Yet</p>
           <p className="text-xs text-slate-400 max-w-sm mx-auto">
             When you accept retailer bids on wholesale market quotes, smart contract escrow transactions will be tracked here.
           </p>
         </div>
       ) : (
         <div className="space-y-3">
-          <div className="flex items-center justify-between pb-1">
+          <div className="flex items-center justify-between pb-1 flex-wrap gap-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              Active Wholesale Escrows ({escrows.length})
+              Wholesale Sale Transactions ({escrows.length})
             </h3>
+
+            {/* View Switcher */}
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl text-xs">
+              <button
+                type="button"
+                onClick={() => setViewMode("cards")}
+                className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                  viewMode === "cards"
+                    ? "bg-white text-slate-900 shadow-2xs font-bold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                ⊞ Cards
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                  viewMode === "table"
+                    ? "bg-white text-slate-900 shadow-2xs font-bold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                ☰ Table
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            {escrows.map((escrow) => (
-              <EscrowDealCard
-                key={escrow.id}
-                escrow={escrow}
-                partnerLabel="Retail Buyer"
-                partnerName={escrow.retailer_name}
-                requiredActionLabel={getRequiredAction(escrow)}
-                actionLabel="View Transaction"
-                onViewDeal={openModal}
-                isRetailer={false}
-              />
-            ))}
-          </div>
+          {viewMode === "cards" ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {escrows.map((escrow) => (
+                <EscrowDealCard
+                  key={escrow.id}
+                  escrow={escrow}
+                  partnerLabel="Sold to"
+                  partnerName={escrow.retailer_name}
+                  requiredActionLabel={getRequiredAction(escrow)}
+                  actionLabel="View Transaction"
+                  onViewDeal={openModal}
+                  isRetailer={false}
+                />
+              ))}
+            </div>
+          ) : (
+            <TransactionHistoryTable
+              escrows={escrows}
+              partnerLabel="Sold to (Retailer)"
+              onViewDeal={openModal}
+              getRequiredAction={getRequiredAction}
+              isRetailer={false}
+              role="fpo"
+            />
+          )}
         </div>
       )}
 
@@ -267,7 +308,7 @@ export default function FpoRetailerEscrowPanel({ onEscrowUpdated }) {
           isOpen={Boolean(activeModalEscrow)}
           onClose={closeModal}
           escrow={activeModalEscrow}
-          partnerLabel="Retail Buyer"
+          partnerLabel="Sold to (Retail Buyer)"
           partnerName={activeModalEscrow.retailer_name}
           workflow={workflow}
           mode={mode}

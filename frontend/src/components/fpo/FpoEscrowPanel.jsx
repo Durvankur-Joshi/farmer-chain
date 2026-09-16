@@ -1,5 +1,5 @@
 /**
- * FpoEscrowPanel — FPO View, Farmer Procurement Escrows (Phase 3: Assisted Mode)
+ * FpoEscrowPanel — FPO View, Farmer Procurement Escrows (Phase 6: Transaction UI)
  *
  * FPO escrow lifecycle (farmer procurement):
  *   1. (Farmer creates escrow — handled in EscrowPanel)
@@ -17,6 +17,7 @@ import { useRefresh, useRefreshSubscription } from "../../context/useRefresh";
 import { useEscrowWorkflow } from "../../hooks/useEscrowWorkflow";
 import EscrowDealCard from "../common/EscrowDealCard";
 import EscrowDealModal from "../common/EscrowDealModal";
+import TransactionHistoryTable from "../common/TransactionHistoryTable";
 
 const MODE_KEY = "farmerchain-workflow-mode";
 
@@ -26,6 +27,7 @@ export default function FpoEscrowPanel({ onEscrowUpdated }) {
   const [loading, setLoading] = useState(true);
   const [activeModalEscrow, setActiveModalEscrow] = useState(null);
   const [mode, setMode] = useState(() => localStorage.getItem(MODE_KEY) || "assisted");
+  const [viewMode, setViewMode] = useState("cards");
 
   // ── Workflow hook ────────────────────────────────────────────────────
   const workflow = useEscrowWorkflow({
@@ -76,7 +78,7 @@ export default function FpoEscrowPanel({ onEscrowUpdated }) {
   // ── Required action label ────────────────────────────────────────────
   const getRequiredAction = (escrow) => {
     if (escrow.status === "created") {
-      return escrow.escrow_id ? "Deposit Funds (MetaMask)" : "Awaiting Farmer On-Chain Setup";
+      return escrow.escrow_id ? "Deposit Funds (MetaMask)" : "Awaiting Farmer Setup";
     }
     if (escrow.status === "delivery_confirmed") return "Release Payment to Farmer";
     if (escrow.status === "funded") return "Awaiting Crop Handover";
@@ -137,10 +139,10 @@ export default function FpoEscrowPanel({ onEscrowUpdated }) {
   if (escrows.length === 0) {
     return (
       <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-slate-100 space-y-2">
-        <span className="text-4xl block mb-2">🔐</span>
-        <p className="text-sm font-bold text-slate-800">No Farmer Procurement Escrows Available</p>
+        <span className="text-4xl block mb-2">🌾</span>
+        <p className="text-sm font-bold text-slate-800">No Farmer Procurement Transactions Yet</p>
         <p className="text-xs text-slate-400 max-w-sm mx-auto">
-          When farmers accept your procurement bids and initialize escrows on Sepolia, deals will appear here for payment deposit and release.
+          When farmers accept your bids on supply quotes, smart contract escrow transactions will appear here for funding and payment release.
         </p>
       </div>
     );
@@ -150,19 +152,61 @@ export default function FpoEscrowPanel({ onEscrowUpdated }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-        {escrows.map((escrow) => (
-          <EscrowDealCard
-            key={escrow.id}
-            escrow={escrow}
-            partnerLabel="Farmer Supplier"
-            partnerName={escrow.farmer_name}
-            requiredActionLabel={getRequiredAction(escrow)}
-            actionLabel="View Transaction"
-            onViewDeal={openModal}
-          />
-        ))}
+      <div className="flex items-center justify-between pb-1 flex-wrap gap-2">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+          Farmer Procurement Transactions ({escrows.length})
+        </h3>
+
+        {/* View Switcher */}
+        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl text-xs">
+          <button
+            type="button"
+            onClick={() => setViewMode("cards")}
+            className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+              viewMode === "cards"
+                ? "bg-white text-slate-900 shadow-2xs font-bold"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            ⊞ Cards
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("table")}
+            className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+              viewMode === "table"
+                ? "bg-white text-slate-900 shadow-2xs font-bold"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            ☰ Table
+          </button>
+        </div>
       </div>
+
+      {viewMode === "cards" ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {escrows.map((escrow) => (
+            <EscrowDealCard
+              key={escrow.id}
+              escrow={escrow}
+              partnerLabel="Purchased from"
+              partnerName={escrow.farmer_name}
+              requiredActionLabel={getRequiredAction(escrow)}
+              actionLabel="View Transaction"
+              onViewDeal={openModal}
+            />
+          ))}
+        </div>
+      ) : (
+        <TransactionHistoryTable
+          escrows={escrows}
+          partnerLabel="Purchased from (Farmer)"
+          onViewDeal={openModal}
+          getRequiredAction={getRequiredAction}
+          role="fpo"
+        />
+      )}
 
       {/* ── Escrow Deal Detail Modal ──────────────────────────────────── */}
       {activeModalEscrow && (
@@ -170,7 +214,7 @@ export default function FpoEscrowPanel({ onEscrowUpdated }) {
           isOpen={Boolean(activeModalEscrow)}
           onClose={closeModal}
           escrow={activeModalEscrow}
-          partnerLabel="Farmer Supplier"
+          partnerLabel="Purchased from (Farmer)"
           partnerName={activeModalEscrow.farmer_name}
           workflow={workflow}
           mode={mode}
