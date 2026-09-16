@@ -1,5 +1,6 @@
 import React from "react";
 import AddressCopy from "./AddressCopy";
+import { Blocks, ChevronDown } from "lucide-react";
 
 /**
  * BlockchainDetailsCollapse — Phase 6: Expandable Blockchain Technical Details
@@ -10,6 +11,7 @@ import AddressCopy from "./AddressCopy";
  *  - Exposes contract addresses, transaction hashes, and testnet collateral only when expanded.
  *  - Provides copy buttons and Sepolia Etherscan explorer links.
  *  - Completely responsive with break-words/min-w-0 to prevent layout overflow.
+ *  - Zero emojis — uses Lucide icons.
  */
 export default function BlockchainDetailsCollapse({
   escrow,
@@ -30,7 +32,7 @@ export default function BlockchainDetailsCollapse({
     >
       <summary className="font-semibold text-slate-700 cursor-pointer flex items-center justify-between select-none list-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-lg">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-sm shrink-0">⛓️</span>
+          <Blocks className="h-4 w-4 text-purple-600 shrink-0" />
           <span className="font-bold text-slate-800 tracking-tight truncate">
             Blockchain Details
           </span>
@@ -42,9 +44,7 @@ export default function BlockchainDetailsCollapse({
           <span className="text-[10px] uppercase font-bold tracking-wider hidden sm:inline">
             Technical Proof
           </span>
-          <span className="text-xs group-open:rotate-180 transition-transform inline-block duration-200">
-            ▼
-          </span>
+          <ChevronDown className="h-3.5 w-3.5 group-open:rotate-180 transition-transform duration-200" />
         </div>
       </summary>
 

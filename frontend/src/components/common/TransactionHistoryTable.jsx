@@ -1,16 +1,15 @@
 import React from "react";
 import StatusBadge from "./StatusBadge";
 import { formatInr } from "../../utils/pricing";
+import { Button } from "@/components/ui/button";
+import { Eye } from "lucide-react";
 
 /**
- * TransactionHistoryTable — Phase 6: Responsive Quick-Scan Transaction Table
+ * TransactionHistoryTable — Responsive Quick-Scan Transaction Table
  *
  * Provides a clean table/list view for rapid scanning across Farmer, FPO, and Retailer roles.
  * Prioritizes commercial INR values, crop info, counterparty, and status.
- *
- * Mobile behavior:
- *  - Enclosed in an overflow-x-auto container to avoid whole-page overflow.
- *  - On small screens, cards mode or swipeable table with subtle scroll indicator.
+ * Zero emojis — replaced with Lucide icons.
  */
 export default function TransactionHistoryTable({
   escrows = [],
@@ -44,17 +43,22 @@ export default function TransactionHistoryTable({
             {escrows.map((escrow) => {
               const qty = parseFloat(escrow.quantity) || 0;
               const commercialInr =
-                escrow.agreed_price_inr != null ? parseFloat(escrow.agreed_price_inr)
-                : escrow.total_amount_inr != null ? parseFloat(escrow.total_amount_inr)
-                : escrow.amount_inr != null ? parseFloat(escrow.amount_inr)
-                : null;
+                escrow.agreed_price_inr != null
+                  ? parseFloat(escrow.agreed_price_inr)
+                  : escrow.total_amount_inr != null
+                  ? parseFloat(escrow.total_amount_inr)
+                  : escrow.amount_inr != null
+                  ? parseFloat(escrow.amount_inr)
+                  : null;
 
               const totalInrDisplay = commercialInr != null ? formatInr(commercialInr) : "—";
 
               const unitInr =
-                escrow.unit_price_inr != null ? parseFloat(escrow.unit_price_inr)
-                : qty > 0 && commercialInr != null ? commercialInr / qty
-                : null;
+                escrow.unit_price_inr != null
+                  ? parseFloat(escrow.unit_price_inr)
+                  : qty > 0 && commercialInr != null
+                  ? commercialInr / qty
+                  : null;
 
               const unitRateDisplay = unitInr != null ? formatInr(Math.round(unitInr)) : null;
 
@@ -130,21 +134,22 @@ export default function TransactionHistoryTable({
 
                   {/* Action Button */}
                   <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                    <button
+                    <Button
                       type="button"
+                      size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
                         if (onViewDeal) onViewDeal(escrow);
                       }}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs inline-flex items-center gap-1 cursor-pointer ${
+                      className={`h-7 px-3 text-xs font-bold gap-1 cursor-pointer ${
                         isRetailer
                           ? "bg-purple-600 hover:bg-purple-500 text-white"
                           : "bg-slate-900 hover:bg-slate-800 text-white"
                       }`}
                     >
-                      <span>🔐</span>
+                      <Eye className="h-3.5 w-3.5" />
                       <span>Details</span>
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               );

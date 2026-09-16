@@ -1,5 +1,19 @@
 import React, { useState } from "react";
 import { useSocket } from "../../context/useSocket";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Sprout,
+  Building2,
+  Store,
+  Shield,
+  Menu,
+  Copy,
+  Check,
+  LogOut,
+  Activity,
+  Globe,
+} from "lucide-react";
 
 export default function DashboardNavbar({
   role = "farmer",
@@ -20,62 +34,74 @@ export default function DashboardNavbar({
     }
   };
 
-  const roleThemes = {
+  const roleConfig = {
     farmer: {
       badge: "bg-emerald-50 text-emerald-800 border-emerald-200",
       title: "Farmer Portal",
-      icon: "🌱",
+      icon: Sprout,
     },
     fpo: {
       badge: "bg-blue-50 text-blue-800 border-blue-200",
       title: "FPO Procurement Portal",
-      icon: "🏢",
+      icon: Building2,
     },
     retailer: {
       badge: "bg-purple-50 text-purple-800 border-purple-200",
       title: "Retailer Market Portal",
-      icon: "🏪",
+      icon: Store,
     },
     admin: {
       badge: "bg-slate-800 text-slate-100 border-slate-700",
       title: "Admin Command Center",
-      icon: "🛡️",
+      icon: Shield,
     },
   };
 
-  const theme = roleThemes[role.toLowerCase()] || roleThemes.farmer;
+  const currentRole = role.toLowerCase();
+  const config = roleConfig[currentRole] || roleConfig.farmer;
+  const RoleIcon = config.icon;
 
   return (
     <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 shadow-2xs">
-      <div className="max-w-7xl mx-auto px-3.5 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between gap-3">
         {/* Brand & Mobile Menu Toggle */}
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+        <div className="flex items-center gap-3 min-w-0">
           {onToggleMobileMenu && (
             <button
               type="button"
               onClick={onToggleMobileMenu}
-              className="lg:hidden p-1.5 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer shrink-0"
+              className="lg:hidden p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer shrink-0"
               aria-label="Toggle navigation menu"
               title="Toggle Menu"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+              <Menu className="h-4 w-4" />
             </button>
           )}
 
-          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center text-base sm:text-xl shadow-xs text-white font-bold shrink-0">
-            🌾
+          {/* Logo */}
+          <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-2xs text-white shrink-0">
+            <Sprout className="h-4 w-4" />
           </div>
+
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <span className="font-extrabold text-slate-900 text-sm sm:text-lg tracking-tight truncate">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-slate-900 text-sm sm:text-base tracking-tight truncate">
                 FarmerChain
               </span>
-              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60 shrink-0">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Sepolia
+
+              {/* Portal label */}
+              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/70 shrink-0">
+                <RoleIcon className="h-3 w-3 text-emerald-600" />
+                <span>{config.title}</span>
               </span>
+
+              {/* Sepolia Indicator */}
+              <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Sepolia</span>
+              </span>
+
+              {/* Real-time Sync Status */}
               <span
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-colors shrink-0 ${
                   isConnected
@@ -84,27 +110,20 @@ export default function DashboardNavbar({
                 }`}
                 title={isConnected ? "Real-time sync connected" : "Connecting to real-time sync..."}
               >
-                <span
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    isConnected ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
-                  }`}
-                />
-                <span className="text-[9px] uppercase tracking-wider">
+                <Activity className="h-3 w-3 shrink-0" />
+                <span className="text-[9px] uppercase tracking-wider font-semibold">
                   {isConnected ? "Live Sync" : "Syncing"}
                 </span>
               </span>
             </div>
-            <p className="text-[10px] sm:text-xs text-slate-500 font-medium truncate">
-              {theme.icon} {theme.title}
-            </p>
           </div>
         </div>
 
         {/* User Context & Actions */}
-        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {userName && (
-            <div className="hidden md:flex flex-col items-end text-right">
-              <span className="text-xs font-bold text-slate-800">
+            <div className="hidden md:flex flex-col items-end text-right min-w-0">
+              <span className="text-xs font-bold text-slate-800 truncate">
                 {userName}
               </span>
               {didInfo?.did ? (
@@ -113,9 +132,18 @@ export default function DashboardNavbar({
                   onClick={handleCopyDid}
                   className="text-[10px] text-slate-400 hover:text-emerald-700 font-mono flex items-center gap-1 transition-colors cursor-pointer"
                   title="Click to copy DID"
+                  aria-label="Click to copy DID"
                 >
-                  <span>{didInfo.did.slice(0, 18)}…</span>
-                  <span>{copiedDid ? "✓ Copied" : "📋"}</span>
+                  <span>
+                    {didInfo.did.length > 20
+                      ? `${didInfo.did.slice(0, 8)}…${didInfo.did.slice(-6)}`
+                      : didInfo.did}
+                  </span>
+                  {copiedDid ? (
+                    <Check className="h-3 w-3 text-emerald-600" />
+                  ) : (
+                    <Copy className="h-3 w-3 text-slate-400 hover:text-slate-600" />
+                  )}
                 </button>
               ) : (
                 <span className="text-[10px] text-slate-400 font-mono">
@@ -125,24 +153,25 @@ export default function DashboardNavbar({
             </div>
           )}
 
-          <span
-            className={`text-[9px] sm:text-xs uppercase font-bold px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border ${theme.badge} tracking-wider shrink-0`}
+          <Badge
+            variant="outline"
+            className="text-[10px] sm:text-xs uppercase font-bold px-2 py-0.5 text-emerald-800 bg-emerald-50/80 border-emerald-200 tracking-wider shrink-0"
           >
             {role}
-          </span>
+          </Badge>
 
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={onLogout}
-            className="flex items-center gap-1 sm:gap-1.5 text-xs font-semibold text-slate-600 hover:text-rose-600 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-slate-200 hover:border-rose-200 hover:bg-rose-50/50 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none shrink-0"
+            className="h-8 px-2.5 text-xs font-semibold text-slate-600 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50/50 gap-1.5 cursor-pointer shrink-0"
             title="Log out of session"
             aria-label="Log out of session"
           >
-            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
+            <LogOut className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Logout</span>
-          </button>
+          </Button>
         </div>
       </div>
     </header>

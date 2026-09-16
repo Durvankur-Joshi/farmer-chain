@@ -32,6 +32,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 
 // Lucide icons
 import {
@@ -215,11 +222,11 @@ export default function FarmerDashboard() {
       />
 
       {/* ── Application Layout Shell (Sidebar + Main Content) ─────────── */}
-      <div className="flex flex-1 w-full max-w-7xl mx-auto min-w-0">
-        {/* ── Desktop Left Sidebar (~240px) ─────────────────────────── */}
-        <aside className="hidden lg:flex flex-col w-60 xl:w-64 shrink-0 bg-white border-r border-slate-200/80 p-4 space-y-4 sticky top-14 h-[calc(100vh-3.5rem)]">
+      <div className="flex flex-1 w-full min-w-0">
+        {/* ── Desktop Left Sidebar (Compact SaaS w-56) ────────────────── */}
+        <aside className="hidden lg:flex flex-col w-56 shrink-0 bg-white border-r border-slate-200/80 p-3 space-y-3 sticky top-14 h-[calc(100vh-3.5rem)]">
           {/* Workspace Badge */}
-          <div className="px-3 py-2 bg-emerald-50/70 border border-emerald-200/60 rounded-xl flex items-center gap-2">
+          <div className="px-3 py-1.5 bg-emerald-50/70 border border-emerald-200/60 rounded-lg flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
             <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider truncate">
               Farm Workspace
@@ -238,9 +245,9 @@ export default function FarmerDashboard() {
                     if (item.key === "deals") setDealViewMode("history");
                     setActiveNav(item.key);
                   }}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     isActive
-                      ? "bg-emerald-600 text-white shadow-xs"
+                      ? "bg-emerald-600 text-white shadow-2xs font-bold"
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                   }`}
                 >
@@ -250,9 +257,9 @@ export default function FarmerDashboard() {
                   </div>
                   {item.badge !== null && (
                     <span
-                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                      className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
                         isActive
-                          ? "bg-emerald-700/80 text-white"
+                          ? "bg-emerald-700 text-white"
                           : "bg-slate-100 text-slate-600"
                       }`}
                     >
@@ -265,102 +272,91 @@ export default function FarmerDashboard() {
           </nav>
 
           {/* Sidebar Quick Action Button */}
-          <div className="pt-3 border-t border-slate-100">
+          <div className="pt-2.5 border-t border-slate-100">
             <Button
               type="button"
               onClick={() => setIsAddCropOpen(true)}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs flex items-center justify-center gap-2"
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs flex items-center justify-center gap-1.5 h-8 text-xs font-semibold cursor-pointer"
             >
-              <Sprout className="h-4 w-4" />
+              <Sprout className="h-3.5 w-3.5" />
               <span>+ Add Crop</span>
             </Button>
           </div>
         </aside>
 
-        {/* ── Mobile Slide-Over Drawer ──────────────────────────────── */}
-        {isMobileMenuOpen && (
-          <div className="fixed inset-0 z-50 lg:hidden flex">
-            {/* Backdrop */}
-            <div
-              className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
-              onClick={() => setIsMobileMenuOpen(false)}
-            />
-
-            {/* Drawer Container */}
-            <div className="relative w-72 max-w-[80vw] bg-white h-full shadow-2xl p-5 flex flex-col justify-between z-10 animate-fade-in">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <Sprout className="h-5 w-5 text-emerald-600" />
-                    <span className="font-extrabold text-sm text-slate-900">Farm Workspace</span>
+        {/* ── Mobile Navigation Sheet ───────────────────────────────── */}
+        <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+          <SheetContent side="left" className="w-64 max-w-[80vw] p-4 flex flex-col justify-between">
+            <div className="space-y-4">
+              <SheetHeader className="pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-600 flex items-center justify-center text-white shrink-0 shadow-2xs">
+                    <Sprout className="h-4 w-4" />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-                  >
-                    ✕
-                  </button>
+                  <div>
+                    <SheetTitle className="text-sm font-bold text-slate-900">FarmerChain</SheetTitle>
+                    <SheetDescription className="text-[11px] text-slate-500">Farm Workspace</SheetDescription>
+                  </div>
                 </div>
+              </SheetHeader>
 
-                <nav className="space-y-1">
-                  {navItems.map((item) => {
-                    const isActive = activeNav === item.key;
-                    return (
-                      <button
-                        key={item.key}
-                        type="button"
-                        onClick={() => {
-                          if (item.key === "deals") setDealViewMode("history");
-                          setActiveNav(item.key);
-                          setIsMobileMenuOpen(false);
-                        }}
-                        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                          isActive
-                            ? "bg-emerald-600 text-white shadow-xs"
-                            : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 truncate">
-                          <span className="shrink-0">{item.icon}</span>
-                          <span>{item.label}</span>
-                        </div>
-                        {item.badge !== null && (
-                          <span
-                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                              isActive
-                                ? "bg-emerald-700/80 text-white"
-                                : "bg-slate-100 text-slate-600"
-                            }`}
-                          >
-                            {item.badge}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </nav>
-              </div>
-
-              <div className="pt-4 border-t border-slate-100 space-y-2">
-                <Button
-                  type="button"
-                  onClick={() => {
-                    setIsAddCropOpen(true);
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs flex items-center justify-center gap-2"
-                >
-                  <Sprout className="h-4 w-4" />
-                  <span>+ Add Crop</span>
-                </Button>
-              </div>
+              <nav className="space-y-1">
+                {navItems.map((item) => {
+                  const isActive = activeNav === item.key;
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => {
+                        if (item.key === "deals") setDealViewMode("history");
+                        setActiveNav(item.key);
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                        isActive
+                          ? "bg-emerald-600 text-white shadow-2xs font-bold"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 truncate">
+                        <span className="shrink-0">{item.icon}</span>
+                        <span>{item.label}</span>
+                      </div>
+                      {item.badge !== null && (
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                            isActive
+                              ? "bg-emerald-700 text-white"
+                              : "bg-slate-100 text-slate-600"
+                          }`}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
             </div>
-          </div>
-        )}
+
+            <div className="pt-3 border-t border-slate-100">
+              <Button
+                type="button"
+                onClick={() => {
+                  setIsAddCropOpen(true);
+                  setIsMobileMenuOpen(false);
+                }}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs flex items-center justify-center gap-1.5 h-9 text-xs font-semibold cursor-pointer"
+              >
+                <Sprout className="h-3.5 w-3.5" />
+                <span>+ Add Crop</span>
+              </Button>
+            </div>
+          </SheetContent>
+        </Sheet>
 
         {/* ── Main Content Area ─────────────────────────────────────── */}
-        <main className="flex-1 min-w-0 p-3.5 sm:p-6 lg:p-7 space-y-6">
+        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-7 space-y-6 overflow-x-hidden">
           {/* Mobile Quick Tab Navigation */}
           <div className="lg:hidden bg-white border border-slate-200/80 rounded-2xl p-1.5 shadow-2xs flex items-center justify-between gap-1 overflow-x-auto">
             {navItems.map((item) => {
@@ -429,7 +425,7 @@ export default function FarmerDashboard() {
               </div>
 
               {/* 4 Compact Metric Cards (dashboard-01 style) */}
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 w-full">
                 {/* Metric 1: Crops */}
                 <Card className="hover:border-emerald-300">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -909,8 +905,17 @@ export default function FarmerDashboard() {
 
                   <CardContent className="pt-4">
                     {quotesLoading ? (
-                      <div className="py-12 text-center text-xs text-slate-400 animate-pulse">
-                        Loading supply quotes…
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                        {[1, 2, 3].map((i) => (
+                          <div key={i} className="border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                            <div className="flex justify-between items-center">
+                              <Skeleton className="h-5 w-32" />
+                              <Skeleton className="h-5 w-20 rounded-full" />
+                            </div>
+                            <Skeleton className="h-16 w-full rounded-xl" />
+                            <Skeleton className="h-8 w-full rounded-lg" />
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <QuoteHistory
