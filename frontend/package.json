@@ -10,8 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.23",
+    "@radix-ui/react-label": "^2.1.15",
+    "@radix-ui/react-separator": "^1.1.15",
     "@tailwindcss/vite": "^4.1.13",
     "axios": "^1.12.2",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "ethers": "^5.8.0",
     "js-cookie": "^3.0.5",
     "lucide-react": "^0.544.0",
@@ -21,6 +26,7 @@
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.9.1",
     "socket.io-client": "^4.8.3",
+    "tailwind-merge": "^3.7.0",
     "tailwindcss": "^4.1.13",
     "web3": "^4.16.0"
   },

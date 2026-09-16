@@ -13,6 +13,35 @@ import TrustReputationCard from "../../components/common/TrustReputationCard";
 import DidIdentityCard from "../../components/common/DidIdentityCard";
 import DashboardNavbar from "../../components/common/DashboardNavbar";
 
+// shadcn UI primitives
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+
+// Lucide icons
+import {
+  Sprout,
+  Handshake,
+  Package,
+  ShieldCheck,
+  Plus,
+  ArrowRight,
+  Sparkles,
+} from "lucide-react";
+
 // activeNav values: "dashboard" | "crops" | "deals" | "transactions" | "identity"
 
 export default function FarmerDashboard() {
@@ -29,10 +58,13 @@ export default function FarmerDashboard() {
   const [cropsLoading, setCropsLoading] = useState(true);
   const [escrowsCount, setEscrowsCount] = useState(0);
 
-  // Sub-view within Crops: "list" | "new"
-  const [cropViewMode, setCropViewMode] = useState("list");
-  // Sub-view within Deals: "history" | "new" | "bids"
+  // Sub-view within Deals: "history" | "bids"
   const [dealViewMode, setDealViewMode] = useState("history");
+
+  // shadcn Dialog state
+  const [isAddCropOpen, setIsAddCropOpen] = useState(false);
+  const [isCreateOfferOpen, setIsCreateOfferOpen] = useState(false);
+  const [offerTargetCropId, setOfferTargetCropId] = useState(null);
 
   // ── Logout ───────────────────────────────────────────────────────
   const logout = async () => {
@@ -123,7 +155,7 @@ export default function FarmerDashboard() {
   // Unique categories for filter pills
   const availableCategories = ["All", ...new Set(crops.map((c) => c.crop_category).filter(Boolean))];
 
-  // Helper to open offers for a crop
+  // Helper to open offers or create new offer for a crop
   const handleViewOffersForCrop = (crop) => {
     const matchingQuote = history.find(
       (q) => q.crop_passport === crop.id || q.crop_passport_details?.id === crop.id
@@ -133,8 +165,8 @@ export default function FarmerDashboard() {
       setDealViewMode("bids");
       setActiveNav("deals");
     } else {
-      setDealViewMode("new");
-      setActiveNav("deals");
+      setOfferTargetCropId(crop.id);
+      setIsCreateOfferOpen(true);
     }
   };
 
@@ -162,7 +194,7 @@ export default function FarmerDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col text-slate-900 font-sans">
+    <div className="min-h-screen bg-slate-50/60 flex flex-col text-slate-900 font-sans">
       {/* ── Top Dashboard Navbar ────────────────────────────────────── */}
       <DashboardNavbar
         role="farmer"
@@ -193,7 +225,6 @@ export default function FarmerDashboard() {
                   key={item.key}
                   type="button"
                   onClick={() => {
-                    if (item.key === "crops") setCropViewMode("list");
                     if (item.key === "deals") setDealViewMode("history");
                     setActiveNav(item.key);
                   }}
@@ -225,17 +256,14 @@ export default function FarmerDashboard() {
 
           {/* Sidebar Quick Action Button */}
           <div className="pt-3 border-t border-slate-100">
-            <button
+            <Button
               type="button"
-              onClick={() => {
-                setCropViewMode("new");
-                setActiveNav("crops");
-              }}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+              onClick={() => setIsAddCropOpen(true)}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs flex items-center justify-center gap-2"
             >
-              <span>🌱</span>
-              <span>+ Add New Crop</span>
-            </button>
+              <Sprout className="h-4 w-4" />
+              <span>+ Add Crop</span>
+            </Button>
           </div>
         </aside>
 
@@ -273,7 +301,6 @@ export default function FarmerDashboard() {
                         key={item.key}
                         type="button"
                         onClick={() => {
-                          if (item.key === "crops") setCropViewMode("list");
                           if (item.key === "deals") setDealViewMode("history");
                           setActiveNav(item.key);
                           setIsMobileMenuOpen(false);
@@ -306,25 +333,24 @@ export default function FarmerDashboard() {
               </div>
 
               <div className="pt-4 border-t border-slate-100 space-y-2">
-                <button
+                <Button
                   type="button"
                   onClick={() => {
-                    setCropViewMode("new");
-                    setActiveNav("crops");
+                    setIsAddCropOpen(true);
                     setIsMobileMenuOpen(false);
                   }}
-                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs flex items-center justify-center gap-2"
                 >
-                  <span>🌱</span>
-                  <span>+ Add New Crop</span>
-                </button>
+                  <Sprout className="h-4 w-4" />
+                  <span>+ Add Crop</span>
+                </Button>
               </div>
             </div>
           </div>
         )}
 
         {/* ── Main Content Area ─────────────────────────────────────── */}
-        <main className="flex-1 min-w-0 p-3.5 sm:p-6 lg:p-7 space-y-5">
+        <main className="flex-1 min-w-0 p-3.5 sm:p-6 lg:p-7 space-y-6">
           {/* Mobile Quick Tab Navigation */}
           <div className="lg:hidden bg-white border border-slate-200/80 rounded-2xl p-1.5 shadow-2xs flex items-center justify-between gap-1 overflow-x-auto">
             {navItems.map((item) => {
@@ -334,7 +360,6 @@ export default function FarmerDashboard() {
                   key={item.key}
                   type="button"
                   onClick={() => {
-                    if (item.key === "crops") setCropViewMode("list");
                     if (item.key === "deals") setDealViewMode("history");
                     setActiveNav(item.key);
                   }}
@@ -352,252 +377,286 @@ export default function FarmerDashboard() {
           </div>
 
           {/* ══════════════════════════════════════════════════════════════ */}
-          {/* VIEW 1: DASHBOARD HOMEPAGE                                     */}
+          {/* VIEW 1: DASHBOARD HOMEPAGE (shadcn dashboard-01 style)        */}
           {/* ══════════════════════════════════════════════════════════════ */}
           {activeNav === "dashboard" && (
-            <div className="space-y-5 animate-fade-in">
-              {/* Clean Greeting Header with Prominent Primary Action */}
-              <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-6 animate-fade-in">
+              {/* Dashboard Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="space-y-1 min-w-0">
-                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight truncate">
-                    Good morning, {didInfo?.name || "Farmer"}
+                  <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 truncate">
+                    Farmer Dashboard
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-500">
-                    Manage your crops, offers and sales.
+                    Welcome back, {didInfo?.name || "Farmer"}. Manage your crop records, marketplace offers, and escrow payments.
                   </p>
                 </div>
 
                 {/* Primary Action Buttons */}
                 <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-                  <button
+                  <Button
                     type="button"
-                    onClick={() => {
-                      setCropViewMode("new");
-                      setActiveNav("crops");
-                    }}
-                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    onClick={() => setIsAddCropOpen(true)}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs gap-1.5"
                   >
-                    <span>🌱</span>
-                    <span>+ Add Your Crop</span>
-                  </button>
-                  <button
+                    <Sprout className="h-4 w-4" />
+                    <span>+ Add Crop</span>
+                  </Button>
+
+                  <Button
                     type="button"
+                    variant="outline"
                     onClick={() => {
-                      setDealViewMode("new");
-                      setActiveNav("deals");
+                      setOfferTargetCropId(null);
+                      setIsCreateOfferOpen(true);
                     }}
-                    className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    className="border-slate-300 hover:bg-slate-50 gap-1.5"
                   >
-                    <span>➕</span>
-                    <span>+ Create Offer</span>
-                  </button>
+                    <Plus className="h-4 w-4" />
+                    <span>Create Offer</span>
+                  </Button>
                 </div>
               </div>
 
-              {/* 4 Compact Summary Metrics */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-emerald-200 transition-all min-w-0">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block truncate">
-                    🌱 Your Crop Records
-                  </span>
-                  <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight truncate">
-                    {crops.length}
-                  </p>
-                  <p className="text-[11px] text-emerald-700 font-medium mt-0.5 truncate">
-                    {mintedCropsCount} Permanent Records
-                  </p>
-                </div>
+              {/* 4 Compact Metric Cards (dashboard-01 style) */}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {/* Metric 1: Crops */}
+                <Card className="hover:border-emerald-300">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Your Crops
+                    </CardTitle>
+                    <Sprout className="h-4 w-4 text-emerald-600" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
+                      {crops.length}
+                    </div>
+                    <p className="text-xs text-emerald-700 font-medium mt-1">
+                      {mintedCropsCount} Permanent Records
+                    </p>
+                  </CardContent>
+                </Card>
 
-                <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-blue-200 transition-all min-w-0">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block truncate">
-                    🤝 Active Deals
-                  </span>
-                  <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight truncate">
-                    {openQuotesCount}
-                  </p>
-                  <p className="text-[11px] text-blue-700 font-medium mt-0.5 truncate">
-                    {activeBidsTotal} Buyer Offers
-                  </p>
-                </div>
+                {/* Metric 2: Deals */}
+                <Card className="hover:border-blue-300">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Active Deals
+                    </CardTitle>
+                    <Handshake className="h-4 w-4 text-blue-600" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
+                      {openQuotesCount}
+                    </div>
+                    <p className="text-xs text-blue-700 font-medium mt-1">
+                      {activeBidsTotal} Buyer Offers
+                    </p>
+                  </CardContent>
+                </Card>
 
-                <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-purple-200 transition-all min-w-0">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block truncate">
-                    📦 Available Quantity
-                  </span>
-                  <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight truncate">
-                    {totalAvailableQuantity.toLocaleString()}
-                  </p>
-                  <p className="text-[11px] text-purple-700 font-medium mt-0.5 truncate">
-                    Ready for Sale
-                  </p>
-                </div>
+                {/* Metric 3: Inventory Quantity */}
+                <Card className="hover:border-purple-300">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Available Stock
+                    </CardTitle>
+                    <Package className="h-4 w-4 text-purple-600" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold font-mono text-slate-900 tracking-tight truncate">
+                      {totalAvailableQuantity.toLocaleString()}
+                    </div>
+                    <p className="text-xs text-purple-700 font-medium mt-1">
+                      Ready for Sale
+                    </p>
+                  </CardContent>
+                </Card>
 
-                <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs hover:border-amber-200 transition-all min-w-0">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block truncate">
-                    🔒 Payment Secured
-                  </span>
-                  <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono tracking-tight truncate">
-                    {escrowsCount}
-                  </p>
-                  <p className="text-[11px] text-amber-700 font-medium mt-0.5 truncate">
-                    Blockchain Escrows
-                  </p>
-                </div>
+                {/* Metric 4: Secured Escrows */}
+                <Card className="hover:border-amber-300">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Secured Payments
+                    </CardTitle>
+                    <ShieldCheck className="h-4 w-4 text-amber-600" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
+                      {escrowsCount}
+                    </div>
+                    <p className="text-xs text-amber-700 font-medium mt-1">
+                      Blockchain Escrows
+                    </p>
+                  </CardContent>
+                </Card>
               </div>
 
               {/* Your Crops Section */}
-              <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-6 shadow-2xs space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-slate-100 flex-wrap gap-2">
                   <div>
-                    <h3 className="text-base font-semibold text-slate-900">
-                      Your Crops
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Your registered harvest records and availability status
-                    </p>
+                    <CardTitle className="text-base font-bold text-slate-900">
+                      Your Crop Records
+                    </CardTitle>
+                    <CardDescription>
+                      Registered harvest records and availability status
+                    </CardDescription>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <button
+                    <Button
                       type="button"
-                      onClick={() => {
-                        setCropViewMode("new");
-                        setActiveNav("crops");
-                      }}
-                      className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold rounded-xl border border-emerald-200 transition-all cursor-pointer flex items-center gap-1"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsAddCropOpen(true)}
+                      className="h-8 text-xs gap-1 text-emerald-800 border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100"
                     >
-                      <span>➕</span>
+                      <Plus className="h-3.5 w-3.5" />
                       <span>Add Crop</span>
-                    </button>
+                    </Button>
                     {crops.length > 4 && (
-                      <button
+                      <Button
                         type="button"
-                        onClick={() => {
-                          setCropViewMode("list");
-                          setActiveNav("crops");
-                        }}
-                        className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 cursor-pointer"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setActiveNav("crops")}
+                        className="h-8 text-xs text-emerald-700 hover:text-emerald-800 gap-1"
                       >
-                        View All ({crops.length}) →
-                      </button>
+                        <span>View All ({crops.length})</span>
+                        <ArrowRight className="h-3 w-3" />
+                      </Button>
                     )}
                   </div>
-                </div>
+                </CardHeader>
 
-                {cropsLoading ? (
-                  <div className="py-12 text-center text-xs text-slate-400 animate-pulse">
-                    Loading your crops…
-                  </div>
-                ) : crops.length === 0 ? (
-                  <div className="py-12 text-center bg-slate-50 rounded-2xl border border-slate-200/70 space-y-3 p-6">
-                    <span className="text-4xl block">🌾</span>
-                    <h4 className="text-sm font-bold text-slate-800">No Crops Registered Yet</h4>
-                    <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                      Add your first crop to create a secure digital record and start receiving offers from verified FPOs.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCropViewMode("new");
-                        setActiveNav("crops");
-                      }}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-xs"
-                    >
-                      🌱 Register First Crop
-                    </button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
-                    {crops.slice(0, 6).map((crop) => {
-                      const matchingQuote = history.find(
-                        (q) => q.crop_passport === crop.id || q.crop_passport_details?.id === crop.id
-                      );
-                      const bidsCount = matchingQuote?.bids?.length || 0;
+                <CardContent className="pt-4">
+                  {cropsLoading ? (
+                    <div className="py-12 text-center text-xs text-slate-400 animate-pulse">
+                      Loading your crop records…
+                    </div>
+                  ) : crops.length === 0 ? (
+                    <div className="py-12 text-center bg-slate-50/60 rounded-xl border border-dashed border-slate-200 space-y-3 p-6">
+                      <span className="text-4xl block">🌾</span>
+                      <h4 className="text-sm font-bold text-slate-800">No Crops Registered Yet</h4>
+                      <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                        Add your first crop to create a secure digital record and start receiving offers from verified FPOs.
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => setIsAddCropOpen(true)}
+                        className="gap-1.5"
+                      >
+                        <Sprout className="h-4 w-4" />
+                        <span>Register First Crop</span>
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+                      {crops.slice(0, 6).map((crop) => {
+                        const matchingQuote = history.find(
+                          (q) => q.crop_passport === crop.id || q.crop_passport_details?.id === crop.id
+                        );
+                        const bidsCount = matchingQuote?.bids?.length || 0;
 
-                      return (
-                        <CropPassportCard
-                          key={crop.id}
-                          crop={crop}
-                          hasActiveOffers={bidsCount > 0}
-                          activeOffersCount={bidsCount}
-                          onViewOffers={handleViewOffersForCrop}
-                          onMintSuccess={() => {
-                            fetchCrops();
-                            fetchHistory();
-                            fetchDid();
-                          }}
-                          onDeleteSuccess={() => {
-                            fetchCrops();
-                            fetchHistory();
-                            fetchDid();
-                          }}
-                          onPassportUpdated={() => {
-                            fetchCrops();
-                            fetchDid();
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                        return (
+                          <CropPassportCard
+                            key={crop.id}
+                            crop={crop}
+                            hasActiveOffers={bidsCount > 0}
+                            activeOffersCount={bidsCount}
+                            onViewOffers={handleViewOffersForCrop}
+                            onMintSuccess={() => {
+                              fetchCrops();
+                              fetchHistory();
+                              fetchDid();
+                            }}
+                            onDeleteSuccess={() => {
+                              fetchCrops();
+                              fetchHistory();
+                              fetchDid();
+                            }}
+                            onPassportUpdated={() => {
+                              fetchCrops();
+                              fetchDid();
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
               {/* Active Deals / Incoming Offers Section */}
               {history.some((q) => q.bids?.length > 0) && (
-                <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-6 shadow-2xs space-y-3.5">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                    <h3 className="text-xs font-semibold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                      <span>🤝</span>
-                      <span>Active Deals & Incoming Offers</span>
-                    </h3>
-                    <button
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 border-b border-slate-100">
+                    <div>
+                      <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                        <Handshake className="h-4 w-4 text-emerald-600" />
+                        <span>Active Deals & Incoming Offers</span>
+                      </CardTitle>
+                      <CardDescription>
+                        Procurement proposals from verified FPOs awaiting your review
+                      </CardDescription>
+                    </div>
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => {
                         setDealViewMode("history");
                         setActiveNav("deals");
                       }}
-                      className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 cursor-pointer"
+                      className="h-8 text-xs text-emerald-700 hover:text-emerald-800 gap-1"
                     >
-                      View All Deals →
-                    </button>
-                  </div>
+                      <span>View All Deals</span>
+                      <ArrowRight className="h-3 w-3" />
+                    </Button>
+                  </CardHeader>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {history
-                      .filter((q) => q.bids?.length > 0)
-                      .slice(0, 4)
-                      .map((q) => (
-                        <div
-                          key={q.id}
-                          className="flex items-center justify-between p-3.5 bg-slate-50/80 rounded-2xl border border-slate-100 text-xs gap-3"
-                        >
-                          <div className="min-w-0">
-                            <span className="font-semibold text-slate-900 truncate block">
-                              {q.product_name}
-                            </span>
-                            <span className="text-[11px] text-slate-500 font-mono block">
-                              {q.quantity} {q.unit}
-                            </span>
-                            <span className="text-[11px] text-emerald-700 font-medium block mt-0.5">
-                              {q.bids.length} FPO Bid(s) waiting
-                            </span>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedQuote(q);
-                              setDealViewMode("bids");
-                              setActiveNav("deals");
-                            }}
-                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl transition-all cursor-pointer shrink-0 shadow-2xs"
+                  <CardContent className="pt-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {history
+                        .filter((q) => q.bids?.length > 0)
+                        .slice(0, 4)
+                        .map((q) => (
+                          <div
+                            key={q.id}
+                            className="flex items-center justify-between p-3.5 bg-slate-50/80 rounded-xl border border-slate-100 text-xs gap-3"
                           >
-                            Review Bids
-                          </button>
-                        </div>
-                      ))}
-                  </div>
-                </div>
+                            <div className="min-w-0">
+                              <span className="font-semibold text-slate-900 truncate block">
+                                {q.product_name}
+                              </span>
+                              <span className="text-[11px] text-slate-500 font-mono block">
+                                {q.quantity} {q.unit}
+                              </span>
+                              <span className="text-[11px] text-emerald-700 font-medium block mt-0.5">
+                                {q.bids.length} FPO Bid(s) waiting
+                              </span>
+                            </div>
+
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedQuote(q);
+                                setDealViewMode("bids");
+                                setActiveNav("deals");
+                              }}
+                              className="h-7 px-3 text-xs"
+                            >
+                              Review Bids
+                            </Button>
+                          </div>
+                        ))}
+                    </div>
+                  </CardContent>
+                </Card>
               )}
             </div>
           )}
@@ -606,271 +665,296 @@ export default function FarmerDashboard() {
           {/* VIEW 2: MY CROPS                                              */}
           {/* ══════════════════════════════════════════════════════════════ */}
           {activeNav === "crops" && (
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-5 animate-fade-in">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
+            <Card className="animate-fade-in">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-slate-100 flex-wrap gap-2">
                 <div>
-                  <h2 className="text-base sm:text-lg font-bold text-slate-900">
-                    🌱 My Crops
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Manage your crop records and availability.
-                  </p>
+                  <CardTitle className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <Sprout className="h-5 w-5 text-emerald-600" />
+                    <span>My Crops</span>
+                  </CardTitle>
+                  <CardDescription>
+                    Manage your registered crop lots and availability status.
+                  </CardDescription>
                 </div>
 
-                {cropViewMode === "list" ? (
-                  <button
-                    type="button"
-                    onClick={() => setCropViewMode("new")}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <span>🌱</span>
-                    <span>+ Add New Crop</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setCropViewMode("list")}
-                    className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-all cursor-pointer"
-                  >
-                    ← Back to My Crops
-                  </button>
-                )}
-              </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setIsAddCropOpen(true)}
+                  className="gap-1.5"
+                >
+                  <Sprout className="h-4 w-4" />
+                  <span>+ Add New Crop</span>
+                </Button>
+              </CardHeader>
 
-              {cropViewMode === "new" ? (
-                <CropPassportForm
-                  onSuccess={() => {
-                    fetchCrops();
-                    fetchDid();
-                    setCropViewMode("list");
-                  }}
-                  onCancel={() => setCropViewMode("list")}
-                />
-              ) : (
-                <div className="space-y-4">
-                  {/* Category Filter Pills */}
-                  {crops.length > 0 && availableCategories.length > 2 && (
-                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-                      {availableCategories.map((cat) => (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => setSelectedCropCategory(cat)}
-                          className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
-                            selectedCropCategory === cat
-                              ? "bg-emerald-600 text-white shadow-2xs"
-                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                          }`}
-                        >
-                          {cat}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {cropsLoading ? (
-                    <div className="py-12 text-center text-xs text-slate-400 animate-pulse">
-                      Loading crop records…
-                    </div>
-                  ) : filteredCrops.length === 0 ? (
-                    <div className="py-12 text-center bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3 p-6">
-                      <span className="text-4xl block">🌾</span>
-                      <h4 className="text-sm font-bold text-slate-800">No Crops Found</h4>
-                      <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                        {selectedCropCategory !== "All"
-                          ? `No crops found in category "${selectedCropCategory}".`
-                          : "Create your first crop record to assess quality with AI and attract FPO buyers."}
-                      </p>
+              <CardContent className="pt-4 space-y-4">
+                {/* Category Filter Pills */}
+                {crops.length > 0 && availableCategories.length > 2 && (
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                    {availableCategories.map((cat) => (
                       <button
+                        key={cat}
                         type="button"
-                        onClick={() => {
-                          setSelectedCropCategory("All");
-                          setCropViewMode("new");
-                        }}
-                        className="mt-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-xs"
+                        onClick={() => setSelectedCropCategory(cat)}
+                        className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                          selectedCropCategory === cat
+                            ? "bg-emerald-600 text-white shadow-2xs"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
                       >
-                        🌱 Add New Crop
+                        {cat}
                       </button>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
-                      {filteredCrops.map((crop) => (
-                        <CropPassportCard
-                          key={crop.id}
-                          crop={crop}
-                          onViewOffers={handleViewOffersForCrop}
-                          onMintSuccess={() => {
-                            fetchCrops();
-                            fetchHistory();
-                            fetchDid();
-                          }}
-                          onDeleteSuccess={() => {
-                            fetchCrops();
-                            fetchHistory();
-                            fetchDid();
-                          }}
-                          onPassportUpdated={() => {
-                            fetchCrops();
-                            fetchDid();
-                          }}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+
+                {cropsLoading ? (
+                  <div className="py-12 text-center text-xs text-slate-400 animate-pulse">
+                    Loading crop records…
+                  </div>
+                ) : filteredCrops.length === 0 ? (
+                  <div className="py-12 text-center bg-slate-50/60 rounded-xl border border-dashed border-slate-200 space-y-3 p-6">
+                    <span className="text-4xl block">🌾</span>
+                    <h4 className="text-sm font-bold text-slate-800">No Crops Found</h4>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                      {selectedCropCategory !== "All"
+                        ? `No crops found in category "${selectedCropCategory}".`
+                        : "Create your first crop record to assess quality with AI and attract FPO buyers."}
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedCropCategory("All");
+                        setIsAddCropOpen(true);
+                      }}
+                      className="gap-1.5 mt-2"
+                    >
+                      <Sprout className="h-4 w-4" />
+                      <span>Add New Crop</span>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+                    {filteredCrops.map((crop) => (
+                      <CropPassportCard
+                        key={crop.id}
+                        crop={crop}
+                        onViewOffers={handleViewOffersForCrop}
+                        onMintSuccess={() => {
+                          fetchCrops();
+                          fetchHistory();
+                          fetchDid();
+                        }}
+                        onDeleteSuccess={() => {
+                          fetchCrops();
+                          fetchHistory();
+                          fetchDid();
+                        }}
+                        onPassportUpdated={() => {
+                          fetchCrops();
+                          fetchDid();
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
 
           {/* ══════════════════════════════════════════════════════════════ */}
           {/* VIEW 3: DEALS (Quotes, Bids & Negotiations)                   */}
           {/* ══════════════════════════════════════════════════════════════ */}
           {activeNav === "deals" && (
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-4 animate-fade-in">
+            <Card className="animate-fade-in">
               {dealViewMode === "history" && (
                 <>
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-slate-100 flex-wrap gap-2">
                     <div>
-                      <h2 className="text-base sm:text-lg font-bold text-slate-900">
-                        🤝 Deals & Supply Quotes
-                      </h2>
-                      <p className="text-xs text-slate-500 mt-0.5">
+                      <CardTitle className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <Handshake className="h-5 w-5 text-emerald-600" />
+                        <span>Deals & Supply Quotes</span>
+                      </CardTitle>
+                      <CardDescription>
                         Publish harvest quotes and review procurement offers from FPOs.
-                      </p>
+                      </CardDescription>
                     </div>
-                    <button
+                    <Button
                       type="button"
-                      onClick={() => setDealViewMode("new")}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <span>➕</span>
-                      <span>Publish Quote</span>
-                    </button>
-                  </div>
-
-                  {quotesLoading ? (
-                    <div className="py-12 text-center text-xs text-slate-400 animate-pulse">
-                      Loading supply quotes…
-                    </div>
-                  ) : (
-                    <QuoteHistory
-                      history={history}
-                      onViewBids={(quote) => {
-                        setSelectedQuote(quote);
-                        setDealViewMode("bids");
+                      size="sm"
+                      onClick={() => {
+                        setOfferTargetCropId(null);
+                        setIsCreateOfferOpen(true);
                       }}
-                    />
-                  )}
+                      className="gap-1.5"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>Publish Quote</span>
+                    </Button>
+                  </CardHeader>
+
+                  <CardContent className="pt-4">
+                    {quotesLoading ? (
+                      <div className="py-12 text-center text-xs text-slate-400 animate-pulse">
+                        Loading supply quotes…
+                      </div>
+                    ) : (
+                      <QuoteHistory
+                        history={history}
+                        onViewBids={(quote) => {
+                          setSelectedQuote(quote);
+                          setDealViewMode("bids");
+                        }}
+                      />
+                    )}
+                  </CardContent>
                 </>
               )}
 
-              {dealViewMode === "new" && (
-                <div>
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                    <div>
-                      <h2 className="text-base sm:text-lg font-bold text-slate-900">
-                        ➕ Publish Supply Quote
-                      </h2>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Publish harvest specifications for verified FPO bidding.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setDealViewMode("history")}
-                      className="text-xs font-semibold text-slate-500 hover:text-slate-800"
-                    >
-                      ← Back to Quotes
-                    </button>
-                  </div>
-
-                  <QuoteForm
-                    onNavigateToPassports={() => {
-                      setCropViewMode("list");
-                      setActiveNav("crops");
-                    }}
-                    onSuccess={() => {
+              {dealViewMode === "bids" && selectedQuote && (
+                <CardContent className="pt-5">
+                  <QuoteBids
+                    quote={selectedQuote}
+                    onBack={() => setDealViewMode("history")}
+                    refreshHistory={fetchHistory}
+                    onQuoteUpdated={(acceptedBidId) => {
+                      if (acceptedBidId) {
+                        setSelectedQuote((prev) => {
+                          if (!prev) return prev;
+                          return {
+                            ...prev,
+                            status: "accepted",
+                            accepted_bid: acceptedBidId,
+                            bids: (prev.bids || []).map((b) =>
+                              b.id === acceptedBidId ? { ...b, status: "accepted" } : b
+                            ),
+                          };
+                        });
+                      }
                       fetchHistory();
-                      fetchCrops();
                       fetchEscrowSummary();
-                      setDealViewMode("history");
                     }}
                   />
-                </div>
+                </CardContent>
               )}
-
-              {dealViewMode === "bids" && selectedQuote && (
-                <QuoteBids
-                  quote={selectedQuote}
-                  onBack={() => setDealViewMode("history")}
-                  refreshHistory={fetchHistory}
-                  onQuoteUpdated={(acceptedBidId) => {
-                    if (acceptedBidId) {
-                      setSelectedQuote((prev) => {
-                        if (!prev) return prev;
-                        return {
-                          ...prev,
-                          status: "accepted",
-                          accepted_bid: acceptedBidId,
-                          bids: (prev.bids || []).map((b) =>
-                            b.id === acceptedBidId ? { ...b, status: "accepted" } : b
-                          ),
-                        };
-                      });
-                    }
-                    fetchHistory();
-                    fetchEscrowSummary();
-                  }}
-                />
-              )}
-            </div>
+            </Card>
           )}
 
           {/* ══════════════════════════════════════════════════════════════ */}
           {/* VIEW 4: TRANSACTIONS (Escrow Payments)                        */}
           {/* ══════════════════════════════════════════════════════════════ */}
           {activeNav === "transactions" && (
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-4 animate-fade-in">
-              <div className="pb-3 border-b border-slate-100">
-                <h2 className="text-base sm:text-lg font-bold text-slate-900">
-                  💰 Transactions & Payments
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Payment records and deliveries secured with FPO buyers.
-                </p>
-              </div>
+            <Card className="animate-fade-in">
+              <CardHeader className="pb-4 border-b border-slate-100">
+                <CardTitle className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                  <span>Transactions & Payments</span>
+                </CardTitle>
+                <CardDescription>
+                  Payment records and deliveries secured with FPO buyers via smart escrow contracts.
+                </CardDescription>
+              </CardHeader>
 
-              <EscrowPanel
-                onEscrowUpdated={() => {
-                  fetchEscrowSummary();
-                  fetchHistory();
-                }}
-              />
-            </div>
+              <CardContent className="pt-4">
+                <EscrowPanel
+                  onEscrowUpdated={() => {
+                    fetchEscrowSummary();
+                    fetchHistory();
+                  }}
+                />
+              </CardContent>
+            </Card>
           )}
 
           {/* ══════════════════════════════════════════════════════════════ */}
           {/* VIEW 5: IDENTITY & VERIFICATION                               */}
           {/* ══════════════════════════════════════════════════════════════ */}
           {activeNav === "identity" && (
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-5 animate-fade-in">
-              <div className="pb-3 border-b border-slate-100">
-                <h2 className="text-base sm:text-lg font-bold text-slate-900">
-                  🪪 Identity & Reputation Profile
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
+            <Card className="animate-fade-in">
+              <CardHeader className="pb-4 border-b border-slate-100">
+                <CardTitle className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-emerald-600" />
+                  <span>Identity & Reputation Profile</span>
+                </CardTitle>
+                <CardDescription>
                   W3C Decentralized Identifier (DID) and multi-signal Web3 trust profile.
-                </p>
-              </div>
+                </CardDescription>
+              </CardHeader>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                <DidIdentityCard didInfo={didInfo} accentColor="emerald" />
-                <TrustReputationCard accentColor="green" />
-              </div>
-            </div>
+              <CardContent className="pt-5">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  <DidIdentityCard didInfo={didInfo} accentColor="emerald" />
+                  <TrustReputationCard accentColor="green" />
+                </div>
+              </CardContent>
+            </Card>
           )}
         </main>
       </div>
+
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* GLOBAL SHADCN DIALOGS                                          */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+
+      {/* ── 1. "Add Crop" Dialog ───────────────────────────────────── */}
+      <Dialog open={isAddCropOpen} onOpenChange={setIsAddCropOpen}>
+        <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <Sprout className="h-5 w-5 text-emerald-600" />
+              <DialogTitle>Register Crop Lot</DialogTitle>
+            </div>
+            <DialogDescription>
+              Record harvest lot specifications and initiate automated AI quality assessment.
+            </DialogDescription>
+          </DialogHeader>
+
+          <CropPassportForm
+            onSuccess={() => {
+              fetchCrops();
+              fetchDid();
+              setIsAddCropOpen(false);
+            }}
+            onCancel={() => setIsAddCropOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 2. "Create Offer" Dialog ───────────────────────────────── */}
+      <Dialog open={isCreateOfferOpen} onOpenChange={setIsCreateOfferOpen}>
+        <DialogContent className="max-w-xl max-h-[88vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <Plus className="h-5 w-5 text-emerald-600" />
+              <DialogTitle>Create Marketplace Offer</DialogTitle>
+            </div>
+            <DialogDescription>
+              Publish verified harvest lot for competitive FPO bidding in INR (₹).
+            </DialogDescription>
+          </DialogHeader>
+
+          <QuoteForm
+            defaultPassportId={offerTargetCropId}
+            onNavigateToPassports={() => {
+              setIsCreateOfferOpen(false);
+              setIsAddCropOpen(true);
+            }}
+            onSuccess={() => {
+              fetchHistory();
+              fetchCrops();
+              fetchEscrowSummary();
+              setIsCreateOfferOpen(false);
+              setOfferTargetCropId(null);
+            }}
+            onCancel={() => {
+              setIsCreateOfferOpen(false);
+              setOfferTargetCropId(null);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
